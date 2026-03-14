@@ -1,5 +1,6 @@
 # ── Segurança — NUNCA versionar ───────────────────────────────────────────────
 secrets.global
+config.global
 bots/*/secrets.env
 bots/*/.env
 bots/*/bot_data.db

@@ -1,5 +1,6 @@
 # Configurações globais compartilhadas por todos os bots.
-# Preencha uma vez — bot.py carrega este arquivo em runtime como defaults.
+# Copie para config.global e preencha os valores:
+#   cp config.global.example config.global
 
 # ── Anthropic ─────────────────────────────────────────────────────────────────
 # Chave da API Anthropic — opcional se usar assinatura do Claude Code.
@@ -21,7 +22,7 @@ PROVIDER=claude-cli
 # ── Telegram ──────────────────────────────────────────────────────────────────
 # Seu ID do Telegram (admin de todos os bots)
 # Para descobrir: inicie qualquer bot e envie /id
-ADMIN_ID=808636112
+ADMIN_ID=SEU_ID_TELEGRAM_AQUI
 
 # ── Modelo ────────────────────────────────────────────────────────────────────
 # Modelo padrão para todos os bots.
@@ -32,3 +33,12 @@ MODEL=claude-opus-4-6
 # ── Acesso ────────────────────────────────────────────────────────────────────
 # Modo de acesso padrão: open | approval | closed
 ACCESS_MODE=approval
+
+# ── Bug Fixer Agent ───────────────────────────────────────────────────────────
+# Agente de sistema que detecta e corrige erros nos bots automaticamente.
+# Ativado via painel admin → Config Global → Sistema.
+BUGFIXER_ENABLED=true
+BUGFIXER_TIMES_PER_DAY=1
+# Token do bot Telegram usado para enviar notificações ao admin.
+# Copie o TELEGRAM_TOKEN de qualquer bot em bots/<nome>/.env
+BUGFIXER_TELEGRAM_TOKEN=
