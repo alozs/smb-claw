@@ -26,7 +26,7 @@ def execute(inp: dict, *, config: dict) -> str:
     bot_name = config["BOT_NAME"]
     url = inp["url"]
     method = inp.get("method", "GET").upper()
-    headers = inp.get("headers", {})
+    headers = _resolve_secret_headers(inp.get("headers", {}), config)
     body = inp.get("body", "")
     timeout = min(int(inp.get("timeout", 60)), 300)
     max_bytes = min(int(inp.get("max_response_bytes", 32768)), 131072)
@@ -52,3 +52,14 @@ def execute(inp: dict, *, config: dict) -> str:
         return f"HTTP {e.code}: {e.reason}"
     except Exception as e:
         return f"Erro: {e}"
+
+
+def _resolve_secret_headers(headers: dict, config: dict) -> dict:
+    """Substitui placeholders de segredos do config sem expor o valor em texto."""
+    resolved = {}
+    for key, value in headers.items():
+        if isinstance(value, str):
+            value = value.replace("${OPENROUTER_API_KEY}", config.get("OPENROUTER_API_KEY", ""))
+            value = value.replace("$OPENROUTER_API_KEY", config.get("OPENROUTER_API_KEY", ""))
+        resolved[key] = value
+    return resolved

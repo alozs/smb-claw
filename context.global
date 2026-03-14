@@ -109,16 +109,14 @@ ou quando a informação for melhor consumida como arquivo do que como texto lon
 
 ## OpenRouter — acesso a modelos e busca em tempo real
 
-A variável `OPENROUTER_API_KEY` está disponível no ambiente. Para usá-la em chamadas HTTP:
+A variável `OPENROUTER_API_KEY` está disponível no ambiente. Para usá-la em chamadas HTTP,
+*nunca* peça para exibir a chave com `run_shell`, `echo`, `env` ou resposta em texto.
+Passe o placeholder diretamente no header e a ferramenta HTTP fará a substituição em memória:
 
 ```
-# Passo 1 — obter a chave (use run_shell)
-echo $OPENROUTER_API_KEY
-
-# Passo 2 — chamar via http_request
 POST https://openrouter.ai/api/v1/chat/completions
 Headers:
-  Authorization: Bearer <chave obtida acima>
+  Authorization: Bearer $OPENROUTER_API_KEY
   Content-Type: application/json
 ```
 

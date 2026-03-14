@@ -284,6 +284,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 - Pastas dos bots → `chmod 700`
 - `bot_data.db` → `chmod 600`
 - Shell tool tem denylist: bloqueia leitura de `config.global`, `.env`, `secrets.env`, `~/.claude/.credentials.json`, `printenv`, variáveis de credencial
+- `context.global` e instruções de tools não devem mandar exibir segredos; para HTTP use placeholders como `$OPENROUTER_API_KEY` para substituição em memória
 - File tool é sandboxado em `WORK_DIR` (path traversal bloqueado)
 - HTTP tool bloqueia IPs internos (169.254.x, localhost, metadata endpoints)
 - Git tool injeta token no URL em memória, nunca exibe nos logs

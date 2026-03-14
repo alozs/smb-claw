@@ -1,6 +1,7 @@
 """Testes de segurança: shell denylist, path traversal, SQL safety."""
 import re
 import pytest
+from tools.http import _resolve_secret_headers
 
 
 # ── Shell safety ─────────────────────────────────────────────────────────────
@@ -76,6 +77,23 @@ class TestShellSafety:
         assert check_shell_safety("python3 --version") is None
         assert check_shell_safety("git status") is None
         assert check_shell_safety("df -h") is None
+
+
+class TestHttpSecretHeaders:
+    def test_resolves_openrouter_key_placeholder(self):
+        headers = _resolve_secret_headers(
+            {"Authorization": "Bearer $OPENROUTER_API_KEY", "Content-Type": "application/json"},
+            {"OPENROUTER_API_KEY": "secret-token"},
+        )
+        assert headers["Authorization"] == "Bearer secret-token"
+        assert headers["Content-Type"] == "application/json"
+
+    def test_resolves_braced_openrouter_key_placeholder(self):
+        headers = _resolve_secret_headers(
+            {"Authorization": "Bearer ${OPENROUTER_API_KEY}"},
+            {"OPENROUTER_API_KEY": "secret-token"},
+        )
+        assert headers["Authorization"] == "Bearer secret-token"
 
 
 # ── Path traversal ───────────────────────────────────────────────────────────
