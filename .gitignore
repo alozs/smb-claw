@@ -1,0 +1,41 @@
+# ── Segurança — NUNCA versionar ───────────────────────────────────────────────
+secrets.global
+bots/*/secrets.env
+bots/*/.env
+bots/*/bot_data.db
+bots/*/bot_data.db-shm
+bots/*/bot_data.db-wal
+admin/.env.admin
+
+# ── Dados dos bots ────────────────────────────────────────────────────────────
+bots/*/memory/
+bots/*/workspace/
+bots/*/soul.md
+bots/*/USER.md
+bots/*/MEMORY.md
+bots/*/welcome.md
+
+# ── Python / venv ─────────────────────────────────────────────────────────────
+admin/venv/
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# ── Logs e runtime ────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Editor / OS ───────────────────────────────────────────────────────────────
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Env local ─────────────────────────────────────────────────────────────────
+.env
+.env.local

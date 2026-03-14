@@ -1,0 +1,1702 @@
+<!DOCTYPE html>
+<html lang="pt-BR" x-data="adminApp()" x-init="init()">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMB Claw</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+          colors: {
+            sidebar: { DEFAULT: '#0F172A', hover: '#1E293B', active: '#2563EB', border: 'rgba(255,255,255,0.06)' },
+            brand:   { DEFAULT: '#2563EB', hover: '#1D4ED8', light: '#EFF6FF', ring: '#BFDBFE' },
+            success: { DEFAULT: '#22C55E', light: '#F0FDF4', ring: '#86EFAC' },
+            danger:  { DEFAULT: '#EF4444', light: '#FEF2F2', ring: '#FECACA' },
+            warn:    { DEFAULT: '#F59E0B', light: '#FFFBEB', ring: '#FDE68A' },
+            surface: { DEFAULT: '#F1F5F9', card: '#FFFFFF', border: '#E2E8F0', muted: '#94A3B8' },
+          },
+          boxShadow: {
+            'card': '0 1px 3px 0 rgba(0,0,0,0.08), 0 1px 2px -1px rgba(0,0,0,0.05)',
+            'card-hover': '0 4px 12px 0 rgba(0,0,0,0.10), 0 2px 4px -1px rgba(0,0,0,0.06)',
+            'modal': '0 20px 60px -10px rgba(0,0,0,0.35)',
+            'toast': '0 8px 24px rgba(0,0,0,0.18)',
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: #F1F5F9; }
+    #log-container { font-family: 'Courier New', monospace; font-size: 0.775rem; }
+    textarea.code-editor { font-family: 'Courier New', monospace; font-size: 0.82rem; }
+    .markdown-preview h1 { font-size: 1.5rem; font-weight: 700; margin: 1rem 0 0.5rem; }
+    .markdown-preview h2 { font-size: 1.25rem; font-weight: 600; margin: 0.75rem 0 0.4rem; }
+    .markdown-preview h3 { font-size: 1rem; font-weight: 600; margin: 0.5rem 0 0.3rem; }
+    .markdown-preview ul { list-style: disc; padding-left: 1.5rem; }
+    .markdown-preview ol { list-style: decimal; padding-left: 1.5rem; }
+    .markdown-preview code { background: #f1f5f9; padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-size: 0.85em; }
+    .markdown-preview pre { background: #0f172a; color: #f8fafc; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+    .markdown-preview blockquote { border-left: 3px solid #e2e8f0; padding-left: 1rem; color: #64748b; }
+    input[type=number]::-webkit-inner-spin-button { opacity: 0.5; }
+    .tab-btn { transition: color 150ms, border-color 150ms; }
+    .sidebar-item { transition: background 150ms, color 150ms; }
+    .btn-primary { transition: background 150ms, box-shadow 150ms, transform 100ms; }
+    .btn-primary:hover { transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+    .card { transition: box-shadow 150ms, transform 150ms; }
+    .card:hover { box-shadow: 0 4px 12px 0 rgba(0,0,0,0.10), 0 2px 4px -1px rgba(0,0,0,0.06); }
+    @keyframes fadeSlideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes scaleIn { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
+    @keyframes slideRight { from { opacity:0; transform:translateX(-16px); } to { opacity:1; transform:translateX(0); } }
+    @keyframes shimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+    @keyframes slideInRight { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+    @keyframes fadeOut { from { opacity:1; } to { opacity:0; } }
+    .animate-fadeSlideUp { animation: fadeSlideUp 0.35s ease-out both; }
+    .animate-scaleIn { animation: scaleIn 0.25s ease-out both; }
+    .animate-slideRight { animation: slideRight 0.3s ease-out both; }
+    .animate-slideInRight { animation: slideInRight 0.35s ease-out both; }
+    .pulse-dot { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    .stagger-1 { animation-delay: 60ms; } .stagger-2 { animation-delay: 120ms; }
+    .stagger-3 { animation-delay: 180ms; } .stagger-4 { animation-delay: 240ms; }
+    .stagger-5 { animation-delay: 300ms; } .stagger-6 { animation-delay: 360ms; }
+  </style>
+</head>
+<body x-cloak>
+
+<!-- ── Toast Notifications ───────────────────────────────────────────────── -->
+<div class="fixed bottom-5 right-5 z-50 flex flex-col gap-2" style="pointer-events:none">
+  <template x-for="t in toasts" :key="t.id">
+    <div :class="t.type==='success' ? 'bg-slate-900 border-l-4 border-success' : 'bg-slate-900 border-l-4 border-danger'"
+         class="text-white text-sm px-4 py-3 rounded-xl flex items-center gap-3 min-w-[260px] animate-slideInRight"
+         style="pointer-events:auto; box-shadow:0 8px 24px rgba(0,0,0,0.22)">
+      <div :class="t.type==='success' ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'"
+           class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0">
+        <svg x-show="t.type==='success'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+        </svg>
+        <svg x-show="t.type==='error'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </div>
+      <span class="text-slate-100 font-medium" x-text="t.msg"></span>
+    </div>
+  </template>
+</div>
+
+<!-- ── New Bot Modal ──────────────────────────────────────────────────────── -->
+<div x-show="showNewBotModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,0.55); backdrop-filter:blur(4px)" @keydown.escape.window="showNewBotModal=false">
+  <div x-show="showNewBotModal" x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="bg-white rounded-2xl w-full max-w-md overflow-hidden" style="box-shadow:0 20px 60px -10px rgba(0,0,0,0.35)" @click.outside="showNewBotModal=false">
+    <div class="px-6 pt-6 pb-4 border-b border-surface-border">
+      <h2 class="text-lg font-700 text-slate-900">Novo Agente de IA</h2>
+      <p class="text-sm text-slate-500 mt-0.5">Configure seu novo agente</p>
+    </div>
+    <div class="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
+      <div>
+        <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Nome <span class="text-danger normal-case tracking-normal">*</span></label>
+        <input x-model="newBot.name" type="text" placeholder="meu-bot"
+          class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
+      </div>
+      <div>
+        <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Telegram Token</label>
+        <input x-model="newBot.telegram_token" type="text" placeholder="Cole o token do @BotFather"
+          class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Provedor</label>
+          <select x-model="newBot.provider" @change="newBot.model = modelsByProvider[newBot.provider][0]"
+            class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
+            <option value="claude-cli">Claude Code (OAuth)</option>
+            <option value="anthropic">Anthropic (API Key)</option>
+            <option value="openrouter">OpenRouter (Multi-modelo)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Modelo</label>
+          <select x-model="newBot.model"
+            class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
+            <template x-for="m in modelsByProvider[newBot.provider]" :key="m">
+              <option :value="m" x-text="m"></option>
+            </template>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-600 text-slate-600 mb-2 uppercase tracking-wide">Ferramentas</label>
+        <div class="grid grid-cols-2 gap-2">
+          <template x-for="tool in toolOptions" :key="tool.key">
+            <label class="flex items-start gap-2.5 cursor-pointer p-2.5 rounded-lg border transition-colors"
+              :class="newBot.tools.includes(tool.key) ? 'bg-brand/5 border-brand/25' : 'border-surface-border hover:bg-slate-50'">
+              <input type="checkbox" :value="tool.key" x-model="newBot.tools" class="rounded text-brand w-4 h-4 cursor-pointer mt-0.5" />
+              <div>
+                <span class="text-slate-700 font-600 text-sm" x-text="tool.label"></span>
+                <span class="text-slate-400 font-400 text-[10px] block mt-0.5" x-text="tool.desc"></span>
+              </div>
+            </label>
+          </template>
+        </div>
+      </div>
+    </div>
+    <div class="px-6 pb-6 pt-4 border-t border-surface-border flex gap-3">
+      <button @click="showNewBotModal=false" class="flex-1 py-2.5 rounded-xl border border-surface-border text-sm font-600 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">Cancelar</button>
+      <button @click="createBot()" :disabled="creatingBot"
+        class="btn-primary flex-1 py-2.5 rounded-xl bg-brand text-white text-sm font-600 hover:bg-brand-hover disabled:opacity-50 cursor-pointer">
+        <span x-show="!creatingBot">Criar Agente</span>
+        <span x-show="creatingBot" class="flex items-center justify-center gap-2">
+          <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+          Criando...
+        </span>
+      </button>
+    </div>
+    <p x-show="newBotError" x-text="newBotError" class="px-6 pb-4 text-sm text-danger font-500"></p>
+  </div>
+</div>
+
+<!-- ── Delete Bot Modal ───────────────────────────────────────────────────── -->
+<div x-show="showDeleteModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,0.55); backdrop-filter:blur(4px)" @keydown.escape.window="showDeleteModal=false">
+  <div x-show="showDeleteModal" x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="bg-white rounded-2xl w-full max-w-sm overflow-hidden" style="box-shadow:0 20px 60px -10px rgba(0,0,0,0.35)" @click.outside="showDeleteModal=false">
+    <div class="px-6 pt-6 pb-4">
+      <div class="w-10 h-10 bg-danger/10 rounded-xl flex items-center justify-center mb-4">
+        <svg class="w-5 h-5 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+      </div>
+      <h2 class="text-lg font-700 text-slate-900 mb-1">Deletar Agente</h2>
+      <p class="text-sm text-slate-500 mb-4">Esta ação é <strong class="text-slate-700">irreversível</strong>. O serviço será parado e todos os dados removidos permanentemente.</p>
+      <p class="text-sm text-slate-600 mb-2">Digite <code class="bg-slate-100 px-1.5 py-0.5 rounded-lg font-mono text-slate-800 font-600" x-text="currentBot"></code> para confirmar:</p>
+      <input x-model="deleteConfirmName" type="text" :placeholder="currentBot"
+        class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-danger/30 focus:border-danger transition-shadow" />
+    </div>
+    <div class="px-6 pb-6 flex gap-3">
+      <button @click="showDeleteModal=false; deleteConfirmName=''" class="flex-1 py-2.5 rounded-xl border border-surface-border text-sm font-600 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">Cancelar</button>
+      <button @click="confirmDeleteBot()" :disabled="deleteConfirmName !== currentBot || deletingBot"
+        class="flex-1 py-2.5 rounded-xl bg-danger text-white text-sm font-600 hover:bg-red-600 disabled:opacity-40 transition-colors cursor-pointer">
+        <span x-show="!deletingBot">Deletar</span>
+        <span x-show="deletingBot">Deletando...</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Confirm Modal ────────────────────────────────────────────────────── -->
+<div x-show="confirmModal.show" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-[60] flex items-center justify-center p-4" style="background:rgba(0,0,0,0.55); backdrop-filter:blur(4px)" @keydown.escape.window="if(confirmModal.show){confirmModal.show=false; if(confirmModal.resolver) confirmModal.resolver(false)}">
+  <div x-show="confirmModal.show" x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="bg-white rounded-2xl w-full max-w-sm overflow-hidden" style="box-shadow:0 20px 60px -10px rgba(0,0,0,0.35)">
+    <div class="px-6 pt-6 pb-4">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+        :class="confirmModal.type==='danger' ? 'bg-danger/10' : confirmModal.type==='info' ? 'bg-brand/10' : 'bg-warn/10'">
+        <svg x-show="confirmModal.type==='danger'" class="w-5 h-5 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+        </svg>
+        <svg x-show="confirmModal.type==='warn'" class="w-5 h-5 text-warn" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+        </svg>
+        <svg x-show="confirmModal.type==='info'" class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <h2 class="text-lg font-700 text-slate-900 mb-1" x-text="confirmModal.title"></h2>
+      <p class="text-sm text-slate-500" x-text="confirmModal.message"></p>
+    </div>
+    <div class="px-6 pb-6 flex gap-3">
+      <button @click="confirmModal.show=false; if(confirmModal.resolver) confirmModal.resolver(false)" class="flex-1 py-2.5 rounded-xl border border-surface-border text-sm font-600 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">Cancelar</button>
+      <button @click="confirmModal.show=false; if(confirmModal.resolver) confirmModal.resolver(true)"
+        :class="confirmModal.type==='danger' ? 'bg-danger hover:bg-red-600' : confirmModal.type==='warn' ? 'bg-warn hover:bg-amber-600' : 'bg-brand hover:bg-brand-hover'"
+        class="flex-1 py-2.5 rounded-xl text-white text-sm font-600 transition-colors cursor-pointer" x-text="confirmModal.confirmText"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Layout ─────────────────────────────────────────────────────────────── -->
+<div class="flex h-screen overflow-hidden">
+
+  <!-- Sidebar -->
+  <aside class="w-60 flex flex-col flex-shrink-0 overflow-y-auto" style="background:linear-gradient(180deg, #0F172A 0%, #131C31 50%, #0F172A 100%)"
+    <!-- Logo -->
+    <div class="px-5 py-5 flex items-center gap-3" style="border-bottom:1px solid rgba(255,255,255,0.06)">
+      <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+        </svg>
+      </div>
+      <div>
+        <p class="text-white text-sm font-700 leading-tight">SMB Claw</p>
+        <p class="text-slate-500 text-xs font-500">Admin Panel</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 px-3 py-4">
+      <!-- Dashboard -->
+      <button @click="selectBot(null)"
+        :class="!currentBot && !showingGlobalConfig ? 'bg-brand text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'"
+        class="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-600 text-left cursor-pointer mb-1">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+        </svg>
+        Dashboard
+      </button>
+
+      <!-- Agentes section -->
+      <div class="mt-4 mb-2 px-3 flex items-center justify-between">
+        <p class="text-xs font-700 uppercase tracking-widest" style="color:rgba(148,163,184,0.5)">Agentes</p>
+        <span class="text-[10px] font-700 px-1.5 py-0.5 rounded-full" style="color:rgba(34,197,94,0.8); background:rgba(34,197,94,0.12)" x-text="bots.filter(b=>b.active).length + '/' + bots.length"></span>
+      </div>
+      <template x-for="bot in bots" :key="bot.name">
+        <button @click="selectBot(bot.name)"
+          :class="currentBot === bot.name ? 'bg-brand text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'"
+          class="sidebar-item w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-500 transition text-left mb-0.5 cursor-pointer">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span :class="bot.active ? 'bg-success pulse-dot' : 'bg-slate-600'" class="w-1.5 h-1.5 rounded-full flex-shrink-0"></span>
+            <span x-text="bot.name" class="truncate"></span>
+          </div>
+          <span x-show="bot.msgs_today > 0" x-text="bot.msgs_today"
+            class="text-xs font-600 px-1.5 py-0.5 rounded-md flex-shrink-0 ml-1"
+            :class="currentBot === bot.name ? 'bg-white/20 text-white' : 'bg-white/8 text-slate-400'"
+            style="background: currentBot === bot.name ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)'"></span>
+        </button>
+      </template>
+
+      <!-- Config Global -->
+      <div class="mt-5 pt-4" style="border-top:1px solid rgba(255,255,255,0.06)">
+        <button @click="openGlobalConfig()"
+          :class="showingGlobalConfig ? 'bg-brand text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'"
+          class="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-600 transition text-left cursor-pointer">
+          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          Config Global
+        </button>
+      </div>
+    </nav>
+
+    <!-- New Bot button -->
+    <div class="px-3 py-4" style="border-top:1px solid rgba(255,255,255,0.06)">
+      <button @click="openNewBotModal()"
+        class="btn-primary w-full flex items-center justify-center gap-2 py-2.5 bg-brand hover:bg-brand-hover rounded-xl text-sm font-600 text-white cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+        </svg>
+        Novo Agente
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="flex-1 overflow-y-auto bg-surface">
+
+    <!-- ── Dashboard ── -->
+    <div x-show="!currentBot && !showingGlobalConfig">
+      <div class="px-8 py-7">
+        <div class="flex items-end justify-between mb-8">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+              </div>
+              <span class="text-xs font-700 text-brand uppercase tracking-widest">SMB Claw</span>
+            </div>
+            <h1 class="text-3xl font-800 text-slate-900 leading-tight">Dashboard</h1>
+            <p class="text-sm text-slate-400 mt-1">Gerencie seus agentes de IA no Telegram</p>
+          </div>
+          <button @click="loadBots()" class="flex items-center gap-2 text-sm font-600 text-slate-500 hover:text-brand transition-colors cursor-pointer px-4 py-2.5 rounded-xl hover:bg-white border border-transparent hover:border-surface-border hover:shadow-card">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Atualizar
+          </button>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-3 gap-4 mb-8">
+          <div class="rounded-2xl p-5 shadow-card border border-brand/15 animate-fadeSlideUp" style="background:linear-gradient(135deg,#EFF6FF,#DBEAFE)">
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-xs font-600 text-brand/60 uppercase tracking-wide">Total de Agentes</p>
+              <div class="w-10 h-10 bg-brand/15 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                </svg>
+              </div>
+            </div>
+            <p class="text-3xl font-800 text-brand" x-text="bots.length"></p>
+          </div>
+          <div class="rounded-2xl p-5 shadow-card border border-success/15 animate-fadeSlideUp stagger-1" style="background:linear-gradient(135deg,#F0FDF4,#DCFCE7)">
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-xs font-600 text-success/60 uppercase tracking-wide">Online</p>
+              <div class="w-10 h-10 bg-success/15 rounded-xl flex items-center justify-center">
+                <div class="w-3 h-3 bg-success rounded-full pulse-dot"></div>
+              </div>
+            </div>
+            <p class="text-3xl font-800 text-success" x-text="bots.filter(b=>b.active).length"></p>
+          </div>
+          <div class="rounded-2xl p-5 shadow-card border border-violet-200 animate-fadeSlideUp stagger-2" style="background:linear-gradient(135deg,#F5F3FF,#EDE9FE)">
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-xs font-600 text-violet-400 uppercase tracking-wide">Msgs Hoje</p>
+              <div class="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+                </svg>
+              </div>
+            </div>
+            <p class="text-3xl font-800 text-violet-600" x-text="bots.reduce((s,b)=>s+b.msgs_today,0)"></p>
+          </div>
+        </div>
+
+        <!-- Bot cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <template x-for="(bot, idx) in bots" :key="bot.name">
+            <div @click="selectBot(bot.name)"
+              class="card bg-white rounded-2xl border border-surface-border cursor-pointer shadow-card group overflow-hidden"
+              :style="`animation-delay:${idx*60}ms`">
+              <!-- Top accent bar -->
+              <div class="h-1.5 w-full"
+                :style="'background:' + ['#2563EB','#7C3AED','#059669','#DC2626','#D97706','#0891B2','#4F46E5','#BE185D'][(bot.name.charCodeAt(0) || 0) % 8]"></div>
+              <div class="p-5">
+                <div class="flex items-start justify-between mb-4">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white font-800 text-base shadow-sm"
+                      :style="'background:' + ['#2563EB','#7C3AED','#059669','#DC2626','#D97706','#0891B2','#4F46E5','#BE185D'][(bot.name.charCodeAt(0) || 0) % 8]"
+                      x-text="bot.name.charAt(0).toUpperCase()"></div>
+                    <div>
+                      <h3 class="text-sm font-700 text-slate-900 group-hover:text-brand transition-colors leading-tight" x-text="bot.name"></h3>
+                      <p class="text-[11px] text-slate-400 mt-0.5 font-500 truncate max-w-[100px]" x-text="bot.model || bot.provider || '—'"></p>
+                    </div>
+                  </div>
+                  <div class="flex flex-col items-end gap-1.5">
+                    <span :class="bot.active ? 'bg-success/15 text-success border-success/20' : 'bg-slate-100 text-slate-400 border-slate-200'"
+                      class="text-[10px] px-2 py-0.5 rounded-full font-700 border" x-text="bot.active ? '● Online' : '○ Offline'"></span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+                  <span class="text-xs text-slate-400 font-500">Msgs hoje</span>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm font-800 text-brand" x-text="bot.msgs_today"></span>
+                    <span x-show="bot.msgs_today > 0" class="text-[10px] text-success font-600 bg-success/10 px-1.5 py-0.5 rounded-full">↑</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+          <div x-show="bots.length===0" class="col-span-full text-center py-20 animate-fadeSlideUp">
+            <div class="w-20 h-20 bg-gradient-to-br from-brand/10 to-violet-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <svg class="w-10 h-10 text-brand/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <p class="text-lg font-700 text-slate-700">Nenhum agente encontrado</p>
+            <p class="text-sm text-slate-400 mt-1.5 mb-5">Crie seu primeiro agente de IA para começar</p>
+            <button @click="openNewBotModal()" class="btn-primary inline-flex items-center gap-2 px-5 py-2.5 bg-brand text-white text-sm font-600 rounded-xl hover:bg-brand-hover cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+              Novo Agente
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Global Config ── -->
+    <div x-show="showingGlobalConfig" x-cloak>
+      <div class="px-8 py-7">
+        <div class="flex items-center gap-3 mb-7">
+          <button @click="showingGlobalConfig=false" class="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-white transition cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <div>
+            <h1 class="text-2xl font-800 text-slate-900">Config Global</h1>
+            <p class="text-sm text-slate-500 mt-0.5">Configurações compartilhadas entre todos os agentes</p>
+          </div>
+        </div>
+
+        <!-- Tab bar -->
+        <div class="flex gap-1 mb-6 bg-white border border-surface-border rounded-2xl p-1 w-fit shadow-card">
+          <button @click="globalTab='context.global'"
+            :class="globalTab==='context.global' ? 'bg-brand text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            class="px-5 py-2 rounded-xl text-sm font-600 transition cursor-pointer">Contexto Global</button>
+          <button @click="globalTab='config.global'; globalEnvFile='config.global'; parseGlobalEnv()"
+            :class="globalTab==='config.global' ? 'bg-brand text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            class="px-5 py-2 rounded-xl text-sm font-600 transition cursor-pointer">Configuração Global</button>
+          <button @click="globalTab='secrets.global'; globalEnvFile='secrets.global'; parseGlobalEnv()"
+            :class="globalTab==='secrets.global' ? 'bg-brand text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            class="px-5 py-2 rounded-xl text-sm font-600 transition cursor-pointer">Credenciais</button>
+          <button @click="globalTab='crontab'"
+            :class="globalTab==='crontab' ? 'bg-brand text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            class="px-5 py-2 rounded-xl text-sm font-600 transition cursor-pointer">Tarefas Agendadas</button>
+        </div>
+
+        <!-- context.global panel -->
+        <div x-show="globalTab==='context.global'" class="bg-white rounded-2xl border border-surface-border p-5 shadow-card flex flex-col">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h3 class="font-700 text-slate-900 text-sm">Contexto Global</h3>
+              <p class="text-xs text-slate-400 mt-0.5">Instruções compartilhadas entre todos os agentes (context.global)</p>
+            </div>
+            <button @click="saveGlobalFile('context.global')"
+              class="btn-primary text-sm bg-brand text-white px-4 py-2 rounded-xl hover:bg-brand-hover font-600 cursor-pointer">
+              Salvar
+            </button>
+          </div>
+          <textarea class="code-editor w-full border border-surface-border rounded-xl p-3.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50/50"
+            rows="22" x-model="globalFiles['context.global']"></textarea>
+        </div>
+
+        <!-- config.global / secrets.global panel (CRUD + raw) -->
+        <div x-show="globalTab==='config.global' || globalTab==='secrets.global'" class="space-y-4">
+
+          <!-- Header -->
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs text-slate-500"
+                x-text="globalEnvFile==='secrets.global'
+                  ? 'Credenciais sensíveis — sobrescrevem config.global em runtime'
+                  : 'Variáveis globais padrão — aplicadas a todos os agentes no boot'"></p>
+            </div>
+            <button x-show="globalEnvFile==='config.global'" @click="restartAllBots()" :disabled="restartingAll"
+              class="flex items-center gap-2 px-4 py-2 text-sm font-600 bg-warn/10 text-warn border border-warn/30 rounded-xl hover:bg-warn/20 transition disabled:opacity-50 cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <span x-text="restartingAll ? 'Reiniciando...' : 'Reiniciar todos os agentes'"></span>
+            </button>
+          </div>
+
+          <!-- Tabela de variáveis -->
+          <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-slate-50 border-b border-surface-border">
+                  <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide w-64">Variável</th>
+                  <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Valor</th>
+                  <th class="px-5 py-3 w-36"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-surface-border">
+                <template x-if="globalEnvVars.length === 0">
+                  <tr>
+                    <td colspan="3" class="px-5 py-8 text-center text-sm text-slate-400">Nenhuma variável encontrada</td>
+                  </tr>
+                </template>
+                <template x-for="(v, idx) in globalEnvVars" :key="v.key">
+                  <tr class="hover:bg-slate-50/60 transition-colors">
+                    <td class="px-5 py-3 font-mono text-xs font-600 text-slate-800" x-text="v.key"></td>
+                    <td class="px-5 py-3">
+                      <div class="flex items-center gap-2">
+                        <input :type="isSensitiveGlobalKey(v.key) && !v.showVal ? 'password' : 'text'"
+                          x-model="v.value"
+                          class="flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white min-w-0"/>
+                        <button x-show="isSensitiveGlobalKey(v.key)" @click="v.showVal = !v.showVal"
+                          class="text-slate-400 hover:text-slate-600 transition flex-shrink-0 cursor-pointer" :title="v.showVal ? 'Ocultar' : 'Mostrar'">
+                          <svg x-show="!v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                          <svg x-show="v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                        </button>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3 text-right">
+                      <div class="flex items-center justify-end gap-2">
+                        <button @click="saveGlobalEnvRow(idx)"
+                          class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-lg transition cursor-pointer">
+                          Salvar
+                        </button>
+                        <button @click="deleteGlobalEnv(idx)"
+                          class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-3 py-1.5 rounded-lg transition cursor-pointer">
+                          Deletar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Formulário de adição -->
+          <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
+            <h3 class="text-sm font-700 text-slate-900 mb-4">Adicionar Variável</h3>
+            <div class="grid grid-cols-[250px_1fr_auto] gap-3 items-end">
+              <div>
+                <label class="block text-xs font-600 text-slate-600 mb-1.5">Nome</label>
+                <input x-model="newGlobalEnv.key" type="text" placeholder="MINHA_VARIAVEL"
+                  class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+              </div>
+              <div>
+                <label class="block text-xs font-600 text-slate-600 mb-1.5">Valor</label>
+                <input x-model="newGlobalEnv.value" type="text" placeholder="valor"
+                  class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+              </div>
+              <button @click="addGlobalEnv()"
+                class="btn-primary text-sm bg-brand text-white px-4 py-2.5 rounded-xl hover:bg-brand-hover font-600 cursor-pointer whitespace-nowrap">
+                + Adicionar
+              </button>
+            </div>
+          </div>
+
+          <!-- Raw textarea -->
+          <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <h3 class="font-700 text-slate-900 text-sm">Arquivo raw</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Edição direta — salvar recarrega a tabela acima</p>
+              </div>
+              <button @click="saveConfigGlobal()"
+                class="btn-primary text-sm bg-brand text-white px-4 py-2 rounded-xl hover:bg-brand-hover font-600 cursor-pointer">
+                Salvar
+              </button>
+            </div>
+            <textarea class="code-editor w-full border border-surface-border rounded-xl p-3.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50/50"
+              rows="12" :value="globalFiles[globalEnvFile]" @input="globalFiles[globalEnvFile] = $event.target.value"></textarea>
+          </div>
+        </div>
+
+        <!-- Crontab panel -->
+        <div x-show="globalTab==='crontab'" class="space-y-4">
+          <!-- Lista de entradas -->
+          <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-slate-50 border-b border-surface-border">
+                  <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Expressão</th>
+                  <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Comando</th>
+                  <th class="px-5 py-3"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-surface-border">
+                <template x-if="crontabLines.length === 0">
+                  <tr>
+                    <td colspan="3" class="px-5 py-8 text-center text-sm text-slate-400">Nenhuma entrada no crontab</td>
+                  </tr>
+                </template>
+                <template x-for="(line, idx) in crontabLines" :key="idx">
+                  <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-5 py-3.5 font-mono text-xs text-slate-700" x-text="line.split(/\s+/).slice(0,5).join(' ')"></td>
+                    <td class="px-5 py-3.5 font-mono text-xs text-slate-500 break-all" x-text="line.split(/\s+/).slice(5).join(' ')"></td>
+                    <td class="px-5 py-3.5 text-right">
+                      <button @click="deleteCronEntry(idx)"
+                        class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-3 py-1.5 rounded-lg transition cursor-pointer">
+                        Deletar
+                      </button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Formulário de adição -->
+          <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
+            <h3 class="text-sm font-700 text-slate-900 mb-4">Adicionar Entrada</h3>
+            <div class="grid grid-cols-[220px_1fr_auto] gap-3 items-end">
+              <div>
+                <label class="block text-xs font-600 text-slate-600 mb-1.5">Expressão Cron</label>
+                <input x-model="newCronEntry.schedule" type="text" placeholder="50 23 * * *"
+                  class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+              </div>
+              <div>
+                <label class="block text-xs font-600 text-slate-600 mb-1.5">Comando</label>
+                <input x-model="newCronEntry.command" type="text" placeholder="/home/ubuntu/claude-bots/script.sh"
+                  class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+              </div>
+              <button @click="addCronEntry()"
+                class="btn-primary text-sm bg-brand text-white px-4 py-2.5 rounded-xl hover:bg-brand-hover font-600 cursor-pointer whitespace-nowrap">
+                + Adicionar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Bot Detail ── -->
+    <div x-show="currentBot && !showingGlobalConfig" x-cloak>
+      <div x-show="botDetail">
+
+        <!-- Bot header -->
+        <div class="bg-white border-b border-surface-border px-8 py-5 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+          <div class="flex items-center gap-4">
+            <button @click="selectBot(null)" class="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-brand hover:bg-brand/5 transition cursor-pointer border border-transparent hover:border-brand/20">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+              </svg>
+            </button>
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-800 text-base shadow-sm flex-shrink-0"
+              :style="currentBot ? 'background:' + ['#2563EB','#7C3AED','#059669','#DC2626','#D97706','#0891B2','#4F46E5','#BE185D'][(currentBot.charCodeAt(0)||0)%8] : 'background:#2563EB'"
+              x-text="currentBot?.charAt(0).toUpperCase()"></div>
+            <div>
+              <div class="flex items-center gap-1.5 text-xs text-slate-400 mb-0.5">
+                <span class="hover:text-brand cursor-pointer transition-colors" @click="selectBot(null)">Dashboard</span>
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                <span class="text-slate-600 font-600" x-text="currentBot"></span>
+              </div>
+              <h1 class="text-base font-700 text-slate-900 leading-tight" x-text="currentBot"></h1>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span :class="botDetail?.active ? 'bg-success pulse-dot' : 'bg-slate-400'" class="w-1.5 h-1.5 rounded-full flex-shrink-0"></span>
+                <span :class="botDetail?.active ? 'text-success' : 'text-slate-400'" class="text-xs font-700" x-text="botDetail?.active ? 'Online' : 'Offline'"></span>
+                <template x-if="botDetail?.active && botDetail?.uptime && botDetail?.uptime !== '—'">
+                  <span class="text-xs text-slate-400 font-500" x-text="'· ' + botDetail.uptime"></span>
+                </template>
+                <span class="text-slate-300 text-xs">·</span>
+                <span x-text="botDetail?.provider" class="text-xs text-slate-400 font-500"></span>
+                <span class="text-slate-300 text-xs">·</span>
+                <span x-text="botDetail?.model" class="text-xs text-slate-400 font-500 max-w-[200px] truncate"></span>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button @click="doAction('start')" :disabled="actionLoading"
+              class="flex items-center gap-1.5 px-3.5 py-2 text-xs font-600 bg-success/10 text-success border border-success/20 rounded-xl hover:bg-success/20 transition disabled:opacity-50 cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 3l14 9-14 9V3z"/></svg>
+              Start
+            </button>
+            <button @click="doAction('stop')" :disabled="actionLoading"
+              class="flex items-center gap-1.5 px-3.5 py-2 text-xs font-600 bg-danger/10 text-danger border border-danger/20 rounded-xl hover:bg-danger/20 transition disabled:opacity-50 cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 6h12v12H6z"/></svg>
+              Stop
+            </button>
+            <button @click="doAction('restart')" :disabled="actionLoading"
+              class="flex items-center gap-1.5 px-3.5 py-2 text-xs font-600 bg-warn/10 text-warn border border-warn/20 rounded-xl hover:bg-warn/20 transition disabled:opacity-50 cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              Restart
+            </button>
+            <div class="w-px h-5 bg-slate-200 mx-1"></div>
+            <button @click="showDeleteModal=true; deleteConfirmName=''"
+              title="Deletar agente"
+              class="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-danger hover:bg-danger/10 border border-transparent hover:border-danger/20 transition cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="bg-white border-b border-surface-border px-8">
+          <div class="flex gap-0">
+            <template x-for="tab in tabs" :key="tab.id">
+              <button @click="switchTab(tab.id)"
+                :class="activeTab===tab.id ? 'border-b-2 border-brand text-brand bg-brand/3' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'"
+                class="tab-btn flex items-center gap-1.5 px-4 py-3.5 text-xs font-600 uppercase tracking-wide cursor-pointer transition-colors">
+                <span x-text="tab.icon" class="text-sm leading-none"></span>
+                <span x-text="tab.label"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Tab content -->
+        <div class="px-8 py-6">
+
+          <!-- Overview -->
+          <div x-show="activeTab==='overview'">
+            <!-- Status hero card -->
+            <div class="bg-white rounded-2xl border border-surface-border shadow-card p-6 mb-6">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-5">
+                  <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-800 text-xl shadow-md flex-shrink-0"
+                    :style="currentBot ? 'background:' + ['#2563EB','#7C3AED','#059669','#DC2626','#D97706','#0891B2','#4F46E5','#BE185D'][(currentBot.charCodeAt(0)||0)%8] : 'background:#2563EB'"
+                    x-text="currentBot?.charAt(0).toUpperCase()"></div>
+                  <div>
+                    <h2 class="text-xl font-800 text-slate-900" x-text="currentBot"></h2>
+                    <div class="flex items-center gap-3 mt-1.5 flex-wrap">
+                      <span :class="botDetail?.active ? 'bg-success/15 text-success border-success/25' : 'bg-slate-100 text-slate-500 border-slate-200'"
+                        class="inline-flex items-center gap-1.5 text-xs font-700 px-3 py-1 rounded-full border">
+                        <span :class="botDetail?.active ? 'bg-success pulse-dot' : 'bg-slate-400'" class="w-1.5 h-1.5 rounded-full"></span>
+                        <span x-text="botDetail?.active ? 'Online' : 'Offline'"></span>
+                      </span>
+                      <span x-show="botDetail?.active && botDetail?.uptime && botDetail?.uptime !== '—'" class="text-xs text-slate-500 font-500 flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span x-text="botDetail?.uptime"></span>
+                      </span>
+                      <span class="text-xs text-slate-400 font-600 bg-slate-100 px-2.5 py-1 rounded-full" x-text="botDetail?.provider || ''"></span>
+                      <span class="text-xs text-slate-400 font-500 bg-slate-100 px-2.5 py-1 rounded-full max-w-[200px] truncate" x-text="botDetail?.model || ''"></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <p class="text-xs text-slate-400 font-600 uppercase tracking-wide mb-1">Mensagens hoje</p>
+                  <p class="text-4xl font-800 text-brand" x-text="botDetail?.msgs_today ?? 0"></p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Send Message -->
+            <div class="mt-6 grid grid-cols-2 gap-4">
+              <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
+                <h3 class="text-sm font-700 text-slate-900 mb-3 flex items-center gap-2">
+                  <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                  Enviar Mensagem
+                </h3>
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-xs font-600 text-slate-500 mb-1">User ID</label>
+                    <input type="number" x-model.number="sendMsg.user_id" placeholder="ID do Telegram"
+                      class="w-full border border-surface-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand"/>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-600 text-slate-500 mb-1">Mensagem</label>
+                    <textarea x-model="sendMsg.message" rows="3" placeholder="Texto da mensagem..."
+                      class="w-full border border-surface-border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand"></textarea>
+                  </div>
+                  <button @click="sendMessage()" :disabled="sendMsg.sending"
+                    class="btn-primary w-full py-2 bg-brand text-white text-sm font-600 rounded-xl hover:bg-brand-hover disabled:opacity-50 cursor-pointer">
+                    <span x-text="sendMsg.sending ? 'Enviando...' : 'Enviar'"></span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
+                <h3 class="text-sm font-700 text-slate-900 mb-3 flex items-center gap-2">
+                  <svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
+                  Broadcast
+                </h3>
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-xs font-600 text-slate-500 mb-1">Mensagem para todos os usuários</label>
+                    <textarea x-model="broadcast.message" rows="3" placeholder="Mensagem de broadcast..."
+                      class="w-full border border-surface-border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand"></textarea>
+                  </div>
+                  <p class="text-xs text-slate-400" x-text="'Será enviada para ' + (botUsers.length || '?') + ' usuário(s) aprovado(s)'"></p>
+                  <button @click="sendBroadcast()" :disabled="broadcast.sending"
+                    class="btn-primary w-full py-2 bg-violet-600 text-white text-sm font-600 rounded-xl hover:bg-violet-700 disabled:opacity-50 cursor-pointer">
+                    <span x-text="broadcast.sending ? 'Enviando...' : 'Enviar Broadcast'"></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Config -->
+          <div x-show="activeTab==='config'" x-cloak>
+            <div class="max-w-2xl mx-auto space-y-4">
+
+              <!-- Telegram -->
+              <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
+                <div class="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                  </div>
+                  <h3 class="text-sm font-700 text-slate-800">Telegram</h3>
+                </div>
+                <div class="px-5 py-4">
+                  <label class="block text-xs font-600 text-slate-500 mb-2">Token do Bot <span class="text-slate-400 font-400 normal-case">via @BotFather</span></label>
+                  <div class="flex gap-2">
+                    <input :type="showToken ? 'text' : 'password'" x-model="configForm.TELEGRAM_TOKEN"
+                      class="flex-1 min-w-0 border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50" />
+                    <button @click="showToken=!showToken"
+                      class="px-3.5 py-2.5 text-xs font-600 border border-surface-border rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 bg-white"
+                      x-text="showToken ? 'Ocultar' : 'Mostrar'"></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- IA -->
+              <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
+                <div class="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                  </div>
+                  <h3 class="text-sm font-700 text-slate-800">Inteligência Artificial</h3>
+                </div>
+                <div class="px-5 py-4 grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-600 text-slate-500 mb-2">Provedor</label>
+                    <select x-model="configForm.PROVIDER" @change="onProviderChange()"
+                      class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer bg-slate-50">
+                      <option value="claude-cli">Claude Code (OAuth)</option>
+                      <option value="anthropic">Anthropic (API Key)</option>
+                      <option value="openrouter">OpenRouter</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-600 text-slate-500 mb-2">Modelo</label>
+                    <select x-model="configForm.MODEL"
+                      class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer bg-slate-50">
+                      <template x-for="m in currentModelOptions" :key="m">
+                        <option :value="m" x-text="m"></option>
+                      </template>
+                      <option value="__custom__">Personalizado...</option>
+                    </select>
+                    <input x-show="configForm.MODEL==='__custom__'" x-model="configForm.MODEL_CUSTOM"
+                      type="text" placeholder="nome-do-modelo"
+                      class="mt-2 w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Acesso e Comportamento -->
+              <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
+                <div class="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                  </div>
+                  <h3 class="text-sm font-700 text-slate-800">Acesso e Comportamento</h3>
+                </div>
+                <div class="px-5 py-4 grid grid-cols-3 gap-4">
+                  <div>
+                    <label class="block text-xs font-600 text-slate-500 mb-2">Modo de Acesso</label>
+                    <select x-model="configForm.ACCESS_MODE"
+                      class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer bg-slate-50">
+                      <option value="open">Aberto</option>
+                      <option value="approval">Com Aprovação</option>
+                      <option value="closed">Fechado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-600 text-slate-500 mb-2">Comportamento em Grupos</label>
+                    <select x-model="configForm.GROUP_MODE"
+                      class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer bg-slate-50">
+                      <option value="always">Sempre Responde</option>
+                      <option value="mention_only">Apenas Menções</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-600 text-slate-500 mb-2">Histórico <span class="text-slate-400 font-400">mensagens</span></label>
+                    <input type="number" x-model.number="configForm.MAX_HISTORY" min="1" max="500"
+                      class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Ferramentas -->
+              <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
+                <div class="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                      <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </div>
+                    <h3 class="text-sm font-700 text-slate-800">Ferramentas</h3>
+                  </div>
+                  <span class="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">memory · tasks · schedule sempre ativas</span>
+                </div>
+                <div class="px-5 py-4 grid grid-cols-4 gap-2.5">
+                  <template x-for="tool in toolOptions" :key="tool.key">
+                    <label class="flex flex-col gap-1.5 cursor-pointer p-3 rounded-xl border-2 transition-all"
+                      :class="configForm.TOOLS_ARRAY.includes(tool.key) ? 'bg-brand/5 border-brand/30 shadow-sm' : 'border-surface-border hover:border-slate-300 hover:bg-slate-50/80'">
+                      <div class="flex items-center justify-between">
+                        <span class="text-slate-800 font-700 text-xs" x-text="tool.label"></span>
+                        <input type="checkbox" :value="tool.key" x-model="configForm.TOOLS_ARRAY" class="rounded text-brand w-3.5 h-3.5 cursor-pointer flex-shrink-0" />
+                      </div>
+                      <span class="text-slate-400 font-400 text-[10px] leading-snug" x-text="tool.desc"></span>
+                    </label>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Save button -->
+              <div class="flex justify-end pt-1 pb-4">
+                <button @click="saveConfig()"
+                  class="btn-primary flex items-center gap-2 px-8 py-3 bg-brand text-white text-sm font-700 rounded-xl hover:bg-brand-hover shadow-sm cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                  Salvar Configuração
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Persona -->
+          <div x-show="activeTab==='persona'" x-cloak>
+            <div class="space-y-5">
+              <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
+                <div class="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 class="font-700 text-slate-900 text-sm">soul.md</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Personalidade e instruções do agente</p>
+                  </div>
+                  <div class="flex gap-2">
+                    <button @click="personaPreview=!personaPreview"
+                      :class="personaPreview ? 'bg-brand/10 text-brand border-brand/20' : 'bg-slate-100 text-slate-600 border-slate-200'"
+                      class="text-xs font-600 px-3.5 py-2 rounded-xl border hover:opacity-80 transition cursor-pointer"
+                      x-text="personaPreview ? 'Editar' : 'Preview'"></button>
+                    <button @click="saveFile('soul.md', personaContent)"
+                      class="btn-primary text-xs font-600 bg-brand text-white px-3.5 py-2 rounded-xl hover:bg-brand-hover cursor-pointer">
+                      Salvar
+                    </button>
+                  </div>
+                </div>
+                <div x-show="!personaPreview">
+                  <textarea class="code-editor w-full border border-surface-border rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50/50"
+                    rows="22" x-model="personaContent"></textarea>
+                </div>
+                <div x-show="personaPreview" class="markdown-preview prose max-w-none p-4 bg-slate-50/50 rounded-xl border border-surface-border min-h-[200px]"
+                  x-html="marked.parse(personaContent||'')"></div>
+              </div>
+
+              <!-- Welcome Message -->
+              <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card" x-init="$watch('activeTab', v => { if(v==='persona' && !welcomeLoaded) loadWelcome() })">
+                <div class="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 class="font-700 text-slate-900 text-sm">Mensagem de Boas-vindas</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Mensagem enviada no /start (welcome.md) — Placeholders: {user_name}, {bot_name}, {tools}</p>
+                  </div>
+                  <button @click="saveFile('welcome.md', welcomeContent)"
+                    class="btn-primary text-xs font-600 bg-brand text-white px-3.5 py-2 rounded-xl hover:bg-brand-hover cursor-pointer">
+                    Salvar
+                  </button>
+                </div>
+                <textarea class="code-editor w-full border border-surface-border rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50/50"
+                  rows="6" x-model="welcomeContent" placeholder="Olá, {user_name}! Sou o *{bot_name}*..."></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Memory -->
+          <div x-show="activeTab==='memory'" x-cloak>
+            <div>
+              <div class="flex gap-2 mb-4">
+                <template x-for="mf in ['MEMORY.md','USER.md']" :key="mf">
+                  <button @click="switchMemoryFile(mf)"
+                    :class="activeMemoryFile===mf ? 'bg-brand text-white shadow-sm' : 'bg-white text-slate-600 border border-surface-border hover:bg-slate-50'"
+                    class="px-4 py-2 text-xs font-600 rounded-xl transition cursor-pointer" x-text="mf">
+                  </button>
+                </template>
+              </div>
+              <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
+                <div class="flex items-center justify-between mb-4">
+                  <h3 class="font-700 text-slate-900 text-sm" x-text="activeMemoryFile"></h3>
+                  <button @click="saveFile(activeMemoryFile, memoryContent)"
+                    class="btn-primary text-xs font-600 bg-brand text-white px-3.5 py-2 rounded-xl hover:bg-brand-hover cursor-pointer">
+                    Salvar
+                  </button>
+                </div>
+                <textarea class="code-editor w-full border border-surface-border rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50/50"
+                  rows="22" x-model="memoryContent"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Logs -->
+          <div x-show="activeTab==='logs'" x-cloak>
+            <div class="rounded-2xl overflow-hidden border border-slate-700/50 shadow-card" style="background:#0F172A">
+              <div class="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+                <div class="flex items-center gap-3">
+                  <div class="flex gap-1.5">
+                    <div class="w-3 h-3 rounded-full bg-danger/60"></div>
+                    <div class="w-3 h-3 rounded-full bg-warn/60"></div>
+                    <div class="w-3 h-3 rounded-full bg-success/60"></div>
+                  </div>
+                  <span class="text-xs font-600 text-slate-400">journalctl — <span class="text-slate-300" x-text="currentBot"></span></span>
+                </div>
+                <div class="flex items-center gap-4">
+                  <span class="text-xs text-slate-600" x-text="logLines.length + ' linhas'"></span>
+                  <button @click="clearLogs()" class="text-xs font-500 text-slate-500 hover:text-slate-300 transition cursor-pointer">Limpar</button>
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="evtSource ? 'bg-success animate-pulse' : 'bg-slate-600'"></span>
+                    <span class="text-xs font-500 text-slate-500" x-text="evtSource ? 'Live' : 'Disconnected'"></span>
+                  </div>
+                </div>
+              </div>
+              <div id="log-container" class="h-[420px] overflow-y-auto p-5 text-xs leading-relaxed" style="color:#86EFAC">
+                <template x-for="(line, i) in logLines" :key="i">
+                  <div class="whitespace-pre-wrap break-all py-0.5" x-text="line"></div>
+                </template>
+                <div x-show="logLines.length===0" class="text-slate-600 italic">Aguardando logs...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Users -->
+          <div x-show="activeTab==='users'" x-cloak>
+            <div>
+              <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
+                <div class="px-5 py-4 border-b border-surface-border flex items-center justify-between">
+                  <div>
+                    <h3 class="font-700 text-slate-900 text-sm">Usuários Aprovados</h3>
+                    <p class="text-xs text-slate-400 mt-0.5" x-text="botUsers.length + ' usuário(s)'"></p>
+                  </div>
+                  <button @click="exportConversations()" x-show="botUsers.length > 0"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-600 text-brand border border-brand/20 rounded-lg hover:bg-brand/10 transition cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Exportar Tudo
+                  </button>
+                </div>
+                <div x-show="botUsers.length === 0" class="px-5 py-12 text-center">
+                  <p class="text-sm font-600 text-slate-500">Nenhum usuário aprovado</p>
+                </div>
+                <table class="w-full text-sm" x-show="botUsers.length > 0">
+                  <thead>
+                    <tr class="bg-slate-50 border-b border-surface-border">
+                      <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">ID</th>
+                      <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Nome</th>
+                      <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Username</th>
+                      <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Aprovado</th>
+                      <th class="px-5 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-surface-border">
+                    <template x-for="u in botUsers" :key="u.user_id">
+                      <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-5 py-3.5 text-slate-500 font-mono text-xs" x-text="u.user_id"></td>
+                        <td class="px-5 py-3.5 text-slate-800 font-500" x-text="u.name || '—'"></td>
+                        <td class="px-5 py-3.5 text-slate-500 text-xs" x-text="u.username ? '@'+u.username : '—'"></td>
+                        <td class="px-5 py-3.5 text-slate-400 text-xs font-500" x-text="u.approved_at?.slice(0,10)"></td>
+                        <td class="px-5 py-3.5 text-right">
+                          <div class="flex items-center justify-end gap-1.5">
+                            <button @click="exportConversations(u.user_id)" title="Exportar histórico"
+                              class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-2.5 py-1.5 rounded-lg transition cursor-pointer">
+                              Exportar
+                            </button>
+                            <button @click="clearUserHistory(u.user_id)" title="Limpar histórico"
+                              class="text-xs font-600 text-warn hover:bg-warn/10 border border-warn/20 px-2.5 py-1.5 rounded-lg transition cursor-pointer">
+                              Limpar
+                            </button>
+                            <button @click="revokeUser(u.user_id)"
+                              class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-2.5 py-1.5 rounded-lg transition cursor-pointer">
+                              Revogar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Analytics -->
+          <div x-show="activeTab==='analytics'" x-cloak>
+            <div>
+              <div class="flex gap-2 mb-6">
+                <template x-for="d in [{label:'Hoje',val:1},{label:'7 dias',val:7},{label:'30 dias',val:30}]" :key="d.val">
+                  <button @click="analyticsDays=d.val; loadAnalytics()"
+                    :class="analyticsDays===d.val ? 'bg-brand text-white shadow-sm' : 'bg-white text-slate-600 border border-surface-border hover:bg-slate-50'"
+                    class="px-4 py-2 text-xs font-600 rounded-xl transition cursor-pointer" x-text="d.label">
+                  </button>
+                </template>
+              </div>
+
+              <div class="grid grid-cols-3 gap-4" x-show="analytics">
+                <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
+                  <div class="flex items-center justify-between mb-3">
+                    <p class="text-xs font-700 text-slate-400 uppercase tracking-wide">Mensagens</p>
+                    <div class="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
+                      <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                    </div>
+                  </div>
+                  <p class="text-3xl font-800 text-slate-900" x-text="analytics?.msgs ?? '—'"></p>
+                </div>
+                <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
+                  <div class="flex items-center justify-between mb-3">
+                    <p class="text-xs font-700 text-slate-400 uppercase tracking-wide">Tokens Entrada</p>
+                    <div class="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+                      <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                    </div>
+                  </div>
+                  <p class="text-3xl font-800 text-slate-900" x-text="(analytics?.input_tokens ?? 0).toLocaleString()"></p>
+                </div>
+                <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
+                  <div class="flex items-center justify-between mb-3">
+                    <p class="text-xs font-700 text-slate-400 uppercase tracking-wide">Tokens Saída</p>
+                    <div class="w-8 h-8 rounded-xl bg-cyan-50 flex items-center justify-center">
+                      <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/></svg>
+                    </div>
+                  </div>
+                  <p class="text-3xl font-800 text-slate-900" x-text="(analytics?.output_tokens ?? 0).toLocaleString()"></p>
+                </div>
+                <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
+                  <div class="flex items-center justify-between mb-3">
+                    <p class="text-xs font-700 text-slate-400 uppercase tracking-wide">Tool Calls</p>
+                    <div class="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
+                      <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </div>
+                  </div>
+                  <p class="text-3xl font-800 text-slate-900" x-text="analytics?.tool_calls ?? '—'"></p>
+                </div>
+                <div class="rounded-2xl border border-danger/15 p-5 shadow-card" style="background:linear-gradient(135deg,#FEF2F2,#FEE2E2)">
+                  <div class="flex items-center justify-between mb-3">
+                    <p class="text-xs font-700 text-danger/60 uppercase tracking-wide">Erros</p>
+                    <div class="w-8 h-8 rounded-xl bg-danger/15 flex items-center justify-center">
+                      <svg class="w-4 h-4 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                    </div>
+                  </div>
+                  <p class="text-3xl font-800 text-danger" x-text="analytics?.errors ?? '—'"></p>
+                </div>
+                <div class="rounded-2xl border border-brand/15 p-5 shadow-card" style="background:linear-gradient(135deg,#EFF6FF,#DBEAFE)">
+                  <div class="flex items-center justify-between mb-3">
+                    <p class="text-xs font-700 text-brand/60 uppercase tracking-wide">Custo Estimado</p>
+                    <div class="w-8 h-8 rounded-xl bg-brand/15 flex items-center justify-center">
+                      <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                  </div>
+                  <p class="text-3xl font-800 text-brand" x-text="'$' + (analytics?.cost_usd ?? 0).toFixed(4)"></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Schedules -->
+          <div x-show="activeTab==='schedules'" x-cloak>
+            <div class="space-y-5">
+
+              <!-- Tabela -->
+              <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
+                <div class="px-5 py-4 border-b border-surface-border">
+                  <h3 class="font-700 text-slate-900 text-sm">Notificações Proativas</h3>
+                  <p class="text-xs text-slate-400 mt-0.5" x-text="(schedules?.length ?? 0) + ' agendamento(s)'"></p>
+                </div>
+                <div x-show="!schedules || schedules.length === 0" class="px-5 py-12 text-center">
+                  <p class="text-sm font-600 text-slate-500">Nenhum agendamento configurado</p>
+                </div>
+                <table class="w-full text-sm" x-show="schedules && schedules.length > 0">
+                  <thead>
+                    <tr class="bg-slate-50 border-b border-surface-border">
+                      <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Horário</th>
+                      <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Dias</th>
+                      <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Mensagem</th>
+                      <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">User</th>
+                      <th class="px-5 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-surface-border">
+                    <template x-for="s in schedules" :key="s.id">
+                      <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-5 py-3.5 font-mono text-sm font-600 text-slate-800" x-text="String(s.hour).padStart(2,'0')+':'+String(s.minute).padStart(2,'0')+' UTC'"></td>
+                        <td class="px-5 py-3.5 text-slate-500 text-xs font-500" x-text="s.weekdays"></td>
+                        <td class="px-5 py-3.5 text-slate-700 text-xs whitespace-normal break-words" x-text="s.message"></td>
+                        <td class="px-5 py-3.5 text-slate-400 font-mono text-xs" x-text="s.user_id"></td>
+                        <td class="px-5 py-3.5 text-right">
+                          <button @click="deleteSchedule(s.id)"
+                            class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-3 py-1.5 rounded-lg transition cursor-pointer">
+                            Deletar
+                          </button>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Adicionar -->
+              <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
+                <h3 class="text-sm font-700 text-slate-900 mb-4">Adicionar Schedule</h3>
+                <div class="grid grid-cols-4 gap-4 items-end">
+                  <div>
+                    <label class="block text-xs font-600 text-slate-500 mb-1.5 uppercase tracking-wide">User ID</label>
+                    <input type="number" x-model.number="newSchedule.user_id" placeholder="123456789"
+                      class="w-full border border-surface-border rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand" />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-600 text-slate-500 mb-1.5 uppercase tracking-wide">Horário (UTC)</label>
+                    <div class="flex gap-2 items-center">
+                      <input type="number" x-model.number="newSchedule.hour" min="0" max="23" placeholder="HH"
+                        class="w-full border border-surface-border rounded-xl px-3 py-2.5 text-sm text-center text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand" />
+                      <span class="text-slate-400 font-700 flex-shrink-0">:</span>
+                      <input type="number" x-model.number="newSchedule.minute" min="0" max="59" placeholder="MM"
+                        class="w-full border border-surface-border rounded-xl px-3 py-2.5 text-sm text-center text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand" />
+                    </div>
+                  </div>
+                  <div class="col-span-2">
+                    <label class="block text-xs font-600 text-slate-500 mb-1.5 uppercase tracking-wide">Mensagem</label>
+                    <input type="text" x-model="newSchedule.message" placeholder="Texto da notificação proativa"
+                      class="w-full border border-surface-border rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand" />
+                  </div>
+                  <div class="col-span-3">
+                    <label class="block text-xs font-600 text-slate-500 mb-2 uppercase tracking-wide">Dias da semana</label>
+                    <div class="flex gap-2 flex-wrap">
+                      <template x-for="day in weekdayOptions" :key="day.val">
+                        <label class="flex items-center gap-1.5 text-xs cursor-pointer px-2.5 py-2 rounded-xl border border-surface-border hover:bg-slate-50 transition-colors"
+                          :class="newSchedule.weekdays_arr.includes(day.val) ? 'bg-brand/5 border-brand/30 text-brand' : 'text-slate-600'">
+                          <input type="checkbox" :value="day.val" x-model="newSchedule.weekdays_arr" class="rounded text-brand w-3.5 h-3.5 cursor-pointer" />
+                          <span class="font-600" x-text="day.label"></span>
+                        </label>
+                      </template>
+                    </div>
+                  </div>
+                  <div class="flex justify-end">
+                    <button @click="createSchedule()" :disabled="addingSchedule"
+                      class="btn-primary w-full px-4 py-2.5 bg-brand text-white text-sm font-600 rounded-xl hover:bg-brand-hover disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
+                      <svg x-show="!addingSchedule" class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+                      </svg>
+                      <span x-show="!addingSchedule">Adicionar</span>
+                      <span x-show="addingSchedule">Adicionando...</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div><!-- end tab content -->
+
+      </div>
+
+      <div x-show="!botDetail && currentBot" class="flex items-center justify-center h-64">
+        <div class="flex items-center gap-3 text-slate-400">
+          <svg class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+          <span class="text-sm font-500">Carregando...</span>
+        </div>
+      </div>
+    </div><!-- end bot detail -->
+
+  </main>
+</div>
+
+<script>
+const MODELS_BY_PROVIDER = {
+  'anthropic': ['claude-opus-4-6','claude-sonnet-4-6','claude-haiku-4-5-20251001'],
+  'claude-cli': ['claude-opus-4-6','claude-sonnet-4-6','claude-haiku-4-5-20251001'],
+  'openrouter': ['x-ai/grok-3','x-ai/grok-3:online','google/gemini-2.0-flash',
+                 'openai/gpt-4o','openai/gpt-4o-mini','mistralai/mistral-small-3.1'],
+};
+
+function adminApp() {
+  return {
+    bots: [], currentBot: null, botDetail: null,
+    showingGlobalConfig: false, activeTab: 'overview',
+    tabs: [
+      {id:'overview',  label:'Visão Geral',    icon:'📊'},
+      {id:'config',    label:'Configuração',   icon:'⚙️'},
+      {id:'persona',   label:'Personalidade',  icon:'🎭'},
+      {id:'memory',    label:'Memória',         icon:'🧠'},
+      {id:'logs',      label:'Registros',       icon:'📋'},
+      {id:'users',     label:'Usuários',        icon:'👥'},
+      {id:'analytics', label:'Métricas',        icon:'📈'},
+      {id:'schedules', label:'Agendamentos',    icon:'⏰'},
+    ],
+    toasts: [],
+    showNewBotModal: false,
+    newBot: {name:'', telegram_token:'', model:'claude-opus-4-6', provider:'claude-cli', tools:['shell','files','http']},
+    newBotError: '', creatingBot: false,
+    modelsByProvider: MODELS_BY_PROVIDER,
+    showDeleteModal: false, deleteConfirmName: '', deletingBot: false,
+    configForm: { TELEGRAM_TOKEN:'', PROVIDER:'claude-cli', MODEL:'claude-opus-4-6', MODEL_CUSTOM:'', ACCESS_MODE:'approval', MAX_HISTORY:20, GROUP_MODE:'always', TOOLS_ARRAY:[] },
+    showToken: false,
+    currentModelOptions: MODELS_BY_PROVIDER['claude-cli'],
+    personaContent: '', personaPreview: false,
+    activeMemoryFile: 'MEMORY.md', memoryContent: '',
+    logLines: [], evtSource: null,
+    botUsers: [],
+    analytics: null, analyticsDays: 1,
+    schedules: [],
+    newSchedule: {user_id:null, hour:8, minute:0, weekdays_arr:[1,2,3,4,5], message:''},
+    addingSchedule: false,
+    weekdayOptions: [{val:1,label:'Seg'},{val:2,label:'Ter'},{val:3,label:'Qua'},{val:4,label:'Qui'},{val:5,label:'Sex'},{val:6,label:'Sáb'},{val:7,label:'Dom'}],
+    globalFiles: {'context.global':'','config.global':'','secrets.global':''}, crontabContent: '',
+    crontabLines: [], globalTab: 'context.global', globalEnvFile: 'config.global',
+    newCronEntry: {schedule:'', command:''},
+    globalEnvVars: [], newGlobalEnv: {key:'', value:''},
+    restartingAll: false,
+    sendMsg: {show:false, user_id:null, message:'', sending:false},
+    broadcast: {show:false, message:'', sending:false},
+    welcomeContent: '', welcomeLoaded: false,
+    actionLoading: false,
+    confirmModal: { show:false, title:'', message:'', confirmText:'Confirmar', type:'warn', resolver:null },
+    toolOptions: [
+      {key:'shell',    label:'Terminal',         desc:'Executar comandos no servidor'},
+      {key:'cron',     label:'Cron Jobs',        desc:'Tarefas agendadas do sistema'},
+      {key:'files',    label:'Arquivos',         desc:'Ler e escrever arquivos'},
+      {key:'http',     label:'Requisições HTTP', desc:'Acessar APIs externas'},
+      {key:'git',      label:'Git',              desc:'Controle de versão'},
+      {key:'github',   label:'GitHub',           desc:'Issues, PRs e code reviews'},
+      {key:'database', label:'Banco de Dados',   desc:'Consultas SQL'},
+    ],
+
+    toast(msg, type='success') {
+      const id = Date.now() + Math.random();
+      this.toasts.push({id, msg, type});
+      setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 3500);
+    },
+
+    showConfirm({title, message, confirmText, type}) {
+      return new Promise(resolve => {
+        this.confirmModal = { show:true, title, message, confirmText: confirmText||'Confirmar', type: type||'warn', resolver: resolve };
+      });
+    },
+
+    async init() {
+      await this.loadBots();
+      setInterval(() => this.loadBots(), 30000);
+    },
+
+    async loadBots() {
+      try { const r = await fetch('/api/bots'); if (r.ok) this.bots = await r.json(); } catch(e) {}
+    },
+
+    async selectBot(name) {
+      this.showingGlobalConfig = false;
+      if (this.evtSource) this.stopLogs();
+      this.currentBot = name; this.botDetail = null; this.activeTab = 'overview';
+      this.personaContent = ''; this.personaPreview = false; this.memoryContent = '';
+      this.logLines = []; this.botUsers = []; this.analytics = null; this.schedules = [];
+      this.showToken = false;
+      if (!name) return;
+      try { const r = await fetch(`/api/bots/${name}`); if (r.ok) this.botDetail = await r.json(); } catch(e) {}
+    },
+
+    async switchTab(tab) {
+      if (this.activeTab === 'logs' && tab !== 'logs') this.stopLogs();
+      this.activeTab = tab;
+      if (tab === 'overview')  await this.loadUsers();
+      if (tab === 'config')    await this.loadConfig();
+      if (tab === 'persona')   { await this.loadFile('soul.md', 'personaContent'); await this.loadWelcome(); }
+      if (tab === 'memory')    await this.loadMemoryFile(this.activeMemoryFile);
+      if (tab === 'logs')      this.startLogs();
+      if (tab === 'users')     await this.loadUsers();
+      if (tab === 'analytics') await this.loadAnalytics();
+      if (tab === 'schedules') await this.loadSchedules();
+    },
+
+    async loadConfig() {
+      const r = await fetch(`/api/bots/${this.currentBot}/env`);
+      if (!r.ok) return;
+      const {fields} = await r.json();
+      this.configForm.TELEGRAM_TOKEN = fields.TELEGRAM_TOKEN || '';
+      this.configForm.PROVIDER = fields.PROVIDER || 'claude-cli';
+      this.configForm.ACCESS_MODE = fields.ACCESS_MODE || 'approval';
+      this.configForm.MAX_HISTORY = parseInt(fields.MAX_HISTORY) || 20;
+      this.configForm.GROUP_MODE = fields.GROUP_MODE || 'always';
+      const toolsStr = fields.TOOLS || '';
+      this.configForm.TOOLS_ARRAY = toolsStr === 'none' || !toolsStr ? [] : toolsStr.split(',').map(t=>t.trim()).filter(Boolean);
+      this.currentModelOptions = MODELS_BY_PROVIDER[this.configForm.PROVIDER] || MODELS_BY_PROVIDER['claude-cli'];
+      const modelVal = fields.MODEL || '';
+      if (this.currentModelOptions.includes(modelVal)) {
+        this.configForm.MODEL = modelVal; this.configForm.MODEL_CUSTOM = '';
+      } else { this.configForm.MODEL = '__custom__'; this.configForm.MODEL_CUSTOM = modelVal; }
+    },
+
+    onProviderChange() {
+      this.currentModelOptions = MODELS_BY_PROVIDER[this.configForm.PROVIDER] || MODELS_BY_PROVIDER['claude-cli'];
+      this.configForm.MODEL = this.currentModelOptions[0]; this.configForm.MODEL_CUSTOM = '';
+    },
+
+    async saveConfig() {
+      const model = this.configForm.MODEL === '__custom__' ? this.configForm.MODEL_CUSTOM : this.configForm.MODEL;
+      const fields = {
+        TELEGRAM_TOKEN: this.configForm.TELEGRAM_TOKEN, PROVIDER: this.configForm.PROVIDER, MODEL: model,
+        ACCESS_MODE: this.configForm.ACCESS_MODE, MAX_HISTORY: String(this.configForm.MAX_HISTORY),
+        GROUP_MODE: this.configForm.GROUP_MODE,
+        TOOLS: this.configForm.TOOLS_ARRAY.length ? this.configForm.TOOLS_ARRAY.join(',') : 'none',
+      };
+      const r = await fetch(`/api/bots/${this.currentBot}/env`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({fields}) });
+      if (r.ok) { this.toast('Configuração salva!'); await this.selectBot(this.currentBot); await this.loadConfig(); }
+      else this.toast('Erro ao salvar.', 'error');
+    },
+
+    async loadFile(fname, stateKey) {
+      const r = await fetch(`/api/bots/${this.currentBot}/file/${fname}`);
+      if (r.ok) { const d = await r.json(); this[stateKey] = d.content; }
+    },
+
+    async saveFile(fname, content) {
+      const r = await fetch(`/api/bots/${this.currentBot}/file/${fname}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content}) });
+      if (r.ok) this.toast(`${fname} salvo!`);
+      else this.toast(`Erro ao salvar ${fname}.`, 'error');
+    },
+
+    async switchMemoryFile(fname) { this.activeMemoryFile = fname; await this.loadMemoryFile(fname); },
+
+    async loadMemoryFile(fname) {
+      const r = await fetch(`/api/bots/${this.currentBot}/file/${fname}`);
+      if (r.ok) { const d = await r.json(); this.memoryContent = d.content; }
+    },
+
+    async doAction(action) {
+      if (action === 'stop' || action === 'restart') {
+        const ok = await this.showConfirm({
+          title: action === 'stop' ? 'Parar Agente' : 'Reiniciar Agente',
+          message: `Tem certeza que deseja ${action === 'stop' ? 'parar' : 'reiniciar'} o agente "${this.currentBot}"?`,
+          confirmText: action === 'stop' ? 'Parar' : 'Reiniciar',
+          type: 'warn'
+        });
+        if (!ok) return;
+      }
+      this.actionLoading = true;
+      try {
+        const r = await fetch(`/api/bots/${this.currentBot}/action`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action}) });
+        if (r.ok) {
+          this.toast(`Agente ${action === 'start' ? 'iniciado' : action === 'stop' ? 'parado' : 'reiniciado'}!`);
+          await new Promise(res => setTimeout(res, 1500));
+          await this.selectBot(this.currentBot); await this.loadBots();
+        } else this.toast(`Erro ao executar ${action}.`, 'error');
+      } finally { this.actionLoading = false; }
+    },
+
+    startLogs() {
+      if (this.evtSource) this.evtSource.close();
+      this.logLines = [];
+      this.evtSource = new EventSource(`/api/bots/${this.currentBot}/logs`);
+      this.evtSource.onmessage = e => {
+        if (e.data.trim()) {
+          this.logLines.push(e.data);
+          if (this.logLines.length > 500) this.logLines.shift();
+          this.$nextTick(() => { const el = document.getElementById('log-container'); if (el) el.scrollTop = el.scrollHeight; });
+        }
+      };
+    },
+
+    stopLogs() { if (this.evtSource) { this.evtSource.close(); this.evtSource = null; } },
+    clearLogs() { this.logLines = []; },
+
+    async loadUsers() {
+      const r = await fetch(`/api/bots/${this.currentBot}/users`);
+      if (r.ok) this.botUsers = await r.json();
+    },
+
+    async revokeUser(uid) {
+      const ok = await this.showConfirm({title:'Revogar Acesso', message:`Revogar acesso do usuário ${uid}?`, confirmText:'Revogar', type:'danger'});
+      if (!ok) return;
+      const r = await fetch(`/api/bots/${this.currentBot}/users/${uid}`, {method:'DELETE'});
+      if (r.ok) { this.toast('Acesso revogado.'); await this.loadUsers(); }
+      else this.toast('Erro ao revogar.', 'error');
+    },
+
+    async loadAnalytics() {
+      const r = await fetch(`/api/bots/${this.currentBot}/analytics?days=${this.analyticsDays}`);
+      if (r.ok) this.analytics = await r.json();
+    },
+
+    async loadSchedules() {
+      const r = await fetch(`/api/bots/${this.currentBot}/schedules`);
+      if (r.ok) { const d = await r.json(); this.schedules = d.schedules; }
+    },
+
+    async createSchedule() {
+      if (!this.newSchedule.user_id) { this.toast('User ID é obrigatório.', 'error'); return; }
+      if (!this.newSchedule.message.trim()) { this.toast('Mensagem é obrigatória.', 'error'); return; }
+      if (!this.newSchedule.weekdays_arr.length) { this.toast('Selecione ao menos um dia.', 'error'); return; }
+      this.addingSchedule = true;
+      try {
+        const weekdays = this.newSchedule.weekdays_arr.slice().sort().join(',');
+        const r = await fetch(`/api/bots/${this.currentBot}/schedules`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({user_id:this.newSchedule.user_id, hour:this.newSchedule.hour, minute:this.newSchedule.minute, weekdays, message:this.newSchedule.message})
+        });
+        if (r.ok) {
+          this.toast('Schedule adicionado!');
+          this.newSchedule = {user_id:null, hour:8, minute:0, weekdays_arr:[1,2,3,4,5], message:''};
+          await this.loadSchedules();
+        } else { const d = await r.json(); this.toast(d.detail || 'Erro ao adicionar.', 'error'); }
+      } finally { this.addingSchedule = false; }
+    },
+
+    async deleteSchedule(sid) {
+      const ok = await this.showConfirm({title:'Deletar Agendamento', message:'Tem certeza que deseja deletar este agendamento?', confirmText:'Deletar', type:'danger'});
+      if (!ok) return;
+      const r = await fetch(`/api/bots/${this.currentBot}/schedules/${sid}`, {method:'DELETE'});
+      if (r.ok) { this.toast('Schedule deletado.'); await this.loadSchedules(); }
+      else this.toast('Erro ao deletar.', 'error');
+    },
+
+    async openGlobalConfig() {
+      this.showingGlobalConfig = true; this.currentBot = null; this.globalTab = 'context.global'; this.globalEnvFile = 'config.global';
+      if (this.evtSource) this.stopLogs();
+      const [gr1, gr2, gr3, cr] = await Promise.all([
+        fetch('/api/global/context.global'), fetch('/api/global/config.global'),
+        fetch('/api/global/secrets.global'), fetch('/api/crontab')
+      ]);
+      if (gr1.ok) { const d = await gr1.json(); this.globalFiles['context.global'] = d.content; }
+      if (gr2.ok) { const d = await gr2.json(); this.globalFiles['config.global'] = d.content; }
+      if (gr3.ok) { const d = await gr3.json(); this.globalFiles['secrets.global'] = d.content; }
+      if (cr.ok)  { const d = await cr.json(); this.crontabContent = d.content; this.parseCrontab(); }
+    },
+
+    async saveConfigGlobal() {
+      await this.saveGlobalFile(this.globalEnvFile);
+      this.parseGlobalEnv();
+    },
+
+    async restartAllBots() {
+      const ok = await this.showConfirm({title:'Reiniciar Todos os Agentes', message:'Reiniciar todos os agentes para aplicar as novas configurações?', confirmText:'Reiniciar Todos', type:'warn'});
+      if (!ok) return;
+      this.restartingAll = true;
+      try {
+        const r = await fetch('/api/bots/restart-all', {method:'POST'});
+        if (r.ok) {
+          const d = await r.json();
+          const ok = d.results.filter(x => x.ok).length;
+          this.toast(`${ok}/${d.results.length} agente(s) reiniciado(s).`);
+          await this.loadBots();
+        } else this.toast('Erro ao reiniciar agentes.', 'error');
+      } finally { this.restartingAll = false; }
+    },
+
+    parseCrontab() {
+      this.crontabLines = this.crontabContent.split('\n')
+        .map(l => l.trim())
+        .filter(l => l && !l.startsWith('#'));
+    },
+
+    async deleteCronEntry(idx) {
+      const ok = await this.showConfirm({title:'Deletar Entrada', message:'Deletar esta entrada do crontab?', confirmText:'Deletar', type:'danger'});
+      if (!ok) return;
+      this.crontabLines.splice(idx, 1);
+      this.rebuildAndSaveCrontab();
+    },
+
+    addCronEntry() {
+      if (!this.newCronEntry.schedule.trim() || !this.newCronEntry.command.trim()) return;
+      this.crontabLines.push(this.newCronEntry.schedule.trim() + ' ' + this.newCronEntry.command.trim());
+      this.newCronEntry = {schedule:'', command:''};
+      this.rebuildAndSaveCrontab();
+    },
+
+    async rebuildAndSaveCrontab() {
+      this.crontabContent = this.crontabLines.join('\n');
+      await this.saveCrontab();
+    },
+
+    isSensitiveGlobalKey(key) {
+      return this.globalEnvFile === 'secrets.global' || /API_KEY|TOKEN|SECRET|PASSWORD/i.test(key);
+    },
+
+    parseGlobalEnv() {
+      this.globalEnvVars = this.globalFiles[this.globalEnvFile].split('\n')
+        .filter(l => { const t = l.trim(); return t && !t.startsWith('#') && t.includes('='); })
+        .map(l => {
+          const eq = l.indexOf('=');
+          return { key: l.slice(0, eq).trim(), value: l.slice(eq + 1).trim(), showVal: false };
+        });
+    },
+
+    rebuildGlobalEnvContent() {
+      const varMap = new Map(this.globalEnvVars.map(v => [v.key, v.value]));
+      const seenKeys = new Set();
+      const resultLines = this.globalFiles[this.globalEnvFile].split('\n').map(l => {
+        const t = l.trim();
+        if (!t || t.startsWith('#')) return l;
+        if (l.includes('=')) {
+          const eq = l.indexOf('=');
+          const key = l.slice(0, eq).trim();
+          if (varMap.has(key)) { seenKeys.add(key); return `${key}=${varMap.get(key)}`; }
+          return null; // deletado
+        }
+        return l;
+      }).filter(l => l !== null);
+      this.globalEnvVars.forEach(v => { if (!seenKeys.has(v.key)) resultLines.push(`${v.key}=${v.value}`); });
+      this.globalFiles[this.globalEnvFile] = resultLines.join('\n');
+    },
+
+    async saveGlobalEnvRow(idx) {
+      this.rebuildGlobalEnvContent();
+      await this.saveGlobalFile(this.globalEnvFile);
+    },
+
+    async deleteGlobalEnv(idx) {
+      const ok = await this.showConfirm({title:'Deletar Variável', message:`Deletar variável "${this.globalEnvVars[idx].key}"?`, confirmText:'Deletar', type:'danger'});
+      if (!ok) return;
+      this.globalEnvVars.splice(idx, 1);
+      this.rebuildGlobalEnvContent();
+      await this.saveGlobalFile(this.globalEnvFile);
+    },
+
+    async addGlobalEnv() {
+      const key = this.newGlobalEnv.key.trim().toUpperCase();
+      const value = this.newGlobalEnv.value.trim();
+      if (!key) return;
+      if (this.globalEnvVars.find(v => v.key === key)) {
+        this.toast(`Variável ${key} já existe.`, 'error'); return;
+      }
+      this.globalEnvVars.push({ key, value, showVal: false });
+      this.newGlobalEnv = { key: '', value: '' };
+      this.rebuildGlobalEnvContent();
+      await this.saveGlobalFile(this.globalEnvFile);
+    },
+
+    async saveGlobalFile(fname) {
+      const r = await fetch(`/api/global/${fname}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:this.globalFiles[fname]}) });
+      if (r.ok) this.toast(`${fname} salvo!`);
+      else this.toast(`Erro ao salvar ${fname}.`, 'error');
+    },
+
+    async saveCrontab() {
+      const r = await fetch('/api/crontab', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:this.crontabContent}) });
+      if (r.ok) this.toast('Crontab salvo!');
+      else { const d = await r.json().catch(()=>({})); this.toast(d.detail || 'Erro ao salvar crontab.', 'error'); }
+    },
+
+    async sendMessage() {
+      if (!this.sendMsg.user_id || !this.sendMsg.message.trim()) { this.toast('Preencha usuário e mensagem.', 'error'); return; }
+      this.sendMsg.sending = true;
+      try {
+        const r = await fetch(`/api/bots/${this.currentBot}/send-message`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:this.sendMsg.user_id, message:this.sendMsg.message}) });
+        if (r.ok) { this.toast('Mensagem enviada!'); this.sendMsg.message = ''; }
+        else { const d = await r.json(); this.toast(d.detail || 'Erro ao enviar.', 'error'); }
+      } finally { this.sendMsg.sending = false; }
+    },
+
+    async sendBroadcast() {
+      if (!this.broadcast.message.trim()) { this.toast('Mensagem é obrigatória.', 'error'); return; }
+      const ok = await this.showConfirm({title:'Enviar Broadcast', message:`Enviar mensagem para todos os usuários aprovados deste agente?`, confirmText:'Enviar', type:'info'});
+      if (!ok) return;
+      this.broadcast.sending = true;
+      try {
+        const r = await fetch(`/api/bots/${this.currentBot}/broadcast`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:this.broadcast.message}) });
+        if (r.ok) { const d = await r.json(); this.toast(`Broadcast enviado: ${d.sent}/${d.total} usuário(s).`); this.broadcast.message = ''; this.broadcast.show = false; }
+        else { const d = await r.json(); this.toast(d.detail || 'Erro ao enviar broadcast.', 'error'); }
+      } finally { this.broadcast.sending = false; }
+    },
+
+    async exportConversations(userId) {
+      const url = userId ? `/api/bots/${this.currentBot}/export?user_id=${userId}` : `/api/bots/${this.currentBot}/export`;
+      const r = await fetch(url);
+      if (!r.ok) { this.toast('Erro ao exportar.', 'error'); return; }
+      const data = await r.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${this.currentBot}_conversations${userId ? '_'+userId : ''}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      this.toast('Exportação baixada!');
+    },
+
+    async clearUserHistory(uid) {
+      const ok = await this.showConfirm({title:'Limpar Histórico', message:`Limpar todo o histórico de conversas do usuário ${uid}?`, confirmText:'Limpar', type:'danger'});
+      if (!ok) return;
+      const r = await fetch(`/api/bots/${this.currentBot}/conversations/${uid}`, {method:'DELETE'});
+      if (r.ok) this.toast('Histórico limpo.');
+      else this.toast('Erro ao limpar histórico.', 'error');
+    },
+
+    async loadWelcome() {
+      const r = await fetch(`/api/bots/${this.currentBot}/file/welcome.md`);
+      if (r.ok) { const d = await r.json(); this.welcomeContent = d.content; }
+      this.welcomeLoaded = true;
+    },
+
+    openNewBotModal() {
+      this.newBot = {name:'', telegram_token:'', model:MODELS_BY_PROVIDER['claude-cli'][0], provider:'claude-cli', tools:['shell','files','http']};
+      this.newBotError = ''; this.showNewBotModal = true;
+    },
+
+    async createBot() {
+      this.newBotError = '';
+      if (!this.newBot.name) { this.newBotError = 'Nome obrigatório.'; return; }
+      this.creatingBot = true;
+      try {
+        const r = await fetch('/api/bots', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.newBot) });
+        if (r.ok) {
+          this.showNewBotModal = false;
+          this.toast(`Agente "${this.newBot.name}" criado!`);
+          await this.loadBots(); await this.selectBot(this.newBot.name);
+        } else { const d = await r.json(); this.newBotError = d.detail || 'Erro ao criar agente.'; }
+      } catch(e) { this.newBotError = 'Erro de conexão.'; }
+      finally { this.creatingBot = false; }
+    },
+
+    async confirmDeleteBot() {
+      if (this.deleteConfirmName !== this.currentBot) return;
+      this.deletingBot = true;
+      const botName = this.currentBot;
+      try {
+        const r = await fetch(`/api/bots/${botName}`, {method:'DELETE'});
+        if (r.ok) {
+          this.showDeleteModal = false; this.deleteConfirmName = '';
+          this.toast(`Agente "${botName}" deletado.`);
+          await this.loadBots(); this.selectBot(null);
+        } else this.toast('Erro ao deletar agente.', 'error');
+      } finally { this.deletingBot = false; }
+    },
+  };
+}
+</script>
+</body>
+</html>

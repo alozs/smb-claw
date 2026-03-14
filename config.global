@@ -1,0 +1,34 @@
+# Configurações globais compartilhadas por todos os bots.
+# Preencha uma vez — bot.py carrega este arquivo em runtime como defaults.
+
+# ── Anthropic ─────────────────────────────────────────────────────────────────
+# Chave da API Anthropic — opcional se usar assinatura do Claude Code.
+# Se vazio, bot.py lê automaticamente ~/.claude/.credentials.json (OAuth).
+ANTHROPIC_API_KEY=
+
+# ── OpenRouter ────────────────────────────────────────────────────────────────
+# Chave da API OpenRouter — necessária quando algum bot usa PROVIDER=openrouter.
+# Obtenha em: https://openrouter.ai/keys
+OPENROUTER_API_KEY=
+
+# ── Provedor padrão ───────────────────────────────────────────────────────────
+# anthropic  → Claude via Anthropic API key (requer ANTHROPIC_API_KEY)
+# openrouter → Qualquer modelo via OpenRouter (requer OPENROUTER_API_KEY)
+# claude-cli → Claude via OAuth do Claude Code (sem API key, usa assinatura Claude)
+# Cada bot pode sobrescrever com PROVIDER= no seu .env
+PROVIDER=claude-cli
+
+# ── Telegram ──────────────────────────────────────────────────────────────────
+# Seu ID do Telegram (admin de todos os bots)
+# Para descobrir: inicie qualquer bot e envie /id
+ADMIN_ID=808636112
+
+# ── Modelo ────────────────────────────────────────────────────────────────────
+# Modelo padrão para todos os bots.
+# Anthropic:   claude-opus-4-6 | claude-sonnet-4-6 | claude-haiku-4-5-20251001
+# OpenRouter:  x-ai/grok-3 | google/gemini-2.0-flash | openai/gpt-4o | etc.
+MODEL=claude-opus-4-6
+
+# ── Acesso ────────────────────────────────────────────────────────────────────
+# Modo de acesso padrão: open | approval | closed
+ACCESS_MODE=approval
