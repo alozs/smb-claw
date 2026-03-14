@@ -169,6 +169,34 @@ Habilite por bot via `TOOLS=` no `.env`:
 | `files` | Envia arquivos via Telegram |
 | `cron` | Gerencia crontabs do sistema |
 
+## Subagentes
+
+Subagentes são bots especializados que podem ser invocados pelo bot pai para tarefas específicas. Ficam em `subagents/<nome>/`.
+
+```
+subagents/criador-graficos/
+├── .env        # NAME, DESCRIPTION, PROVIDER, MODEL, TOOLS, ALLOWED_PARENTS, MODE
+└── soul.md     # System prompt especializado
+```
+
+### Configuração do `.env` do subagente
+
+```env
+NAME=Criador de Gráficos
+DESCRIPTION=Gera gráficos e visualizações de dados
+PROVIDER=anthropic
+MODEL=claude-sonnet-4-20250514
+TOOLS=shell,files          # apenas as ferramentas que o subagente precisa
+ALLOWED_PARENTS=*          # quais bots podem invocar (* = todos)
+MODE=simple                # simple (uma chamada, sem tools) | agentic (loop com tools)
+```
+
+- **Modo `simple`**: uma única chamada LLM, sem ferramentas. Rápido, ideal para 95% dos casos.
+- **Modo `agentic`**: loop com tool use (até 10 iterações). Para tarefas complexas.
+- Subagentes recebem **apenas** as ferramentas declaradas no seu `TOOLS` — ferramentas "sempre ativas" do bot pai (tasks, memory, schedule) não são herdadas.
+- Subagentes **não podem invocar outros subagentes** (anti-recursão).
+- Analytics de subagentes são registrados separadamente com identificador `<bot>/sub:<agent_name>`.
+
 ## Sistema de Memória
 
 Cada bot possui memória em camadas, carregada automaticamente no contexto:
@@ -191,16 +219,41 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 Acesse em `http://localhost:8000`.
 
+## Múltiplos Bots na Mesma VPS
+
+O framework suporta quantos bots você quiser na mesma VPS, sem conflito de portas. Cada bot usa **polling** (long polling do Telegram) — nenhuma porta é aberta por bot.
+
+O que é **compartilhado** entre todos os bots:
+- `config.global` / `secrets.global` — chaves de API, admin ID
+- `context.global` — instruções globais injetadas no system prompt
+- `bot.py`, `db.py`, `tools/` — código-fonte
+
+O que cada bot tem **isolado**:
+- `.env` — token Telegram, ferramentas, modelo
+- `soul.md` — personalidade
+- `bot_data.db` — conversas, tarefas, analytics
+- `workspace/` — sandbox de arquivos
+- `memory/` — memória diária e de longo prazo
+
+A única porta utilizada é a do **painel admin** (FastAPI na porta 8000), que é um só para todos os bots.
+
+Não há limite prático além dos recursos da VPS (CPU, RAM, API rate limits). Cada bot consome pouca memória em idle — só processa quando recebe mensagem.
+
 ## Gerenciamento de Serviços
 
 ```bash
 # Status de todos os bots
 bash gerenciar.sh status
 
-# Iniciar / parar / reiniciar
+# Listar bots disponíveis
+bash gerenciar.sh list
+
+# Iniciar / parar / reiniciar (um ou todos)
 bash gerenciar.sh start meu-assistente
 bash gerenciar.sh stop meu-assistente
 bash gerenciar.sh restart meu-assistente
+bash gerenciar.sh start   # inicia todos
+bash gerenciar.sh stop    # para todos
 
 # Logs em tempo real
 bash gerenciar.sh logs meu-assistente

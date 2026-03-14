@@ -121,7 +121,7 @@ Valor: lista separada por vírgula ou `none`.
 | Git | `git` | `GIT_TOKEN`, `GIT_USER`, `GIT_EMAIL` | Clone/push/pull com token injetado |
 | GitHub | `github` | `GITHUB_TOKEN` (ou `GIT_TOKEN`) | API do GitHub: PRs, issues, reviews, CI checks |
 | Database | `database` | `DB_URL` | Queries SQL (PostgreSQL, MySQL, SQLite) |
-| Sub-agentes | *(auto-descoberto)* | — | Delegação para sub-agentes em `subagents/`. Ferramentas `agent_<nome>` geradas automaticamente. Configurar via `subagents/<nome>/.env` e `soul.md`. |
+| Sub-agentes | *(auto-descoberto)* | — | Delegação para sub-agentes em `subagents/`. Ferramentas `agent_<nome>` geradas automaticamente. Configurar via `subagents/<nome>/.env` e `soul.md`. Sub-agentes recebem **apenas** as ferramentas declaradas no seu `TOOLS` (sem ferramentas "sempre ativas" como tasks/memory/schedule). Analytics de sub-agentes são logados com bot `<bot>/sub:<agent_name>`. |
 
 ---
 

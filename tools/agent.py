@@ -15,15 +15,13 @@ import json
 import logging
 import os
 import re
+import time
 from pathlib import Path
 
 logger = logging.getLogger("tools.agent")
 
 _SUBAGENT_TIMEOUT = 90  # segundos — timeout global por execução de sub-agente
 
-# Tools que são "sempre disponíveis" no bot pai mas não fazem sentido para sub-agentes
-# (precisam de db=None → falhariam silenciosamente)
-_SUPPRESS_FOR_SUBAGENTS = {"task_create", "task_update", "task_list", "schedule", "state_rw"}
 
 
 def _parse_env_file(path: Path) -> dict:
@@ -151,6 +149,9 @@ def execute_sync(name: str, inp: dict, *, user_id: int, db, config: dict) -> str
 
     logger.info(f"[tool] {name} — modo={mode}")
 
+    t0 = time.monotonic()
+    error_str = ""
+    usage = {}
     try:
         coro = asyncio.wait_for(
             _run_subagent_async(
@@ -158,16 +159,32 @@ def execute_sync(name: str, inp: dict, *, user_id: int, db, config: dict) -> str
                 prompt=prompt,
                 context=context,
                 parent_config=config,
+                user_id=user_id,
             ),
             timeout=_SUBAGENT_TIMEOUT,
         )
-        return asyncio.run(coro)
+        text, usage = asyncio.run(coro)
+        return text
     except asyncio.TimeoutError:
+        error_str = f"Timeout ({_SUBAGENT_TIMEOUT}s)"
         logger.warning(f"Sub-agente '{name}' excedeu timeout de {_SUBAGENT_TIMEOUT}s")
         return f"[Sub-agent '{name}'] Timeout: execução excedeu {_SUBAGENT_TIMEOUT}s"
     except Exception as e:
+        error_str = f"{type(e).__name__}: {e}"
         logger.error(f"Sub-agente '{name}' falhou: {e}", exc_info=True)
         return f"[Sub-agent '{name}' failed: {type(e).__name__}: {e}]"
+    finally:
+        latency = int((time.monotonic() - t0) * 1000)
+        if db is not None:
+            try:
+                bot_name = config.get("BOT_NAME", "")
+                db.log_event(
+                    f"{bot_name}/sub:{name}", user_id,
+                    usage.get("input_tokens", 0), usage.get("output_tokens", 0),
+                    usage.get("tool_calls", 0), latency, error_str,
+                )
+            except Exception:
+                pass
 
 
 async def _run_subagent_async(
@@ -176,9 +193,11 @@ async def _run_subagent_async(
     prompt: str,
     context: str,
     parent_config: dict,
-) -> str:
+    user_id: int = 0,
+) -> tuple[str, dict]:
     """
     Executa o sub-agente no novo event loop.
+    Retorna (texto_resposta, usage_dict) onde usage_dict tem input_tokens, output_tokens, tool_calls.
     Modo 'simple': uma chamada LLM, sem tools, resposta direta.
     Modo 'agentic': loop completo com tool use (até 10 iterações).
     """
@@ -208,9 +227,10 @@ async def _run_subagent_async(
         elif provider == "openrouter":
             return await _simple_openrouter(openrouter_key, model, system_prompt, user_content)
         elif provider == "claude-cli":
-            return await _loop_cli(model=model, system=system_prompt, prompt=prompt, context=context)
+            text = await _loop_cli(model=model, system=system_prompt, prompt=prompt, context=context)
+            return text, {}
         else:
-            return f"[Sub-agente] Provedor desconhecido: {provider}"
+            return f"[Sub-agente] Provedor desconhecido: {provider}", {}
 
     # Modo agentic: com tools e loop
     import tools as tool_registry
@@ -219,29 +239,32 @@ async def _run_subagent_async(
     enabled_tools = set() if tools_raw == "none" else {t.strip() for t in tools_raw.split(",")}
     work_dir = parent_config.get("WORK_DIR", Path("."))
 
-    # Suprimir tools que precisam de db (falhariam silenciosamente no sub-agente)
-    all_defs = tool_registry.build_definitions(enabled_tools, work_dir)
-    tool_defs = [d for d in all_defs if d["name"] not in _SUPPRESS_FOR_SUBAGENTS]
+    # for_subagent=True: não inclui ferramentas "sempre ativas" (tasks, memory, schedule)
+    # Subagente recebe apenas as ferramentas declaradas no seu TOOLS
+    tool_defs = tool_registry.build_definitions(enabled_tools, work_dir, for_subagent=True)
 
     if provider == "anthropic":
         return await _loop_anthropic(
             api_key=anthropic_key, model=model, system=system_prompt,
             user_content=user_content, tool_defs=tool_defs, parent_config=parent_config,
+            user_id=user_id,
         )
     elif provider == "openrouter":
         return await _loop_openrouter(
             api_key=openrouter_key, model=model, system=system_prompt,
             user_content=user_content, tool_defs=tool_defs, parent_config=parent_config,
+            user_id=user_id,
         )
     elif provider == "claude-cli":
-        return await _loop_cli(model=model, system=system_prompt, prompt=prompt, context=context)
+        text = await _loop_cli(model=model, system=system_prompt, prompt=prompt, context=context)
+        return text, {}
     else:
-        return f"[Sub-agente] Provedor desconhecido: {provider}"
+        return f"[Sub-agente] Provedor desconhecido: {provider}", {}
 
 
 # ── Modo simple ───────────────────────────────────────────────────────────────
 
-async def _simple_anthropic(api_key: str, model: str, system: str, user_content: str) -> str:
+async def _simple_anthropic(api_key: str, model: str, system: str, user_content: str) -> tuple[str, dict]:
     """Uma única chamada Anthropic — sem tools, sem loop. Rápido."""
     import anthropic as anthropic_sdk
 
@@ -255,7 +278,7 @@ async def _simple_anthropic(api_key: str, model: str, system: str, user_content:
                 pass
 
     if not api_key:
-        return "[Sub-agente Anthropic] Erro: ANTHROPIC_API_KEY não configurada"
+        return "[Sub-agente Anthropic] Erro: ANTHROPIC_API_KEY não configurada", {}
 
     client = anthropic_sdk.AsyncAnthropic(api_key=api_key, max_retries=2)
     response = await client.messages.create(
@@ -263,25 +286,34 @@ async def _simple_anthropic(api_key: str, model: str, system: str, user_content:
         messages=[{"role": "user", "content": user_content}],
     )
     text = " ".join(b.text for b in response.content if b.type == "text")
-    return text or "[Sub-agente sem resposta]"
+    usage = {
+        "input_tokens": getattr(response.usage, "input_tokens", 0),
+        "output_tokens": getattr(response.usage, "output_tokens", 0),
+    }
+    return text or "[Sub-agente sem resposta]", usage
 
 
-async def _simple_openrouter(api_key: str, model: str, system: str, user_content: str) -> str:
+async def _simple_openrouter(api_key: str, model: str, system: str, user_content: str) -> tuple[str, dict]:
     """Uma única chamada OpenRouter — sem tools, sem loop. Rápido."""
     try:
         from openai import AsyncOpenAI
     except ImportError:
-        return "[Sub-agente OpenRouter] Erro: openai package não instalado"
+        return "[Sub-agente OpenRouter] Erro: openai package não instalado", {}
 
     if not api_key:
-        return "[Sub-agente OpenRouter] Erro: OPENROUTER_API_KEY não configurada"
+        return "[Sub-agente OpenRouter] Erro: OPENROUTER_API_KEY não configurada", {}
 
     client = AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
     response = await client.chat.completions.create(
         model=model, max_tokens=4096,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user_content}],
     )
-    return response.choices[0].message.content or "[Sub-agente sem resposta]"
+    text = response.choices[0].message.content or "[Sub-agente sem resposta]"
+    usage = {
+        "input_tokens": getattr(response.usage, "prompt_tokens", 0),
+        "output_tokens": getattr(response.usage, "completion_tokens", 0),
+    }
+    return text, usage
 
 
 # ── Modo agentic ──────────────────────────────────────────────────────────────
@@ -289,7 +321,8 @@ async def _simple_openrouter(api_key: str, model: str, system: str, user_content
 async def _loop_anthropic(
     *, api_key: str, model: str, system: str, user_content: str,
     tool_defs: list, parent_config: dict, max_iterations: int = 10,
-) -> str:
+    user_id: int = 0,
+) -> tuple[str, dict]:
     import anthropic as anthropic_sdk
 
     if not api_key:
@@ -302,7 +335,7 @@ async def _loop_anthropic(
                 pass
 
     if not api_key:
-        return "[Sub-agente Anthropic] Erro: ANTHROPIC_API_KEY não configurada"
+        return "[Sub-agente Anthropic] Erro: ANTHROPIC_API_KEY não configurada", {}
 
     client = anthropic_sdk.AsyncAnthropic(api_key=api_key, max_retries=2)
     messages: list[dict] = [{"role": "user", "content": user_content}]
@@ -311,38 +344,46 @@ async def _loop_anthropic(
         kwargs["tools"] = tool_defs
 
     text_parts: list[str] = []
+    total_input = total_output = total_tool_calls = 0
     for _ in range(max_iterations):
         response = await client.messages.create(**kwargs)
+        total_input += getattr(response.usage, "input_tokens", 0)
+        total_output += getattr(response.usage, "output_tokens", 0)
         text_parts = [b.text for b in response.content if b.type == "text"]
         tool_uses = [b for b in response.content if b.type == "tool_use"]
 
         if response.stop_reason == "end_turn" or not tool_uses:
             break
 
+        total_tool_calls += len(tool_uses)
         messages.append({"role": "assistant", "content": response.content})
         results = []
         for tu in tool_uses:
             result = await asyncio.to_thread(
-                _execute_tool_sync, tu.name, tu.input, parent_config=parent_config
+                _execute_tool_sync, tu.name, tu.input, parent_config=parent_config,
+                user_id=user_id,
             )
             results.append({"type": "tool_result", "tool_use_id": tu.id, "content": str(result)})
         messages.append({"role": "user", "content": results})
         kwargs["messages"] = messages
 
-    return "\n".join(text_parts) or "[Sub-agente sem resposta]"
+    text = "\n".join(text_parts) or "[Sub-agente sem resposta]"
+    usage = {"input_tokens": total_input, "output_tokens": total_output, "tool_calls": total_tool_calls}
+    return text, usage
 
 
 async def _loop_openrouter(
     *, api_key: str, model: str, system: str, user_content: str,
     tool_defs: list, parent_config: dict, max_iterations: int = 10,
-) -> str:
+    user_id: int = 0,
+) -> tuple[str, dict]:
     try:
         from openai import AsyncOpenAI
     except ImportError:
-        return "[Sub-agente OpenRouter] Erro: openai package não instalado"
+        return "[Sub-agente OpenRouter] Erro: openai package não instalado", {}
 
     if not api_key:
-        return "[Sub-agente OpenRouter] Erro: OPENROUTER_API_KEY não configurada"
+        return "[Sub-agente OpenRouter] Erro: OPENROUTER_API_KEY não configurada", {}
 
     client = AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
     messages: list[dict] = [
@@ -362,8 +403,11 @@ async def _loop_openrouter(
         kwargs["tools"] = openai_tools
 
     text_parts: list[str] = []
+    total_input = total_output = total_tool_calls = 0
     for _ in range(max_iterations):
         response = await client.chat.completions.create(**kwargs)
+        total_input += getattr(response.usage, "prompt_tokens", 0)
+        total_output += getattr(response.usage, "completion_tokens", 0)
         choice = response.choices[0]
         msg = choice.message
         if msg.content:
@@ -372,6 +416,7 @@ async def _loop_openrouter(
         if choice.finish_reason != "tool_calls" or not msg.tool_calls:
             break
 
+        total_tool_calls += len(msg.tool_calls)
         messages.append({"role": "assistant", "content": msg.content or "", "tool_calls": [
             {"id": tc.id, "type": "function",
              "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
@@ -383,12 +428,15 @@ async def _loop_openrouter(
             except Exception:
                 tool_input = {}
             result = await asyncio.to_thread(
-                _execute_tool_sync, tc.function.name, tool_input, parent_config=parent_config
+                _execute_tool_sync, tc.function.name, tool_input, parent_config=parent_config,
+                user_id=user_id,
             )
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": str(result)})
         kwargs["messages"] = messages
 
-    return "\n".join(text_parts) or "[Sub-agente sem resposta]"
+    text = "\n".join(text_parts) or "[Sub-agente sem resposta]"
+    usage = {"input_tokens": total_input, "output_tokens": total_output, "tool_calls": total_tool_calls}
+    return text, usage
 
 
 async def _loop_cli(*, model: str, system: str, prompt: str, context: str) -> str:
@@ -415,11 +463,11 @@ async def _loop_cli(*, model: str, system: str, prompt: str, context: str) -> st
         return f"[Sub-agente CLI falhou: {e}]"
 
 
-def _execute_tool_sync(name: str, inp: dict, *, parent_config: dict) -> str:
+def _execute_tool_sync(name: str, inp: dict, *, parent_config: dict, user_id: int = 0) -> str:
     """Executa tool do sub-agente (modo agentic). Roda em thread pool."""
     try:
         import tools as tool_registry
-        result = tool_registry._execute_sync(name, inp, user_id=0, db=None, config=parent_config)
+        result = tool_registry._execute_sync(name, inp, user_id=user_id, db=None, config=parent_config)
         return str(result) if result is not None else "[tool sem resultado]"
     except Exception as e:
         logger.error(f"Tool {name} no sub-agente falhou: {e}", exc_info=True)

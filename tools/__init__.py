@@ -13,13 +13,19 @@ from tools import memory, tasks, shell, github_tool, git, http, database, schedu
 logger = logging.getLogger("tools")
 
 
-def build_definitions(enabled_tools: set, work_dir, base_dir=None, bot_name: str = "") -> list[dict]:
-    """Constrói lista de tool definitions baseado nos tools habilitados."""
+def build_definitions(enabled_tools: set, work_dir, base_dir=None, bot_name: str = "",
+                      for_subagent: bool = False) -> list[dict]:
+    """Constrói lista de tool definitions baseado nos tools habilitados.
+
+    for_subagent: quando True, não inclui ferramentas "sempre ativas" (tasks, memory, schedule).
+    Subagentes usam apenas as ferramentas declaradas em seu TOOLS no .env.
+    """
     defs = []
-    # Sempre disponíveis
-    defs.extend(tasks.DEFINITIONS)
-    defs.extend(memory.DEFINITIONS)
-    defs.extend(schedule.DEFINITIONS)
+    # Sempre disponíveis (apenas para bots pai, não para sub-agentes)
+    if not for_subagent:
+        defs.extend(tasks.DEFINITIONS)
+        defs.extend(memory.DEFINITIONS)
+        defs.extend(schedule.DEFINITIONS)
     # Condicionais
     if "shell" in enabled_tools:
         defs.extend(shell.get_definitions())
