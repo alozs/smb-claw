@@ -95,6 +95,17 @@ class TestHttpSecretHeaders:
         )
         assert headers["Authorization"] == "Bearer secret-token"
 
+    def test_resolves_known_and_preserves_unknown_placeholders(self):
+        headers = _resolve_secret_headers(
+            {
+                "Authorization": "Bearer $API_KEY_1",
+                "X-Trace": "$UNKNOWN_PLACEHOLDER",
+            },
+            {"API_KEY_1": "another-secret"},
+        )
+        assert headers["Authorization"] == "Bearer another-secret"
+        assert headers["X-Trace"] == "$UNKNOWN_PLACEHOLDER"
+
 
 # ── Path traversal ───────────────────────────────────────────────────────────
 

@@ -1,5 +1,6 @@
 """Ferramenta HTTP: requisições a APIs externas."""
 
+import re
 import urllib.request
 import urllib.error
 from urllib.parse import urlparse
@@ -56,10 +57,16 @@ def execute(inp: dict, *, config: dict) -> str:
 
 def _resolve_secret_headers(headers: dict, config: dict) -> dict:
     """Substitui placeholders de segredos do config sem expor o valor em texto."""
+    # Aceita o formato usual de variáveis de ambiente do projeto: $VAR ou ${VAR}.
+    pattern = re.compile(r"\$\{([A-Z0-9_]+)\}|\$([A-Z0-9_]+)")
     resolved = {}
     for key, value in headers.items():
         if isinstance(value, str):
-            value = value.replace("${OPENROUTER_API_KEY}", config.get("OPENROUTER_API_KEY", ""))
-            value = value.replace("$OPENROUTER_API_KEY", config.get("OPENROUTER_API_KEY", ""))
+            def repl(match):
+                # Usa o valor configurado quando existir; caso contrário, preserva o placeholder.
+                config_key = match.group(1) or match.group(2)
+                return str(config.get(config_key, match.group(0)))
+
+            value = pattern.sub(repl, value)
         resolved[key] = value
     return resolved
