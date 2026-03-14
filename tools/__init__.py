@@ -13,7 +13,7 @@ from tools import memory, tasks, shell, github_tool, git, http, database, schedu
 logger = logging.getLogger("tools")
 
 
-def build_definitions(enabled_tools: set, work_dir) -> list[dict]:
+def build_definitions(enabled_tools: set, work_dir, base_dir=None, bot_name: str = "") -> list[dict]:
     """Constrói lista de tool definitions baseado nos tools habilitados."""
     defs = []
     # Sempre disponíveis
@@ -36,6 +36,11 @@ def build_definitions(enabled_tools: set, work_dir) -> list[dict]:
         defs.extend(github_tool.DEFINITIONS)
     if "database" in enabled_tools:
         defs.extend(database.DEFINITIONS)
+    # Sub-agentes (apenas quando base_dir é fornecido — evita recursão em sub-agentes)
+    if base_dir is not None:
+        from tools import agent as agent_tool
+        from pathlib import Path
+        defs.extend(agent_tool.build_definitions(Path(base_dir), bot_name))
     return defs
 
 
@@ -68,6 +73,10 @@ def _execute_sync(name: str, inp: dict, *, user_id: int = 0, db, config: dict) -
     # Telegram file (fila de envio)
     if name == "send_telegram_file":
         return telegram_file.execute(inp, user_id=user_id, config=config)
+    # Sub-agentes
+    if name.startswith("agent_"):
+        from tools import agent as agent_tool
+        return agent_tool.execute_sync(name, inp, user_id=user_id, db=db, config=config)
 
     return f"Ferramenta desconhecida: {name}"
 

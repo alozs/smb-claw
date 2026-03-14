@@ -155,7 +155,7 @@ TOOL_CONFIG = {
 
 # ── Tool definitions ──────────────────────────────────────────────────────────
 
-TOOL_DEFINITIONS = tool_registry.build_definitions(ENABLED_TOOLS, WORK_DIR)
+TOOL_DEFINITIONS = tool_registry.build_definitions(ENABLED_TOOLS, WORK_DIR, BASE_DIR, BOT_NAME)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SISTEMA DE MEMÓRIA
@@ -685,6 +685,7 @@ async def _ask_cli(messages: list, user_id: int = 0, notify_fn=None) -> str:
             stderr=asyncio.subprocess.PIPE,
             env=env,
             cwd=str(WORK_DIR),
+            limit=4 * 1024 * 1024,  # 4MB — evita LimitOverrunError em respostas longas
         )
         _cli_procs[user_id] = proc
 
@@ -693,29 +694,52 @@ async def _ask_cli(messages: list, user_id: int = 0, notify_fn=None) -> str:
 
         async def _read_stdout():
             nonlocal result_text
-            async for raw_line in proc.stdout:
-                line = raw_line.decode("utf-8", errors="replace").strip()
-                if not line:
-                    continue
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                etype = event.get("type")
-                if etype == "assistant" and notify_fn:
-                    for block in event.get("message", {}).get("content", []):
-                        if block.get("type") == "tool_use":
-                            try:
-                                await notify_fn(block.get("name", ""), block.get("input", {}))
-                            except Exception:
-                                pass
-                elif etype == "result":
-                    result_text = event.get("result", "")
-                    if event.get("is_error"):
-                        raise RuntimeError(f"claude CLI erro: {result_text}")
-                    sid = event.get("session_id")
-                    if sid:
-                        _cli_sessions[user_id] = sid
+            buf = b""
+            while True:
+                chunk = await proc.stdout.read(65536)
+                if not chunk:
+                    break
+                buf += chunk
+                while b"\n" in buf:
+                    raw_line, buf = buf.split(b"\n", 1)
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    etype = event.get("type")
+                    if etype == "assistant" and notify_fn:
+                        for block in event.get("message", {}).get("content", []):
+                            if block.get("type") == "tool_use":
+                                try:
+                                    await notify_fn(block.get("name", ""), block.get("input", {}))
+                                except Exception:
+                                    pass
+                    elif etype == "result":
+                        result_text = event.get("result", "")
+                        if event.get("is_error"):
+                            raise RuntimeError(f"claude CLI erro: {result_text}")
+                        sid = event.get("session_id")
+                        if sid:
+                            _cli_sessions[user_id] = sid
+            # processa qualquer dado restante no buffer sem newline final
+            if buf:
+                line = buf.decode("utf-8", errors="replace").strip()
+                if line:
+                    try:
+                        event = json.loads(line)
+                        etype = event.get("type")
+                        if etype == "result":
+                            result_text = event.get("result", "")
+                            if event.get("is_error"):
+                                raise RuntimeError(f"claude CLI erro: {result_text}")
+                            sid = event.get("session_id")
+                            if sid:
+                                _cli_sessions[user_id] = sid
+                    except json.JSONDecodeError:
+                        pass
 
         async def _read_stderr():
             nonlocal stderr_text

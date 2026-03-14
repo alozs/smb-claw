@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import re
 import shutil
@@ -7,8 +8,9 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import Optional
@@ -17,6 +19,7 @@ from typing import Optional
 
 BASE_DIR = Path("/home/ubuntu/claude-bots")
 BOTS_DIR = BASE_DIR / "bots"
+SUBAGENTS_DIR = BASE_DIR / "subagents"
 
 FILE_WHITELIST = {"soul.md", "USER.md", "MEMORY.md", "welcome.md"}
 GLOBAL_WHITELIST = {"context.global", "config.global", "secrets.global"}
@@ -24,6 +27,7 @@ GLOBAL_WHITELIST = {"context.global", "config.global", "secrets.global"}
 SENSITIVE_KEYS = {"ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"}
 
 app = FastAPI(title="Claude Bots Admin")
+app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
@@ -167,12 +171,48 @@ def get_bot_summary(bot_name: str) -> dict:
 
     provider = env.get("PROVIDER", "claude-cli")
     model = env.get("MODEL", "")
+    tools_raw = env.get("TOOLS", "none")
+    tools_list = [t.strip() for t in tools_raw.split(",") if t.strip() and t.strip() != "none"]
+    access_mode = env.get("ACCESS_MODE", "open")
+    bot_dir = BOTS_DIR / bot_name
+    has_avatar = any(bot_dir.glob("avatar.*"))
+    uptime = get_uptime(bot_name) if active else "—"
+
+    # Subagentes com acesso a este bot
+    subagents = []
+    sa_dir = BASE_DIR / "subagents"
+    if sa_dir.exists():
+        for sa in sorted(sa_dir.iterdir()):
+            if not sa.is_dir():
+                continue
+            sa_env_path = sa / ".env"
+            if not sa_env_path.exists():
+                continue
+            sa_env = {}
+            for line in sa_env_path.read_text().splitlines():
+                if "=" in line and not line.startswith("#"):
+                    k, _, v = line.partition("=")
+                    sa_env[k.strip()] = v.strip()
+            allowed = sa_env.get("ALLOWED_PARENTS", "*")
+            if allowed == "*" or bot_name in [x.strip() for x in allowed.split(",")]:
+                subagents.append(sa.name)
+
+    display_name = env.get("BOT_NAME", "").strip() or bot_name
+    description = env.get("DESCRIPTION", "").strip()
+
     return {
         "name": bot_name,
+        "display_name": display_name,
+        "description": description,
         "active": active,
         "provider": provider,
         "model": model,
+        "tools": tools_list,
+        "access_mode": access_mode,
+        "uptime": uptime,
         "msgs_today": msgs_today,
+        "has_avatar": has_avatar,
+        "subagents": subagents,
     }
 
 
@@ -232,8 +272,51 @@ async def get_bot(name: str):
     return {**summary, "env": env, "uptime": uptime}
 
 
+AVATAR_MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+               ".webp": "image/webp", ".gif": "image/gif"}
+
+
+@app.get("/api/bots/{name}/avatar")
+async def get_avatar(name: str):
+    validate_bot_name(name)
+    bot_dir = BOTS_DIR / name
+    for f in bot_dir.glob("avatar.*"):
+        mime = AVATAR_MIME.get(f.suffix.lower(), "image/jpeg")
+        return FileResponse(str(f), media_type=mime, headers={"Cache-Control": "no-cache"})
+    raise HTTPException(404, detail="No avatar")
+
+
+@app.post("/api/bots/{name}/avatar")
+async def upload_avatar(name: str, file: UploadFile = File(...)):
+    validate_bot_name(name)
+    ext = Path(file.filename).suffix.lower() if file.filename else ".jpg"
+    if ext not in AVATAR_MIME:
+        raise HTTPException(400, detail="Formato inválido. Use jpg, png, webp ou gif.")
+    bot_dir = BOTS_DIR / name
+    # Remove old avatars
+    for old in bot_dir.glob("avatar.*"):
+        old.unlink(missing_ok=True)
+    dest = bot_dir / f"avatar{ext}"
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(400, detail="Imagem muito grande. Máximo 5 MB.")
+    dest.write_bytes(contents)
+    return {"ok": True, "has_avatar": True}
+
+
+@app.delete("/api/bots/{name}/avatar")
+async def delete_avatar(name: str):
+    validate_bot_name(name)
+    bot_dir = BOTS_DIR / name
+    for f in bot_dir.glob("avatar.*"):
+        f.unlink(missing_ok=True)
+    return {"ok": True, "has_avatar": False}
+
+
 class CreateBotRequest(BaseModel):
     name: str
+    display_name: Optional[str] = ""
+    description: Optional[str] = ""
     model: Optional[str] = ""
     provider: Optional[str] = "claude-cli"
     tools: Optional[list] = []
@@ -269,6 +352,10 @@ async def create_bot(req: CreateBotRequest):
         patches["TOOLS"] = ",".join(req.tools)
     if req.telegram_token:
         patches["TELEGRAM_TOKEN"] = req.telegram_token
+    if req.display_name:
+        patches["BOT_NAME"] = req.display_name
+    if req.description:
+        patches["DESCRIPTION"] = req.description
     if patches:
         write_env(env_path, patches)
 
@@ -299,6 +386,7 @@ async def delete_bot(name: str):
     shutil.rmtree(bot_dir, ignore_errors=True)
 
     return {"ok": True}
+
 
 
 # ── Routes: Env ───────────────────────────────────────────────────────────────
@@ -708,3 +796,221 @@ async def restart_all_bots():
         )
         results.append({"name": name, "ok": r.returncode == 0})
     return {"results": results}
+
+
+# ── Routes: Bug Fixer ─────────────────────────────────────────────────────────
+
+BUGFIXER_STATE = BASE_DIR / ".bugfixer_state"
+BUGFIXER_LOG = BASE_DIR / "logs" / "bugfixer.log"
+BUGFIXER_SCRIPT = BASE_DIR / "bugfixer.py"
+CRON_MARKER = "# smb-bugfixer"
+
+
+def get_bugfixer_cron_schedules(times_per_day: int) -> list:
+    """Calculate evenly distributed cron times across the day."""
+    interval = 24 // max(1, times_per_day)
+    return [f"0 {(i * interval) % 24} * * *" for i in range(times_per_day)]
+
+
+def update_bugfixer_cron(enabled: bool, times_per_day: int):
+    """Rewrite crontab: remove old bugfixer entries, add new ones if enabled."""
+    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=10)
+    current = result.stdout if result.returncode == 0 else ""
+
+    # Remove existing bugfixer lines
+    lines = [l for l in current.splitlines() if CRON_MARKER not in l]
+
+    if enabled:
+        for schedule in get_bugfixer_cron_schedules(times_per_day):
+            lines.append(
+                f"{schedule} python3 {BUGFIXER_SCRIPT} >> {BUGFIXER_LOG} 2>&1 {CRON_MARKER}"
+            )
+
+    new_content = "\n".join(lines)
+    if new_content and not new_content.endswith("\n"):
+        new_content += "\n"
+
+    subprocess.run(
+        ["crontab", "-"], input=new_content, capture_output=True, text=True, timeout=10
+    )
+
+
+@app.get("/api/system/bugfixer")
+async def get_bugfixer():
+    cfg = load_env(BASE_DIR / "config.global")
+    enabled = cfg.get("BUGFIXER_ENABLED", "false").lower() == "true"
+    times_per_day = int(cfg.get("BUGFIXER_TIMES_PER_DAY", "3"))
+    token_raw = cfg.get("BUGFIXER_TELEGRAM_TOKEN", "")
+    token_masked = mask_sensitive("BUGFIXER_TELEGRAM_TOKEN", token_raw) if token_raw else ""
+
+    last_run = None
+    if BUGFIXER_STATE.exists():
+        try:
+            data = json.loads(BUGFIXER_STATE.read_text())
+            last_run = data.get("last_run")
+        except Exception:
+            pass
+
+    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=10)
+    cron_content = result.stdout if result.returncode == 0 else ""
+    cron_entries = [
+        l for l in cron_content.splitlines() if CRON_MARKER in l and not l.startswith("#")
+    ]
+
+    return {
+        "enabled": enabled,
+        "times_per_day": times_per_day,
+        "telegram_token": token_masked,
+        "last_run": last_run,
+        "cron_entries": cron_entries,
+    }
+
+
+class BugfixerUpdate(BaseModel):
+    enabled: bool
+    times_per_day: int
+    telegram_token: Optional[str] = None
+
+
+@app.put("/api/system/bugfixer")
+async def update_bugfixer(body: BugfixerUpdate):
+    if not (1 <= body.times_per_day <= 24):
+        raise HTTPException(400, detail="times_per_day deve ser entre 1 e 24")
+
+    patches = {
+        "BUGFIXER_ENABLED": "true" if body.enabled else "false",
+        "BUGFIXER_TIMES_PER_DAY": str(body.times_per_day),
+    }
+    if body.telegram_token is not None:
+        old_cfg = load_env(BASE_DIR / "config.global")
+        old_token = old_cfg.get("BUGFIXER_TELEGRAM_TOKEN", "")
+        patches["BUGFIXER_TELEGRAM_TOKEN"] = unmask_sensitive(
+            "BUGFIXER_TELEGRAM_TOKEN", body.telegram_token, old_token
+        )
+
+    write_env(BASE_DIR / "config.global", patches)
+
+    update_bugfixer_cron(body.enabled, body.times_per_day)
+    return {"ok": True}
+
+
+@app.post("/api/system/bugfixer/run")
+async def run_bugfixer():
+    if not BUGFIXER_SCRIPT.exists():
+        raise HTTPException(500, detail="bugfixer.py não encontrado")
+
+    result = subprocess.run(
+        ["python3", str(BUGFIXER_SCRIPT)],
+        capture_output=True, text=True, timeout=300,
+        env={**os.environ, "BUGFIXER_OVERRIDE": "true"},
+    )
+    output = (result.stdout + result.stderr).strip()
+    return {"ok": result.returncode == 0, "output": output or "(sem output)"}
+
+
+@app.get("/api/system/bugfixer/log")
+async def get_bugfixer_log(lines: int = 50):
+    if not BUGFIXER_LOG.exists():
+        return {"content": "", "lines": 0}
+    all_lines = BUGFIXER_LOG.read_text(errors="replace").splitlines()
+    last_n = all_lines[-lines:] if len(all_lines) > lines else all_lines
+    return {"content": "\n".join(last_n), "lines": len(last_n)}
+
+
+# ── Routes: Sub-agentes ───────────────────────────────────────────────────────
+
+def validate_subagent_name(name: str):
+    if not re.match(r"^[a-zA-Z0-9_-]+$", name):
+        raise HTTPException(400, detail="Invalid subagent name")
+    if not (SUBAGENTS_DIR / name).is_dir():
+        raise HTTPException(404, detail="Subagent not found")
+
+
+@app.get("/api/subagents")
+async def list_subagents():
+    if not SUBAGENTS_DIR.exists():
+        return []
+    result = []
+    for d in sorted(SUBAGENTS_DIR.iterdir()):
+        if not d.is_dir():
+            continue
+        env = load_env(d / ".env")
+        result.append({
+            "name": d.name,
+            "description": env.get("DESCRIPTION", ""),
+            "provider": env.get("PROVIDER", ""),
+            "model": env.get("MODEL", ""),
+            "tools": env.get("TOOLS", "none"),
+            "allowed_parents": env.get("ALLOWED_PARENTS", "*"),
+            "mode": env.get("MODE", "simple"),
+        })
+    return result
+
+
+class SubagentCreate(BaseModel):
+    name: str
+    description: str
+    provider: str = "anthropic"
+    model: str = "claude-haiku-4-5-20251001"
+    mode: str = "simple"
+    tools: str = "none"
+    allowed_parents: str = "*"
+    soul: str = ""
+
+
+@app.post("/api/subagents")
+async def create_subagent(req: SubagentCreate):
+    if not re.match(r"^[a-zA-Z0-9_-]+$", req.name):
+        raise HTTPException(400, detail="Invalid subagent name")
+    d = SUBAGENTS_DIR / req.name
+    if d.exists():
+        raise HTTPException(409, detail="Subagent already exists")
+    SUBAGENTS_DIR.mkdir(exist_ok=True)
+    d.mkdir()
+    env_content = (
+        f"NAME={req.description}\n"
+        f"DESCRIPTION={req.description}\n"
+        f"PROVIDER={req.provider}\n"
+        f"MODEL={req.model}\n"
+        f"MODE={req.mode}\n"
+        f"TOOLS={req.tools}\n"
+        f"ALLOWED_PARENTS={req.allowed_parents}\n"
+    )
+    (d / ".env").write_text(env_content)
+    soul = req.soul.strip() or f"Você é um assistente especializado: {req.description}."
+    (d / "soul.md").write_text(soul)
+    return {"name": req.name, "ok": True}
+
+
+@app.delete("/api/subagents/{name}")
+async def delete_subagent(name: str):
+    validate_subagent_name(name)
+    shutil.rmtree(SUBAGENTS_DIR / name, ignore_errors=True)
+    return {"ok": True}
+
+
+@app.get("/api/subagents/{name}/env")
+async def get_subagent_env(name: str):
+    validate_subagent_name(name)
+    return {"fields": load_env(SUBAGENTS_DIR / name / ".env")}
+
+
+@app.put("/api/subagents/{name}/env")
+async def update_subagent_env(name: str, body: EnvUpdate):
+    validate_subagent_name(name)
+    write_env(SUBAGENTS_DIR / name / ".env", body.fields)
+    return {"ok": True}
+
+
+@app.get("/api/subagents/{name}/soul")
+async def get_subagent_soul(name: str):
+    validate_subagent_name(name)
+    path = SUBAGENTS_DIR / name / "soul.md"
+    return {"content": path.read_text(errors="replace") if path.exists() else ""}
+
+
+@app.put("/api/subagents/{name}/soul")
+async def update_subagent_soul(name: str, body: FileUpdate):
+    validate_subagent_name(name)
+    (SUBAGENTS_DIR / name / "soul.md").write_text(body.content)
+    return {"ok": True}
