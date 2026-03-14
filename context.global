@@ -111,7 +111,8 @@ ou quando a informação for melhor consumida como arquivo do que como texto lon
 
 A variável `OPENROUTER_API_KEY` está disponível no ambiente. Para usá-la em chamadas HTTP,
 *nunca* peça para exibir a chave com `run_shell`, `echo`, `env` ou resposta em texto.
-Passe o placeholder diretamente no header e a ferramenta HTTP fará a substituição em memória:
+Passe o placeholder diretamente no header — ele é resolvido internamente pela ferramenta
+`http_request` sem expor o valor em shell ou no histórico de conversa:
 
 ```
 POST https://openrouter.ai/api/v1/chat/completions

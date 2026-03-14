@@ -22,6 +22,11 @@ tools/          — Ferramentas modulares
   github_tool.py — github (API REST v3)
   database.py   — db_query
   schedule.py   — schedule (add/list/remove)
+  agent.py      — sub-agentes (agent_*): build_definitions + execute_sync
+subagents/      — NOVO: diretório de sub-agentes especializados
+  <nome>/
+    .env        — NAME, DESCRIPTION, PROVIDER, MODEL, TOOLS, ALLOWED_PARENTS
+    soul.md     — system prompt do sub-agente
 ```
 
 ## Arquivos de suporte
@@ -36,6 +41,7 @@ tools/          — Ferramentas modulares
 | `context.global` | Instruções globais injetadas no system prompt de todos os bots |
 | `memory-autosave.sh` | Destila memória diária → MEMORY.md (cron 23:50) |
 | `memory-cleanup.sh` | Remove diários antigos (cron domingo 02:00) |
+| `bugfixer.py` | Bug Fixer Agent — detecta erros via analytics + journalctl, invoca Claude para corrigir, notifica admin via Telegram |
 
 ---
 
@@ -115,6 +121,7 @@ Valor: lista separada por vírgula ou `none`.
 | Git | `git` | `GIT_TOKEN`, `GIT_USER`, `GIT_EMAIL` | Clone/push/pull com token injetado |
 | GitHub | `github` | `GITHUB_TOKEN` (ou `GIT_TOKEN`) | API do GitHub: PRs, issues, reviews, CI checks |
 | Database | `database` | `DB_URL` | Queries SQL (PostgreSQL, MySQL, SQLite) |
+| Sub-agentes | *(auto-descoberto)* | — | Delegação para sub-agentes em `subagents/`. Ferramentas `agent_<nome>` geradas automaticamente. Configurar via `subagents/<nome>/.env` e `soul.md`. |
 
 ---
 
@@ -238,6 +245,9 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 | `ADMIN_ID` | Telegram ID do admin (compartilhado) |
 | `MODEL` | Modelo padrão (Claude ou OpenRouter conforme PROVIDER) |
 | `ACCESS_MODE` | Modo de acesso padrão (`open` / `approval` / `closed`) |
+| `BUGFIXER_ENABLED` | `true` / `false` — habilita o Bug Fixer Agent (default: `false`) |
+| `BUGFIXER_TIMES_PER_DAY` | Quantas vezes por dia o Bug Fixer roda via cron (default: `3`) |
+| `BUGFIXER_TELEGRAM_TOKEN` | Token do bot usado para notificações ao admin. Se vazio, usa o token do primeiro bot disponível como fallback. |
 
 ### Autenticação: API key vs Claude Code
 
@@ -275,6 +285,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 |---|---|---|
 | `50 23 * * *` | `memory-autosave.sh` | Destila memória diária → MEMORY.md |
 | `0 2 * * 0` | `memory-cleanup.sh 30` | Remove diários com mais de 30 dias |
+| dinâmico (`# smb-bugfixer`) | `bugfixer.py` | Bug Fixer Agent — gerado automaticamente pelo painel admin conforme `BUGFIXER_TIMES_PER_DAY` |
 
 ---
 
@@ -286,9 +297,10 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 - Shell tool tem denylist: bloqueia leitura de `config.global`, `.env`, `secrets.env`, `~/.claude/.credentials.json`, `printenv`, variáveis de credencial
 - `context.global` e instruções de tools não devem mandar exibir segredos; para HTTP use placeholders como `$OPENROUTER_API_KEY` para substituição em memória
 - File tool é sandboxado em `WORK_DIR` (path traversal bloqueado)
-- HTTP tool bloqueia IPs internos (169.254.x, localhost, metadata endpoints)
+- HTTP tool bloqueia IPs internos (169.254.x, localhost, metadata endpoints); resolve placeholders `$VAR`/`${VAR}` nos headers internamente — **nunca instrua o bot a imprimir secrets via shell para usá-los em chamadas HTTP**
 - Git tool injeta token no URL em memória, nunca exibe nos logs
 - Database tool bloqueia DROP/TRUNCATE sem WHERE
+- **Regra para instruções em `soul.md` e `context.global`:** nunca oriente o modelo a usar `echo`, `printenv` ou `run_shell` para obter credenciais. Use placeholders (`$OPENROUTER_API_KEY`, `$API_KEY_1` etc.) diretamente nos campos `headers` do `http_request` — a resolução ocorre em `tools/http.py` antes do envio.
 
 ---
 
@@ -310,6 +322,6 @@ pytest tests/ -v
 
 | Arquivo | Cobertura |
 |---|---|
-| `tests/test_security.py` | Shell denylist, path traversal, SQL safety |
+| `tests/test_security.py` | Shell denylist, path traversal, SQL safety, HTTP placeholder resolution |
 | `tests/test_config.py` | Carregamento de .env, precedência de config |
 | `tests/test_analytics.py` | Analytics, persistência de conversas, schedules |

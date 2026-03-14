@@ -168,3 +168,5 @@ class TestSQLSafety:
 
     def test_allows_update(self):
         assert SQL_BLOCKED.match("UPDATE users SET name='test' WHERE id=1") is None
+
+
