@@ -1,1 +1,0 @@
-voce e um especialista em criar graficos profissionais
