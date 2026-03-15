@@ -6,6 +6,8 @@ Pensado para quem quer colocar agentes de IA em produção rápido — sem infra
 
 ### Ultra leve
 
+Todo o sistema — bot engine, painel admin, ferramentas, scheduler, bugfixer — soma **~11.300 linhas de código** (Python + HTML + Shell). Sem frameworks pesados, sem camadas de abstração desnecessárias, sem Docker.
+
 Cada agente consome **~75 MB de RAM** em idle e **zero portas de rede** — usa long polling do Telegram, não precisa abrir porta nem configurar domínio/SSL. A única porta usada é a do painel admin (8080), e ela é opcional.
 
 Rode **10, 20, 50 agentes** na mesma VPS de $5/mês. Eles só processam quando recebem mensagem — sem polling pesado, sem websockets, sem overhead. Uma VPS com 2 GB de RAM já aguenta dezenas de agentes simultâneos sem suar.
@@ -492,6 +494,8 @@ Todas as operações são expostas como API REST em `/api/`:
 | `/stats [período]` | Analytics: tokens, custo, mensagens (hoje/semana/mes/N) |
 | `/restart` | Reinicia o bot |
 | `/status` | Status do sistema |
+| `/version` | Versão atual e atualizações pendentes |
+| `/update` | Puxa atualizações do remote e reinicia serviços |
 
 ### Modos de acesso
 
@@ -643,6 +647,12 @@ claude-bots/
 ├── memory-autosave.sh      # Destilação diária de memória (cron 23:50)
 ├── memory-cleanup.sh       # Limpeza semanal de diários antigos (cron domingo 02:00)
 │
+├── VERSION                 # Versão atual (semver)
+├── CHANGELOG.md            # Histórico de mudanças (auto-gerado)
+├── release.sh              # Bump versão, changelog, tag, push, notificação
+├── update.sh               # Pull + restart de serviços
+├── check-update.sh         # Cron diário: verifica updates pendentes
+│
 ├── tests/                  # Testes (pytest)
 ├── logs/                   # Logs do bugfixer e memory
 ├── .locks/                 # Lock files por token (anti-duplicata)
@@ -670,6 +680,52 @@ claude-bots/
 | `50 23 * * *` | `memory-autosave.sh` | Destila memória diária → MEMORY.md |
 | `0 2 * * 0` | `memory-cleanup.sh` | Remove diários com mais de 30 dias |
 | Configurável | `bugfixer.py` | Bug Fixer Agent (frequência definida no config.global) |
+| `0 8 * * *` | `check-update.sh` | Verifica se há nova versão no remote e notifica admin |
+
+---
+
+## Versionamento e atualizações
+
+O sistema usa **versionamento semântico** (`MAJOR.MINOR.PATCH`) com release automatizado.
+
+### Criar um release
+
+```bash
+./release.sh
+```
+
+Faz tudo automaticamente:
+1. Bumpa a versão (patch)
+2. Gera changelog a partir dos commits
+3. Commita, cria tag e pusha
+4. Notifica o admin no Telegram
+
+### Atualizar uma instância
+
+Via Telegram (em qualquer bot):
+```
+/version    → mostra versão atual e se há updates
+/update     → puxa atualizações e reinicia tudo
+```
+
+Via terminal:
+```bash
+./update.sh
+```
+
+### Verificação automática
+
+O cron `check-update.sh` roda diariamente às 8h e notifica o admin no Telegram se houver commits novos no `origin/main`.
+
+### Arquivos
+
+| Arquivo | Papel |
+|---|---|
+| `VERSION` | Versão atual (ex: `0.1.2`) |
+| `CHANGELOG.md` | Histórico de mudanças por versão |
+| `release.sh` | Bump, changelog, tag, push, notificação |
+| `update.sh` | Pull + restart de serviços |
+| `check-update.sh` | Cron: verifica updates pendentes |
 
 ---
 
