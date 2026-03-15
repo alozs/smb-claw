@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SMB Claw — Agentes de IA no Telegram sem enrolação</title>
   <meta name="description" content="Framework open source para rodar múltiplos agentes de IA no Telegram. Sem Docker, sem Kubernetes. Um script e seu agente está no ar." />
+  <link rel="icon" type="image/png" href="admin/static/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -190,31 +191,54 @@
     /* ─── Origem ───────────────────────────────────────────── */
     #origem {
       border-top: 1px solid var(--line);
-      padding: 64px 0;
+      padding: 72px 0;
     }
 
-    .origem-wrap {
+    .origem-inner {
       max-width: 900px; margin: 0 auto; padding: 0 24px;
-      display: grid; grid-template-columns: 1fr 2fr; gap: 48px;
-      align-items: start;
     }
 
-    .origem-label {
+    .origem-quote {
       font-family: 'JetBrains Mono', monospace;
-      font-size: .75rem; font-weight: 700;
-      color: var(--dim); letter-spacing: .1em;
-      text-transform: uppercase;
-      padding-top: 4px;
+      font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+      font-weight: 700; font-style: italic;
+      color: var(--hi); line-height: 1.45;
+      margin-bottom: 40px;
+      padding-left: 24px;
+      border-left: 3px solid var(--green);
     }
 
-    .origem-text p {
-      font-size: .9375rem; color: var(--text);
-      line-height: 1.8; margin-bottom: 14px;
+    .origem-quote em {
+      font-style: normal;
+      color: var(--green);
     }
 
-    .origem-text p:last-child { margin-bottom: 0; }
+    .origem-cols {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    }
 
-    .origem-text strong { color: var(--hi); font-weight: 600; }
+    .origem-card {
+      background: var(--bg1);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 24px 28px;
+    }
+
+    .origem-card-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .6875rem; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .origem-card-label.bad  { color: #f87171; }
+    .origem-card-label.good { color: var(--green); }
+
+    .origem-card p {
+      font-size: .875rem; color: var(--text); line-height: 1.75;
+    }
+
+    .origem-card strong { color: var(--hi); font-weight: 600; }
 
     /* ─── Stats ────────────────────────────────────────────── */
     #stats {
@@ -279,27 +303,40 @@
       font-size: .9375rem; color: var(--dim); margin-bottom: 44px;
     }
 
-    /* feature list — 2 col, linha separadora */
-    .feat-list {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 0;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      overflow: hidden;
+    /* bento de recursos */
+    .feat-bento {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto;
+      gap: 12px;
     }
 
     .feat {
+      background: var(--bg1);
+      border: 1px solid var(--line);
+      border-radius: 10px;
       padding: 24px 28px;
-      border-bottom: 1px solid var(--line);
-      border-right: 1px solid var(--line);
+      transition: border-color .2s, background .2s;
     }
 
-    .feat:nth-child(even) { border-right: none; }
-    .feat:nth-last-child(-n+2) { border-bottom: none; }
+    .feat:hover { border-color: #252535; background: var(--bg2); }
+
+    /* featured: ocupa as 2 colunas */
+    .feat-full { grid-column: 1 / -1; }
+
+    /* featured: conteúdo em 2 colunas internas */
+    .feat-full .feat-inner {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+      align-items: start;
+    }
+
+    .feat-full .feat-inner .feat-detail {
+      font-size: .8125rem; color: var(--dim); line-height: 1.7;
+    }
 
     .feat-name {
-      font-size: .875rem; font-weight: 600;
-      color: var(--hi); margin-bottom: 4px;
+      font-size: .9375rem; font-weight: 600;
+      color: var(--hi); margin-bottom: 6px;
     }
 
     .feat-desc { font-size: .8125rem; color: var(--dim); line-height: 1.65; }
@@ -458,12 +495,9 @@
     @media (max-width: 680px) {
       .hero-top { flex-direction: column; gap: 28px; }
       .hero-logo { width: 100px; height: 100px; }
-      .origem-wrap { grid-template-columns: 1fr; gap: 16px; }
-      .feat-list { grid-template-columns: 1fr; }
-      .feat { border-right: none !important; }
-      .feat:last-child { border-bottom: none; }
-      .feat:nth-last-child(-n+2) { border-bottom: 1px solid var(--line); }
-      .feat:last-child { border-bottom: none !important; }
+      .origem-cols { grid-template-columns: 1fr; }
+      .feat-bento { grid-template-columns: 1fr; }
+      .feat-full .feat-inner { grid-template-columns: 1fr; gap: 12px; }
       .install-grid { grid-template-columns: 1fr; }
       .stat { border-right: none; border-bottom: 1px solid var(--line); }
       .stat:last-child { border-bottom: none; }
@@ -536,21 +570,30 @@
 
   <!-- Origem -->
   <section id="origem" aria-labelledby="origem-title">
-    <div class="origem-wrap">
-      <div>
-        <div class="origem-label" id="origem-title">por que existe</div>
-      </div>
-      <div class="origem-text">
-        <p>
-          Depois de semanas passando raiva com o OpenClaw — que às vezes funciona, às vezes não,
-          você pede uma coisa e ele faz outra — <strong>decidi criar minha própria alternativa</strong>.
-          Com uma proposta diferente: simples, eficiente e funcionando como um agente de IA de verdade.
-        </p>
-        <p>
-          Sem Docker, sem Kubernetes, sem configurar nginx, sem domínio, sem SSL.
-          Basicamente um script e você já tem o agente rodando — do jeito que deveria
-          ser desde o começo.
-        </p>
+    <div class="origem-inner">
+      <p class="sec-kicker" id="origem-title">por que existe</p>
+      <p class="origem-quote">
+        Semanas passando raiva com o OpenClaw.<br />
+        Pede uma coisa, faz <em>outra</em>. Às vezes funciona,<br />
+        às vezes não. Chega.
+      </p>
+      <div class="origem-cols">
+        <div class="origem-card">
+          <div class="origem-card-label bad">o problema</div>
+          <p>
+            Ferramentas de agente existentes pedem infraestrutura complexa —
+            Docker, Kubernetes, nginx, domínio, SSL — só pra rodar um bot.
+            E quando funcionam, são instáveis o suficiente pra você não confiar.
+          </p>
+        </div>
+        <div class="origem-card">
+          <div class="origem-card-label good">a solução</div>
+          <p>
+            <strong>Um script e seu agente está no ar.</strong> Sem container, sem porta aberta,
+            sem domínio. Cada bot roda como serviço systemd isolado — cai, volta sozinho.
+            Confiável do jeito que deveria ser desde o começo.
+          </p>
+        </div>
       </div>
     </div>
   </section>
@@ -586,50 +629,67 @@
       <h2 id="recursos-title">O que vem na caixa</h2>
       <p class="sec-sub">Tudo que você precisa para colocar agentes em produção hoje.</p>
 
-      <div class="feat-list">
-        <div class="feat">
-          <div class="feat-tag">sempre ativo</div>
-          <div class="feat-name">Memória em camadas</div>
-          <div class="feat-desc">Personalidade, perfil do usuário, memória de longo prazo destilada automaticamente toda noite e diário do dia.</div>
+      <div class="feat-bento">
+
+        <!-- featured: memória — full width com detalhe -->
+        <div class="feat feat-full">
+          <div class="feat-inner">
+            <div>
+              <div class="feat-tag">sempre ativo</div>
+              <div class="feat-name">Memória em camadas</div>
+              <div class="feat-desc">O system prompt é reconstruído a cada mensagem — mudanças nos arquivos têm efeito imediato, sem reiniciar.</div>
+            </div>
+            <div class="feat-detail">
+              <strong style="color:var(--hi);font-size:.8125rem;">Camadas:</strong>
+              <ul style="margin-top:8px;list-style:none;display:flex;flex-direction:column;gap:5px;">
+                <li><code style="color:var(--green);font-size:.75rem;">soul.md</code> <span style="color:var(--dim)"> — personalidade e regras do agente</span></li>
+                <li><code style="color:var(--green);font-size:.75rem;">USER.md</code> <span style="color:var(--dim)"> — perfil e preferências do usuário</span></li>
+                <li><code style="color:var(--green);font-size:.75rem;">MEMORY.md</code> <span style="color:var(--dim)"> — destilado automático toda noite às 23:50</span></li>
+                <li><code style="color:var(--green);font-size:.75rem;">memory/hoje.md</code> <span style="color:var(--dim)"> — diário do dia, gerado pelo bot</span></li>
+              </ul>
+            </div>
+          </div>
         </div>
 
+        <!-- 2 col -->
         <div class="feat">
           <div class="feat-tag">sempre ativo</div>
           <div class="feat-name">Tarefas persistentes</div>
-          <div class="feat-desc">Tarefas sobrevivem a crashes e reinicializações. Recovery automático no boot — o agente avisa o usuário e oferece continuar.</div>
+          <div class="feat-desc">Sobrevivem a crashes. No boot, tarefas interrompidas são detectadas e o agente oferece retomar ou cancelar direto no chat.</div>
         </div>
 
         <div class="feat">
           <div class="feat-tag">modular</div>
           <div class="feat-name">Ferramentas</div>
-          <div class="feat-desc">Shell, HTTP, Git, GitHub, banco de dados, arquivos, cron. Ative só o que cada agente precisa via <code>TOOLS=</code> no .env.</div>
+          <div class="feat-desc">Shell, HTTP, Git, GitHub, banco de dados, arquivos, cron. Ative por agente via <code style="color:var(--green)">TOOLS=</code> no .env — sem herança forçada.</div>
         </div>
 
         <div class="feat">
           <div class="feat-tag">modular</div>
           <div class="feat-name">Subagentes</div>
-          <div class="feat-desc">Delegue tarefas para agentes especializados. Modos <em>simple</em> (uma chamada) e <em>agentic</em> (loop com tools).</div>
+          <div class="feat-desc">Agentes especializados que bots pai podem invocar. Modo <em>simple</em> (uma chamada) ou <em>agentic</em> (loop com tools, até 10 iterações).</div>
         </div>
 
         <div class="feat">
           <div class="feat-name">Painel web</div>
-          <div class="feat-desc">Dashboard FastAPI com wizard de configuração, editor de soul.md e .env, logs em tempo real e gerenciamento de usuários.</div>
+          <div class="feat-desc">Dashboard FastAPI com wizard de configuração, editor de soul.md e .env, logs em tempo real, broadcast e gerenciamento de usuários.</div>
         </div>
 
         <div class="feat">
           <div class="feat-name">Bug Fixer autônomo</div>
-          <div class="feat-desc">Agente que monitora erros nos logs e analytics, chama o Claude para analisar e te notifica no Telegram.</div>
+          <div class="feat-desc">Monitora erros nos logs e analytics, chama o Claude para analisar a causa e te avisa no Telegram — sem você precisar abrir o servidor.</div>
         </div>
 
         <div class="feat">
           <div class="feat-name">Suporte a mídia</div>
-          <div class="feat-desc">Fotos com visão nativa (anthropic/openrouter) ou descrição via modelo auxiliar (claude-cli). PDFs e documentos com extração de texto. Áudio e vídeo transcritos via Whisper.</div>
+          <div class="feat-desc">Fotos com visão nativa (anthropic/openrouter). PDFs e documentos com extração de texto. Áudio e vídeo transcritos via Whisper.</div>
         </div>
 
         <div class="feat">
           <div class="feat-name">Segurança por padrão</div>
-          <div class="feat-desc">Tokens isolados, sandbox de shell, controle de acesso por aprovação do admin, credenciais com chmod 600.</div>
+          <div class="feat-desc">Tokens isolados por lock file, sandbox de shell com denylist, controle de acesso por aprovação do admin, credenciais com chmod 600.</div>
         </div>
+
       </div>
     </div>
   </section>
@@ -711,7 +771,6 @@
               <th>Provedor</th>
               <th>Auth</th>
               <th>Modelos</th>
-              <th>Custo</th>
             </tr>
           </thead>
           <tbody>
@@ -719,25 +778,21 @@
               <td><span class="prov-name">claude-cli</span></td>
               <td><span class="tag tag-oauth">OAuth</span> <span class="prov-note">claude login</span></td>
               <td><span class="prov-note">Opus · Sonnet · Haiku</span></td>
-              <td><span class="tag tag-free">incluso na assinatura</span></td>
             </tr>
             <tr>
               <td><span class="prov-name">anthropic</span></td>
               <td><span class="tag tag-oauth">OAuth</span> <span class="tag tag-paid">API key</span></td>
               <td><span class="prov-note">Opus · Sonnet · Haiku</span></td>
-              <td><span class="prov-note">OAuth: incluso · API key: pay-per-use</span></td>
             </tr>
             <tr>
               <td><span class="prov-name">codex</span></td>
               <td><span class="tag tag-oauth">OAuth</span> <span class="tag tag-paid">API key</span></td>
               <td><span class="prov-note">GPT-5.x · Codex</span></td>
-              <td><span class="prov-note">OAuth: incluso na conta · API key: pay-per-use</span></td>
             </tr>
             <tr>
               <td><span class="prov-name">openrouter</span></td>
               <td><span class="tag tag-paid">API key</span></td>
               <td><span class="prov-note">Grok · Gemini · Mistral · LLaMA · +</span></td>
-              <td><span class="tag tag-paid">pay-per-use</span></td>
             </tr>
           </tbody>
         </table>
