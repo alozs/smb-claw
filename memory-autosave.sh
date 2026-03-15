@@ -80,7 +80,7 @@ if archived_sessions:
     parts = []
     for i, session in enumerate(archived_sessions, 1):
         ts = session["archived_at"][:16].replace("T", " ")
-        lines = [f"### Sessão {i} (arquivada em {ts} UTC)"]
+        lines = [f"### Sessão {i} (arquivada em {ts})"]
         for msg in session["messages"]:
             role = msg.get("role", "")
             content = msg.get("content", "")

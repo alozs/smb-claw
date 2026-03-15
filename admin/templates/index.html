@@ -2541,7 +2541,7 @@
           <!-- Schedules -->
           <div x-show="activeTab==='schedules'" x-cloak>
             <div class="space-y-5">
-              <p class="text-xs text-zinc-400">Agendamentos fazem o bot enviar mensagens proativas para usuários em horários específicos. Use <code class="bg-zinc-100 px-1 rounded font-mono">UTC</code> para os horários.</p>
+              <p class="text-xs text-zinc-400">Agendamentos fazem o bot enviar mensagens proativas para usuários em horários específicos (horário de Brasília).</p>
 
               <!-- Tabela -->
               <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
@@ -2565,15 +2565,73 @@
                   <tbody class="divide-y divide-surface-border">
                     <template x-for="s in schedules" :key="s.id">
                       <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="px-5 py-3.5 font-mono text-sm font-600 text-slate-800" x-text="String(s.hour).padStart(2,'0')+':'+String(s.minute).padStart(2,'0')+' UTC'"></td>
-                        <td class="px-5 py-3.5 text-slate-500 text-xs font-500" x-text="s.weekdays"></td>
-                        <td class="px-5 py-3.5 text-slate-700 text-xs whitespace-normal break-words" x-text="s.message"></td>
+                        <template x-if="editingScheduleId !== s.id">
+                          <td class="px-5 py-3.5 font-mono text-sm font-600 text-slate-800" x-text="String(s.hour).padStart(2,'0')+':'+String(s.minute).padStart(2,'0')"></td>
+                        </template>
+                        <template x-if="editingScheduleId === s.id">
+                          <td class="px-5 py-3.5">
+                            <div class="flex gap-1 items-center">
+                              <input type="number" x-model.number="editScheduleData.hour" min="0" max="23"
+                                class="w-14 border border-brand/30 rounded-lg px-2 py-1.5 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring" />
+                              <span class="text-slate-400 font-700">:</span>
+                              <input type="number" x-model.number="editScheduleData.minute" min="0" max="59"
+                                class="w-14 border border-brand/30 rounded-lg px-2 py-1.5 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring" />
+                            </div>
+                          </td>
+                        </template>
+                        <template x-if="editingScheduleId !== s.id">
+                          <td class="px-5 py-3.5 text-slate-500 text-xs font-500" x-text="s.weekdays"></td>
+                        </template>
+                        <template x-if="editingScheduleId === s.id">
+                          <td class="px-5 py-3.5">
+                            <div class="flex gap-1 flex-wrap">
+                              <template x-for="day in weekdayOptions" :key="day.val">
+                                <label class="flex items-center gap-1 text-[10px] cursor-pointer px-1.5 py-1 rounded-lg border border-surface-border hover:bg-slate-50 transition-colors"
+                                  :class="editScheduleData.weekdays_arr.includes(day.val) ? 'bg-brand/5 border-brand/30 text-brand' : 'text-slate-600'">
+                                  <input type="checkbox" :value="day.val" x-model="editScheduleData.weekdays_arr" class="rounded text-brand w-3 h-3 cursor-pointer" />
+                                  <span class="font-600" x-text="day.label"></span>
+                                </label>
+                              </template>
+                            </div>
+                          </td>
+                        </template>
+                        <template x-if="editingScheduleId !== s.id">
+                          <td class="px-5 py-3.5 text-slate-700 text-xs whitespace-normal break-words" x-text="s.message"></td>
+                        </template>
+                        <template x-if="editingScheduleId === s.id">
+                          <td class="px-5 py-3.5">
+                            <input type="text" x-model="editScheduleData.message"
+                              class="w-full border border-brand/30 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-ring" />
+                          </td>
+                        </template>
                         <td class="px-5 py-3.5 text-slate-400 font-mono text-xs" x-text="s.user_id"></td>
                         <td class="px-5 py-3.5 text-right">
-                          <button @click="deleteSchedule(s.id)"
-                            class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
-                            <i data-lucide="trash-2" class="w-3 h-3 flex-shrink-0"></i>Deletar
-                          </button>
+                          <div class="flex items-center gap-1.5 justify-end">
+                            <template x-if="editingScheduleId !== s.id">
+                              <button @click="startEditSchedule(s)"
+                                class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
+                                <i data-lucide="pencil" class="w-3 h-3 flex-shrink-0"></i>Editar
+                              </button>
+                            </template>
+                            <template x-if="editingScheduleId === s.id">
+                              <button @click="saveEditSchedule(s.id)"
+                                class="text-xs font-600 text-success hover:bg-success/10 border border-success/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
+                                <i data-lucide="check" class="w-3 h-3 flex-shrink-0"></i>Salvar
+                              </button>
+                            </template>
+                            <template x-if="editingScheduleId === s.id">
+                              <button @click="editingScheduleId = null"
+                                class="text-xs font-600 text-slate-500 hover:bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
+                                <i data-lucide="x" class="w-3 h-3 flex-shrink-0"></i>Cancelar
+                              </button>
+                            </template>
+                            <template x-if="editingScheduleId !== s.id">
+                              <button @click="deleteSchedule(s.id)"
+                                class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
+                                <i data-lucide="trash-2" class="w-3 h-3 flex-shrink-0"></i>Deletar
+                              </button>
+                            </template>
+                          </div>
                         </td>
                       </tr>
                     </template>
@@ -2591,7 +2649,7 @@
                       class="w-full border border-surface-border rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand" />
                   </div>
                   <div>
-                    <label class="block text-xs font-600 text-slate-500 mb-1.5 uppercase tracking-wide">Horário (UTC)</label>
+                    <label class="block text-xs font-600 text-slate-500 mb-1.5 uppercase tracking-wide">Horário</label>
                     <div class="flex gap-2 items-center">
                       <input type="number" x-model.number="newSchedule.hour" min="0" max="23" placeholder="HH"
                         class="w-full border border-surface-border rounded-xl px-3 py-2.5 text-sm text-center text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand" />
@@ -2782,6 +2840,8 @@ function adminApp() {
     analytics: null, analyticsDays: 1,
     schedules: [],
     newSchedule: {user_id:null, hour:8, minute:0, weekdays_arr:[1,2,3,4,5], message:''},
+    editingScheduleId: null,
+    editScheduleData: {hour:0, minute:0, weekdays_arr:[], message:''},
     addingSchedule: false,
     weekdayOptions: [{val:1,label:'Seg'},{val:2,label:'Ter'},{val:3,label:'Qua'},{val:4,label:'Qui'},{val:5,label:'Sex'},{val:6,label:'Sáb'},{val:7,label:'Dom'}],
     globalFiles: {'context.global':'','config.global':'','secrets.global':''}, crontabContent: '',
@@ -3065,6 +3125,25 @@ function adminApp() {
       } finally { this.addingSchedule = false; }
     },
 
+    startEditSchedule(s) {
+      this.editingScheduleId = s.id;
+      const wdays = s.weekdays === 'all' ? [0,1,2,3,4,5,6] : s.weekdays.split(',').map(Number);
+      this.editScheduleData = {hour: s.hour, minute: s.minute, weekdays_arr: wdays, message: s.message};
+    },
+    async saveEditSchedule(sid) {
+      if (!this.editScheduleData.weekdays_arr.length) { this.toast('Selecione ao menos um dia.', 'error'); return; }
+      if (!this.editScheduleData.message.trim()) { this.toast('Mensagem é obrigatória.', 'error'); return; }
+      const weekdays = this.editScheduleData.weekdays_arr.slice().sort().join(',');
+      const r = await fetch(`/api/bots/${this.currentBot}/schedules/${sid}`, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({hour: this.editScheduleData.hour, minute: this.editScheduleData.minute, weekdays, message: this.editScheduleData.message})
+      });
+      if (r.ok) {
+        this.toast('Schedule atualizado!');
+        this.editingScheduleId = null;
+        await this.loadSchedules();
+      } else { const d = await r.json(); this.toast(d.detail || 'Erro ao atualizar.', 'error'); }
+    },
     async deleteSchedule(sid) {
       const ok = await this.showConfirm({title:'Deletar Agendamento', message:'Tem certeza que deseja deletar este agendamento?', confirmText:'Deletar', type:'danger'});
       if (!ok) return;

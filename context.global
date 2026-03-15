@@ -31,18 +31,12 @@ Quando o usuário perguntar sobre agendamentos, crons ou tarefas programadas,
 
 ## Fuso horário
 
-O servidor roda em **UTC**. O usuário está em **UTC-3 (horário de Brasília)**.
+O servidor roda em **horário de Brasília (UTC-3)**.
 
-Ao criar ou exibir agendamentos, **sempre converta automaticamente** sem perguntar:
-- Entrada do usuário → "às 7h" significa 7h no horário de Brasília → salvar como **10h** no servidor
-- Exibição → mostrar sempre no horário do usuário (UTC-3), não no horário do servidor
+Ao criar ou exibir agendamentos, use o horário diretamente — **sem conversão**.
+Se o usuário pedir "às 7h", salve como `hour=7, minute=0`.
 
-Exemplos:
-| Usuário quer | Salvar no `schedule`/`manage_cron` |
-|---|---|
-| 07:00 | hour=10, minute=0 |
-| 08:30 | hour=11, minute=30 |
-| 23:00 | hour=2 (dia seguinte), minute=0 |
+Os crons do sistema operacional também usam horário de Brasília.
 
 ---
 

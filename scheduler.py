@@ -39,6 +39,9 @@ async def scheduler_loop(application, db, ask_claude_fn, conversations: dict,
                     allowed = {DAY_MAP.get(d.strip().lower(), -1) for d in wdays.split(",")}
                     if weekday not in allowed:
                         continue
+                dom = s.get("day_of_month", 0)
+                if dom and dom != now.day:
+                    continue
 
                 user_id = s.get("user_id", admin_id)
                 logger.info(f"[scheduler] Disparando: {s['id']} para user {user_id}")

@@ -110,20 +110,20 @@ def get_uptime(bot_name: str) -> str:
             capture_output=True, text=True, timeout=5
         )
         line = result.stdout.strip()
-        # Format: "ActiveEnterTimestamp=Fri 2026-03-13 15:42:39 UTC"
+        # Format: "ActiveEnterTimestamp=Fri 2026-03-13 15:42:39 -03" (or UTC)
         if "=" not in line:
             return "—"
         ts_str = line.split("=", 1)[1].strip()
         if not ts_str or ts_str == "n/a":
             return "—"
-        # Parse the timestamp — systemd uses format like "Fri 2026-03-13 15:42:39 UTC"
+        # Parse the timestamp — systemd uses format like "Fri 2026-03-13 15:42:39 -03"
         parts = ts_str.split()
-        # parts: ['Fri', '2026-03-13', '15:42:39', 'UTC']
+        # parts: ['Fri', '2026-03-13', '15:42:39', '-03'] (or 'UTC')
         if len(parts) < 3:
             return "—"
         dt_str = f"{parts[1]} {parts[2]}"
-        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-        now = datetime.now(timezone.utc)
+        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+        now = datetime.now()
         delta = now - dt
         total_seconds = int(delta.total_seconds())
         if total_seconds < 60:
@@ -582,6 +582,13 @@ class ScheduleCreate(BaseModel):
     message: str
 
 
+class ScheduleUpdate(BaseModel):
+    hour: int
+    minute: int
+    weekdays: str
+    message: str
+
+
 @app.post("/api/bots/{name}/schedules")
 async def create_schedule(name: str, body: ScheduleCreate):
     validate_bot_name(name)
@@ -608,8 +615,33 @@ async def create_schedule(name: str, body: ScheduleCreate):
     return {"ok": True}
 
 
+@app.put("/api/bots/{name}/schedules/{sid}")
+async def update_schedule(name: str, sid: str, body: ScheduleUpdate):
+    validate_bot_name(name)
+    if not (0 <= body.hour <= 23):
+        raise HTTPException(400, detail="hour must be 0-23")
+    if not (0 <= body.minute <= 59):
+        raise HTTPException(400, detail="minute must be 0-59")
+    if not body.message.strip():
+        raise HTTPException(400, detail="message is required")
+    db_path = BOTS_DIR / name / "bot_data.db"
+    if not db_path.exists():
+        raise HTTPException(404, detail="Database not found")
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("PRAGMA busy_timeout=5000")
+    cur = conn.execute(
+        "UPDATE schedules SET hour=?, minute=?, weekdays=?, message=? WHERE id=?",
+        (body.hour, body.minute, body.weekdays, body.message, sid)
+    )
+    conn.commit()
+    conn.close()
+    if cur.rowcount == 0:
+        raise HTTPException(404, detail="Schedule not found")
+    return {"ok": True}
+
+
 @app.delete("/api/bots/{name}/schedules/{sid}")
-async def delete_schedule(name: str, sid: int):
+async def delete_schedule(name: str, sid: str):
     validate_bot_name(name)
     db_path = BOTS_DIR / name / "bot_data.db"
     if not db_path.exists():

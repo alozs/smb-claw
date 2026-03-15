@@ -70,8 +70,8 @@ def read_state() -> str:
 
 
 def write_state():
-    """Update .bugfixer_state with current UTC timestamp."""
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    """Update .bugfixer_state with current timestamp."""
+    ts = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     STATE_FILE.write_text(json.dumps({"last_run": ts}, indent=2))
 
 
