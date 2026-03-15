@@ -43,6 +43,11 @@ subagents/      — NOVO: diretório de sub-agentes especializados
 | `memory-autosave.sh` | Destila memória diária → MEMORY.md (cron 23:50) |
 | `memory-cleanup.sh` | Remove diários antigos (cron domingo 02:00) |
 | `bugfixer.py` | Bug Fixer Agent — detecta erros via analytics + journalctl, invoca Claude para corrigir, notifica admin via Telegram |
+| `VERSION` | Versão atual do sistema (semver: MAJOR.MINOR.PATCH) |
+| `CHANGELOG.md` | Histórico de mudanças por versão (auto-gerado pelo `release.sh`) |
+| `release.sh` | Bump de versão, changelog, commit, tag, push e notificação Telegram |
+| `update.sh` | Pull do remote + restart de serviços um a um |
+| `check-update.sh` | Cron diário: verifica se origin/main tem commits novos e notifica admin |
 
 ---
 
@@ -198,6 +203,8 @@ Se não estiver instalada, PDFs recebem fallback graceful com nome+tamanho.
 | `/revoke <id>` | Revoga acesso de um usuário |
 | `/memory` | Mostra status dos arquivos de memória |
 | `/stats [período]` | Analytics: tokens, custo, mensagens (hoje/semana/mes/N) |
+| `/version` | Mostra versão atual e se há atualizações pendentes |
+| `/update` | Puxa atualizações do remote e reinicia todos os serviços |
 
 ---
 
@@ -293,6 +300,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 | `50 23 * * *` | `memory-autosave.sh` | Destila memória diária → MEMORY.md |
 | `0 2 * * 0` | `memory-cleanup.sh 30` | Remove diários com mais de 30 dias |
 | dinâmico (`# smb-bugfixer`) | `bugfixer.py` | Bug Fixer Agent — gerado automaticamente pelo painel admin conforme `BUGFIXER_TIMES_PER_DAY` |
+| `0 8 * * *` | `check-update.sh` | Verifica se origin/main tem commits novos e notifica admin |
 
 ---
 

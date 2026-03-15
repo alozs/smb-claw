@@ -1154,6 +1154,62 @@ async def cmd_restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
 
+async def cmd_version(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_admin(update.effective_user.id): return
+    version_file = BASE_DIR / "VERSION"
+    version = version_file.read_text().strip() if version_file.exists() else "?"
+    # Checa se há updates disponíveis
+    try:
+        import subprocess as _sp
+        _sp.run(["git", "-C", str(BASE_DIR), "fetch", "origin", "main"],
+                capture_output=True, timeout=15)
+        behind = _sp.run(
+            ["git", "-C", str(BASE_DIR), "rev-list", "HEAD..origin/main", "--count"],
+            capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+        behind = int(behind) if behind else 0
+    except Exception:
+        behind = 0
+    status = f"✅ Atualizado" if behind == 0 else f"🔔 {behind} commit(s) pendente(s) — use /update"
+    await update.message.reply_text(
+        f"📦 *Versão:* `v{version}`\n{status}", parse_mode="Markdown"
+    )
+
+
+async def cmd_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_admin(update.effective_user.id): return
+    await update.message.reply_text("📥 Verificando atualizações...")
+    import subprocess as _sp
+    try:
+        # Fetch
+        _sp.run(["git", "-C", str(BASE_DIR), "fetch", "origin", "main"],
+                capture_output=True, timeout=15)
+        behind = _sp.run(
+            ["git", "-C", str(BASE_DIR), "rev-list", "HEAD..origin/main", "--count"],
+            capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+        if not behind or int(behind) == 0:
+            await update.message.reply_text("✅ Já está na versão mais recente.")
+            return
+        # Mostra o que vai mudar
+        log = _sp.run(
+            ["git", "-C", str(BASE_DIR), "log", "--pretty=format:- %s", "HEAD..origin/main"],
+            capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+        await update.message.reply_text(
+            f"🔄 Atualizando {behind} commit(s)...\n\n{log[:3000]}"
+        )
+        # Roda update.sh em background (ele reinicia os bots incluindo este)
+        _sp.Popen(
+            [str(BASE_DIR / "update.sh"), "--notify"],
+            cwd=str(BASE_DIR),
+            stdout=open(str(BASE_DIR / "logs" / "update.log"), "a"),
+            stderr=open(str(BASE_DIR / "logs" / "update.log"), "a"),
+        )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Erro: {e}")
+
+
 async def cmd_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     if not has_access(user.id): return
@@ -1901,6 +1957,8 @@ def main() -> None:
     app.add_handler(CommandHandler("revoke",   cmd_revoke))
     app.add_handler(CommandHandler("restart",  cmd_restart))
     app.add_handler(CommandHandler("status",   cmd_status))
+    app.add_handler(CommandHandler("version",  cmd_version))
+    app.add_handler(CommandHandler("update",   cmd_update))
     app.add_handler(CallbackQueryHandler(callback_approval, pattern=r"^(approve|deny):\d+$"))
     app.add_handler(CallbackQueryHandler(callback_task,     pattern=r"^(retomar|cancelar):.+$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
