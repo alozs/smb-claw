@@ -172,14 +172,143 @@ Carregado nesta ordem (posterior sobrescreve anterior):
 
 ## Provedores de IA
 
-| Provider | Config | Auth | Modelos |
-|---|---|---|---|
-| `claude-cli` | Assinatura Claude Code | OAuth automático (sem API key) | Claude Opus, Sonnet, Haiku |
-| `anthropic` | API key ou OAuth | `ANTHROPIC_API_KEY` ou `~/.claude/.credentials.json` | Claude Opus, Sonnet, Haiku |
-| `openrouter` | API key | `OPENROUTER_API_KEY` (obrigatória) | Grok 3, GPT-4o, Gemini, Mistral... |
-| `codex` | API key ou OAuth | `OPENAI_API_KEY` ou `~/.codex/auth.json` | GPT-4o, o3, o4-mini |
+O framework suporta **4 provedores** com autenticação flexível — API key ou OAuth automático.
 
-O `claude-cli` é o provedor recomendado — usa a assinatura do Claude Code, sem custo extra de API. O token OAuth é renovado automaticamente.
+### `claude-cli` — Recomendado
+
+> Usa a assinatura do Claude Code. **Sem custo extra de API**, sem API key. Token OAuth renovado automaticamente.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Provedor:   claude-cli                                 │
+│  Auth:       OAuth automático (~/.claude/.credentials)   │
+│  API key:    NÃO precisa                                │
+│  Modelos:    Claude Opus, Sonnet, Haiku                 │
+│  Ferramentas: tools nativas do Claude Code (Bash, Read…)│
+└─────────────────────────────────────────────────────────┘
+```
+
+**Como configurar:**
+```bash
+# 1. Instale o Claude Code CLI
+npm install -g @anthropic-ai/claude-code
+
+# 2. Faça login (abre navegador para autenticar)
+claude login
+
+# 3. Configure o provedor
+# config.global:
+PROVIDER=claude-cli
+MODEL=claude-sonnet-4-6
+```
+
+O token OAuth fica em `~/.claude/.credentials.json` e é lido a cada chamada — renovação automática pelo CLI sem precisar reiniciar os bots.
+
+### `anthropic` — API direta
+
+> API key da Anthropic ou OAuth do Claude Code. Controle total de custos via console.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Provedor:   anthropic                                  │
+│  Auth:       API key OU OAuth do Claude Code            │
+│  Modelos:    Claude Opus, Sonnet, Haiku                 │
+│  Ferramentas: tools customizadas do framework           │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Opção A — API key:**
+```bash
+# secrets.global:
+ANTHROPIC_API_KEY=sk-ant-api03-...
+
+# config.global:
+PROVIDER=anthropic
+MODEL=claude-sonnet-4-6
+```
+
+**Opção B — OAuth do Claude Code (sem API key):**
+```bash
+# Basta ter feito `claude login` — o framework detecta automaticamente
+# ~/.claude/.credentials.json é lido a cada chamada
+# config.global:
+PROVIDER=anthropic
+MODEL=claude-sonnet-4-6
+# (sem ANTHROPIC_API_KEY — usa OAuth)
+```
+
+### `codex` — OpenAI / ChatGPT
+
+> Modelos OpenAI via API key ou OAuth do Codex CLI (ChatGPT). Ideal para GPT-4o e família o3/o4.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Provedor:   codex                                      │
+│  Auth:       API key OU OAuth do Codex CLI (ChatGPT)    │
+│  Modelos:    GPT-4o, GPT-4o-mini, o3, o4-mini          │
+│  Ferramentas: tools customizadas do framework           │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Opção A — API key:**
+```bash
+# secrets.global:
+OPENAI_API_KEY=sk-...
+
+# config.global:
+PROVIDER=codex
+MODEL=gpt-4o
+```
+
+**Opção B — OAuth do Codex CLI (sem API key):**
+```bash
+# 1. Instale o Codex CLI
+npm install -g @openai/codex
+
+# 2. Faça login (autentica via ChatGPT/OpenAI)
+codex login
+
+# 3. Configure — o token fica em ~/.codex/auth.json
+# config.global:
+PROVIDER=codex
+MODEL=gpt-4o
+# (sem OPENAI_API_KEY — usa OAuth)
+```
+
+O token OAuth é lido a cada chamada — renovação automática pelo Codex CLI.
+
+### `openrouter` — Multi-modelo
+
+> Acesso a dezenas de modelos via uma única API key. Grok, GPT-4o, Gemini, Mistral, LLaMA e mais.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Provedor:   openrouter                                 │
+│  Auth:       API key (obrigatória)                      │
+│  Modelos:    Grok 3, GPT-4o, Gemini, Mistral, LLaMA…   │
+│  Ferramentas: tools customizadas do framework           │
+└─────────────────────────────────────────────────────────┘
+```
+
+```bash
+# secrets.global:
+OPENROUTER_API_KEY=sk-or-v1-...
+
+# config.global:
+PROVIDER=openrouter
+MODEL=x-ai/grok-3
+```
+
+### Resumo de autenticação
+
+| Provedor | API key | OAuth CLI | Custo |
+|:---|:---:|:---:|:---|
+| `claude-cli` | — | `claude login` | Incluso na assinatura Claude Code |
+| `anthropic` | `ANTHROPIC_API_KEY` | `claude login` | Pay-per-use (Anthropic) |
+| `codex` | `OPENAI_API_KEY` | `codex login` | Pay-per-use (OpenAI) |
+| `openrouter` | `OPENROUTER_API_KEY` | — | Pay-per-use (OpenRouter) |
+
+> **Dica:** OAuth é sempre prioridade menor que API key. Se `ANTHROPIC_API_KEY` estiver definida, ela é usada mesmo com OAuth disponível. Remova a key para forçar OAuth.
 
 ### Exemplos de modelos
 
@@ -189,7 +318,13 @@ MODEL=claude-sonnet-4-6
 MODEL=claude-opus-4-6
 MODEL=claude-haiku-4-5-20251001
 
-# OpenRouter
+# OpenAI (codex)
+MODEL=gpt-4o
+MODEL=gpt-4o-mini
+MODEL=o3
+MODEL=o4-mini
+
+# OpenRouter (qualquer modelo disponível)
 MODEL=x-ai/grok-3
 MODEL=x-ai/grok-3:online           # com busca em tempo real
 MODEL=google/gemini-2.0-flash
