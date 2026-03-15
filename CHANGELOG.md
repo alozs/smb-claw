@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.4 (2026-03-15)
+- fix: remove todos os paths hardcoded /home/ubuntu — agora usa paths dinâmicos
+
 ## 0.1.3 (2026-03-14)
 - docs: adiciona versionamento, contagem de linhas e comandos /version /update ao README
 
