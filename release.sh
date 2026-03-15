@@ -94,8 +94,8 @@ fi
 echo "📝 Changelog atualizado"
 
 # ── Commit, tag, push ───────────────────────────────────────────────────────
-git add -A
-git commit -m "release: v$NEW_VERSION" --allow-empty
+git add VERSION CHANGELOG.md
+git commit -m "release: v$NEW_VERSION"
 git tag "v$NEW_VERSION"
 echo "🏷️  Tag: v$NEW_VERSION"
 

@@ -30,6 +30,11 @@ __pycache__/
 logs/
 *.log
 
+# ── Runtime state ─────────────────────────────────────────────────────────
+.locks/
+.bugfixer_state
+bots/*/avatar.*
+
 # ── Editor / OS ───────────────────────────────────────────────────────────────
 .DS_Store
 .vscode/
