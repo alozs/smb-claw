@@ -130,6 +130,7 @@
             class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
             <option value="claude-cli">Claude Code (OAuth)</option>
             <option value="anthropic">Anthropic (API Key)</option>
+            <option value="codex">OpenAI Codex (OAuth/API)</option>
             <option value="openrouter">OpenRouter (Multi-modelo)</option>
           </select>
         </div>
@@ -228,6 +229,535 @@
   </div>
 </div>
 
+<!-- ── Setup Wizard Overlay ────────────────────────────────────────────── -->
+<div x-show="showSetupWizard" x-cloak
+     x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+     class="fixed inset-0 z-[70] bg-white flex flex-col">
+
+  <!-- Header + Progress -->
+  <div class="border-b border-surface-border px-8 py-4">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="/static/icon.png" alt="SMB Claw" class="w-8 h-8 rounded-lg object-contain">
+        <div>
+          <span class="font-700 text-slate-900">SMB Claw</span>
+          <span class="text-slate-400 text-sm ml-2">Setup</span>
+        </div>
+      </div>
+      <button x-show="setupStatus && !setupStatus.needs_setup" @click="showSetupWizard=false"
+              class="text-sm text-slate-400 hover:text-slate-600 cursor-pointer">Fechar</button>
+    </div>
+    <div class="flex gap-1.5 mt-4">
+      <template x-for="i in setupTotalSteps" :key="i">
+        <div class="h-1.5 flex-1 rounded-full transition-colors duration-300" :class="i <= setupStep ? 'bg-brand' : 'bg-slate-200'"></div>
+      </template>
+    </div>
+    <div class="flex justify-between mt-2 text-[10px] text-slate-400 uppercase tracking-wider font-600">
+      <span :class="setupStep===1 && 'text-brand'">Início</span>
+      <span :class="setupStep===2 && 'text-brand'">Autenticação</span>
+      <span :class="setupStep===3 && 'text-brand'">Preferências</span>
+      <span :class="setupStep===4 && 'text-brand'">Primeiro Agente</span>
+      <span :class="setupStep===5 && 'text-brand'">Concluir</span>
+    </div>
+  </div>
+
+  <!-- Step Content -->
+  <div class="flex-1 overflow-hidden flex justify-center">
+    <div class="w-full max-w-5xl py-8 px-8">
+
+      <!-- STEP 1: Welcome -->
+      <div x-show="setupStep===1" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-x-4" x-transition:enter-end="opacity-100 translate-x-0" class="h-full">
+        <div class="grid grid-cols-2 gap-10 h-full items-center">
+          <!-- Left: Hero -->
+          <div>
+            <div class="w-16 h-16 bg-brand/5 rounded-2xl flex items-center justify-center mb-5">
+              <img src="/static/icon.png" class="w-10 h-10 object-contain">
+            </div>
+            <h1 class="text-2xl font-800 text-slate-900 mb-2">Bem-vindo ao SMB Claw</h1>
+            <p class="text-slate-500 mb-6">Vamos configurar seu sistema de agentes de IA em poucos minutos.</p>
+            <div class="space-y-3">
+              <div class="flex items-start gap-3 p-3.5 bg-slate-50 rounded-xl">
+                <div class="w-7 h-7 bg-brand/10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span class="text-brand font-700 text-sm">1</span>
+                </div>
+                <div>
+                  <p class="font-600 text-slate-800 text-sm">Autenticação</p>
+                  <p class="text-slate-500 text-xs mt-0.5">Configure Claude, OpenAI ou OpenRouter</p>
+                </div>
+              </div>
+              <div class="flex items-start gap-3 p-3.5 bg-slate-50 rounded-xl">
+                <div class="w-7 h-7 bg-brand/10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span class="text-brand font-700 text-sm">2</span>
+                </div>
+                <div>
+                  <p class="font-600 text-slate-800 text-sm">Preferências</p>
+                  <p class="text-slate-500 text-xs mt-0.5">Escolha provider e modelo padrão</p>
+                </div>
+              </div>
+              <div class="flex items-start gap-3 p-3.5 bg-slate-50 rounded-xl">
+                <div class="w-7 h-7 bg-brand/10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span class="text-brand font-700 text-sm">3</span>
+                </div>
+                <div>
+                  <p class="font-600 text-slate-800 text-sm">Primeiro Agente</p>
+                  <p class="text-slate-500 text-xs mt-0.5">Crie seu primeiro agente no Telegram</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Right: System deps + Auth -->
+          <div>
+            <div x-show="setupStatus" class="p-6 bg-slate-50 rounded-2xl">
+              <!-- Provedores de IA -->
+              <p class="text-xs font-600 text-slate-500 uppercase tracking-wider mb-3">Provedores de IA</p>
+              <div class="space-y-2 mb-5">
+                <div class="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+                  :class="setupStatus?.auth?.claude_oauth?.status==='active' || setupStatus?.auth?.anthropic_key ? 'bg-success/5' : 'bg-white'">
+                  <img src="/static/anthropic.png" class="w-5 h-5 rounded object-contain flex-shrink-0" alt="Anthropic">
+                  <span class="text-sm font-600 text-slate-700 flex-1">Claude (Anthropic)</span>
+                  <span x-show="setupStatus?.auth?.claude_oauth?.status==='active' || setupStatus?.auth?.anthropic_key" class="text-[10px] font-600 text-success bg-success/10 px-2 py-0.5 rounded-full">Conectado</span>
+                  <span x-show="setupStatus?.auth?.claude_oauth?.status!=='active' && !setupStatus?.auth?.anthropic_key" class="text-[10px] font-500 text-slate-400">Não configurado</span>
+                </div>
+                <div class="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+                  :class="setupStatus?.auth?.codex_oauth?.status==='active' || setupStatus?.auth?.openai_key ? 'bg-success/5' : 'bg-white'">
+                  <img src="/static/openai.png" class="w-5 h-5 rounded object-contain flex-shrink-0" alt="OpenAI">
+                  <span class="text-sm font-600 text-slate-700 flex-1">OpenAI (Codex)</span>
+                  <span x-show="setupStatus?.auth?.codex_oauth?.status==='active' || setupStatus?.auth?.openai_key" class="text-[10px] font-600 text-success bg-success/10 px-2 py-0.5 rounded-full">Conectado</span>
+                  <span x-show="setupStatus?.auth?.codex_oauth?.status!=='active' && !setupStatus?.auth?.openai_key" class="text-[10px] font-500 text-slate-400">Não configurado</span>
+                </div>
+                <div class="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+                  :class="setupStatus?.auth?.openrouter_key ? 'bg-success/5' : 'bg-white'">
+                  <img src="/static/openrouter.png" class="w-5 h-5 rounded object-contain flex-shrink-0" alt="OpenRouter">
+                  <span class="text-sm font-600 text-slate-700 flex-1">OpenRouter</span>
+                  <span x-show="setupStatus?.auth?.openrouter_key" class="text-[10px] font-600 text-success bg-success/10 px-2 py-0.5 rounded-full">Conectado</span>
+                  <span x-show="!setupStatus?.auth?.openrouter_key" class="text-[10px] font-500 text-slate-400">Não configurado</span>
+                </div>
+              </div>
+              <!-- Dependências do sistema -->
+              <div class="pt-4 border-t border-slate-200">
+                <p class="text-xs font-600 text-slate-500 uppercase tracking-wider mb-3">Dependências</p>
+                <div class="grid grid-cols-3 gap-1.5">
+                  <template x-for="(ok, name) in (setupStatus?.deps?.cli || {})" :key="name">
+                    <template x-if="name !== 'claude' && name !== 'codex'">
+                      <div class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg" :class="ok ? 'bg-success/5 text-success' : 'bg-white text-slate-400'">
+                        <svg x-show="ok" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        <svg x-show="!ok" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                        <span x-text="name" class="font-mono"></span>
+                      </div>
+                    </template>
+                  </template>
+                  <template x-for="(ok, name) in (setupStatus?.deps?.pip || {})" :key="'pip-'+name">
+                    <div class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg" :class="ok ? 'bg-success/5 text-success' : 'bg-white text-slate-400'">
+                      <svg x-show="ok" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                      <svg x-show="!ok" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                      <span x-text="name" class="font-mono"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+              <template x-if="setupStatus?.deps?.pip && Object.values(setupStatus.deps.pip).some(v => !v)">
+                <button @click="setupInstallDeps()" :disabled="setupInstalling"
+                  class="mt-3 w-full py-2 rounded-xl border border-brand/20 text-brand text-xs font-600 hover:bg-brand/5 transition-colors cursor-pointer disabled:opacity-50">
+                  <span x-show="!setupInstalling">Instalar pacotes faltantes</span>
+                  <span x-show="setupInstalling" class="flex items-center justify-center gap-2">
+                    <svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                    Instalando...
+                  </span>
+                </button>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: Auth -->
+      <div x-show="setupStep===2" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-x-4" x-transition:enter-end="opacity-100 translate-x-0">
+        <h2 class="text-xl font-700 text-slate-900 mb-1">Autenticação</h2>
+        <p class="text-slate-500 text-sm mb-5">Configure pelo menos um provedor de IA.</p>
+
+        <div class="grid grid-cols-2 gap-5">
+          <!-- Left column: Claude + OpenAI -->
+          <div class="space-y-5">
+            <!-- Claude / Anthropic -->
+            <div class="p-4 border border-surface-border rounded-2xl" x-data="{oauthUrl:'', oauthRedirect:'', oauthLoading:false, oauthCompleting:false, oauthError:''}">
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <img src="/static/anthropic.png" class="w-7 h-7 rounded-lg object-contain" alt="Anthropic">
+                  <span class="font-700 text-slate-800 text-sm">Claude (Anthropic)</span>
+                </div>
+                <template x-if="setupAuthOk('claude')">
+                  <span class="text-[10px] font-600 text-success bg-success/10 px-2 py-0.5 rounded-full">OK</span>
+                </template>
+              </div>
+              <div class="flex items-center gap-2 text-xs mb-3 px-2.5 py-1.5 rounded-lg"
+                   :class="setupStatus?.auth?.claude_oauth?.status==='active' ? 'bg-success/5 text-success' : 'bg-slate-50 text-slate-400'">
+                <svg x-show="setupStatus?.auth?.claude_oauth?.status==='active'" class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <svg x-show="setupStatus?.auth?.claude_oauth?.status!=='active'" class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                <span>Claude OAuth</span>
+                <button x-show="setupStatus?.auth?.claude_oauth?.status!=='active' && !oauthUrl" @click="oauthLoading=true; oauthError=''; fetch('/api/setup/oauth/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'claude'})}).then(r=>r.json()).then(d=>{oauthUrl=d.url;oauthLoading=false}).catch(()=>{oauthLoading=false})"
+                  :disabled="oauthLoading"
+                  class="ml-auto text-[10px] font-600 text-brand hover:text-brand-hover cursor-pointer">
+                  <span x-show="!oauthLoading">Fazer login</span>
+                  <span x-show="oauthLoading">Gerando...</span>
+                </button>
+              </div>
+              <div x-show="oauthUrl && setupStatus?.auth?.claude_oauth?.status!=='active'" x-transition class="mb-3 space-y-2">
+                <div class="p-2.5 bg-orange-50 rounded-xl">
+                  <p class="text-[10px] font-600 text-orange-800 mb-1.5">1. Abra este link no navegador:</p>
+                  <div class="flex gap-1.5">
+                    <input :value="oauthUrl" readonly class="flex-1 bg-white border border-orange-200 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-600 truncate" />
+                    <button @click="navigator.clipboard.writeText(oauthUrl); $el.textContent='OK!'; setTimeout(()=>$el.textContent='Copiar',2000)"
+                      class="px-2.5 py-1.5 bg-white border border-orange-200 rounded-lg text-[10px] font-600 text-orange-700 hover:bg-orange-100 cursor-pointer flex-shrink-0">Copiar</button>
+                  </div>
+                </div>
+                <div class="p-2.5 bg-slate-50 rounded-xl">
+                  <p class="text-[10px] font-600 text-slate-700 mb-1.5">2. Cole a URL de redirecionamento:</p>
+                  <input x-model="oauthRedirect" type="text" placeholder="http://localhost:18217/oauth/callback?code=..."
+                    class="w-full border border-surface-border rounded-lg px-2 py-1.5 text-[10px] font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand" />
+                  <button x-show="oauthRedirect" @click="oauthCompleting=true; oauthError=''; fetch('/api/setup/oauth/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'claude',redirect_url:oauthRedirect})}).then(r=>r.json()).then(d=>{oauthCompleting=false; if(d.ok){oauthUrl='';oauthRedirect='';checkSetupStatus();toast('Claude OAuth configurado!')} else {oauthError=d.error||'Erro'}}).catch(()=>{oauthCompleting=false; oauthError='Erro de conexão'})"
+                    :disabled="oauthCompleting"
+                    class="mt-1.5 w-full py-1.5 rounded-lg bg-brand text-white text-[10px] font-600 hover:bg-brand-hover cursor-pointer disabled:opacity-50">
+                    <span x-show="!oauthCompleting">Verificar e salvar</span>
+                    <span x-show="oauthCompleting">Processando...</span>
+                  </button>
+                  <p x-show="oauthError" x-text="oauthError" class="mt-1.5 text-[10px] text-danger font-500"></p>
+                </div>
+              </div>
+              <div>
+                <label class="block text-[10px] font-600 text-slate-500 mb-1">Ou cole a API Key (sk-ant-...)</label>
+                <input x-model="setupForm.anthropic_key" type="password" placeholder="sk-ant-..."
+                  class="w-full border border-surface-border rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
+              </div>
+            </div>
+
+            <!-- OpenAI / Codex -->
+            <div class="p-4 border border-surface-border rounded-2xl" x-data="{oauthUrl:'', oauthRedirect:'', oauthLoading:false, oauthCompleting:false, oauthError:''}">
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <img src="/static/openai.png" class="w-7 h-7 rounded-lg object-contain" alt="OpenAI">
+                  <span class="font-700 text-slate-800 text-sm">OpenAI (Codex)</span>
+                </div>
+                <template x-if="setupAuthOk('openai')">
+                  <span class="text-[10px] font-600 text-success bg-success/10 px-2 py-0.5 rounded-full">OK</span>
+                </template>
+              </div>
+              <div class="flex items-center gap-2 text-xs mb-3 px-2.5 py-1.5 rounded-lg"
+                   :class="setupStatus?.auth?.codex_oauth?.status==='active' ? 'bg-success/5 text-success' : 'bg-slate-50 text-slate-400'">
+                <svg x-show="setupStatus?.auth?.codex_oauth?.status==='active'" class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <svg x-show="setupStatus?.auth?.codex_oauth?.status!=='active'" class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                <span>Codex OAuth (ChatGPT)</span>
+                <button x-show="setupStatus?.auth?.codex_oauth?.status!=='active' && !oauthUrl" @click="oauthLoading=true; oauthError=''; fetch('/api/setup/oauth/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'codex'})}).then(r=>r.json()).then(d=>{oauthUrl=d.url;oauthLoading=false}).catch(()=>{oauthLoading=false})"
+                  :disabled="oauthLoading"
+                  class="ml-auto text-[10px] font-600 text-brand hover:text-brand-hover cursor-pointer">
+                  <span x-show="!oauthLoading">Fazer login</span>
+                  <span x-show="oauthLoading">Gerando...</span>
+                </button>
+              </div>
+              <div x-show="oauthUrl && setupStatus?.auth?.codex_oauth?.status!=='active'" x-transition class="mb-3 space-y-2">
+                <div class="p-2.5 bg-green-50 rounded-xl">
+                  <p class="text-[10px] font-600 text-green-800 mb-1.5">1. Abra este link no navegador:</p>
+                  <div class="flex gap-1.5">
+                    <input :value="oauthUrl" readonly class="flex-1 bg-white border border-green-200 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-600 truncate" />
+                    <button @click="navigator.clipboard.writeText(oauthUrl); $el.textContent='OK!'; setTimeout(()=>$el.textContent='Copiar',2000)"
+                      class="px-2.5 py-1.5 bg-white border border-green-200 rounded-lg text-[10px] font-600 text-green-700 hover:bg-green-100 cursor-pointer flex-shrink-0">Copiar</button>
+                  </div>
+                </div>
+                <div class="p-2.5 bg-slate-50 rounded-xl">
+                  <p class="text-[10px] font-600 text-slate-700 mb-1.5">2. Cole a URL de redirecionamento:</p>
+                  <input x-model="oauthRedirect" type="text" placeholder="http://localhost:1455/auth/callback?code=..."
+                    class="w-full border border-surface-border rounded-lg px-2 py-1.5 text-[10px] font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand" />
+                  <button x-show="oauthRedirect" @click="oauthCompleting=true; oauthError=''; fetch('/api/setup/oauth/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'codex',redirect_url:oauthRedirect})}).then(r=>r.json()).then(d=>{oauthCompleting=false; if(d.ok){oauthUrl='';oauthRedirect='';checkSetupStatus();toast('Codex OAuth configurado!')} else {oauthError=d.error||'Erro'}}).catch(()=>{oauthCompleting=false; oauthError='Erro de conexão'})"
+                    :disabled="oauthCompleting"
+                    class="mt-1.5 w-full py-1.5 rounded-lg bg-brand text-white text-[10px] font-600 hover:bg-brand-hover cursor-pointer disabled:opacity-50">
+                    <span x-show="!oauthCompleting">Verificar e salvar</span>
+                    <span x-show="oauthCompleting">Processando...</span>
+                  </button>
+                  <p x-show="oauthError" x-text="oauthError" class="mt-1.5 text-[10px] text-danger font-500"></p>
+                </div>
+              </div>
+              <div>
+                <label class="block text-[10px] font-600 text-slate-500 mb-1">Ou cole a API Key (sk-...)</label>
+                <input x-model="setupForm.openai_key" type="password" placeholder="sk-..."
+                  class="w-full border border-surface-border rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Right column: OpenRouter + warning -->
+          <div class="space-y-5">
+            <div class="p-4 border border-surface-border rounded-2xl">
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <img src="/static/openrouter.png" class="w-7 h-7 rounded-lg object-contain" alt="OpenRouter">
+                  <span class="font-700 text-slate-800 text-sm">OpenRouter</span>
+                </div>
+                <template x-if="setupAuthOk('openrouter')">
+                  <span class="text-[10px] font-600 text-success bg-success/10 px-2 py-0.5 rounded-full">OK</span>
+                </template>
+              </div>
+              <p class="text-xs text-slate-400 mb-2">Acesso a Grok, Gemini, Mistral e outros modelos.</p>
+              <input x-model="setupForm.openrouter_key" type="password" placeholder="sk-or-..."
+                class="w-full border border-surface-border rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
+              <p class="text-[10px] text-slate-400 mt-1.5">Obtenha em openrouter.ai/keys</p>
+            </div>
+
+            <!-- Info box -->
+            <div class="p-4 bg-brand/5 border border-brand/10 rounded-2xl">
+              <p class="text-xs font-600 text-brand mb-2">Como funciona?</p>
+              <ul class="text-[11px] text-slate-600 space-y-1.5">
+                <li class="flex items-start gap-2">
+                  <span class="text-brand mt-0.5 flex-shrink-0">-</span>
+                  <span><strong>OAuth</strong> usa sua conta existente (gratuito, sem API key)</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-brand mt-0.5 flex-shrink-0">-</span>
+                  <span><strong>API Key</strong> cobra por uso via sua conta de desenvolvedor</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-brand mt-0.5 flex-shrink-0">-</span>
+                  <span>Você pode configurar <strong>mais de um</strong> e escolher por bot</span>
+                </li>
+              </ul>
+            </div>
+
+            <p x-show="!setupHasAnyAuth()" class="text-sm text-warn font-500 flex items-center gap-2">
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+              Configure pelo menos um provedor para continuar.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 3: Preferences -->
+      <div x-show="setupStep===3" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-x-4" x-transition:enter-end="opacity-100 translate-x-0">
+        <h2 class="text-xl font-700 text-slate-900 mb-1">Preferências</h2>
+        <p class="text-slate-500 text-sm mb-5">Configurações padrão para todos os bots. Cada bot pode sobrescrever individualmente.</p>
+
+        <div class="grid grid-cols-2 gap-8">
+          <!-- Left: Provider + Model + Test -->
+          <div class="space-y-5">
+            <div>
+              <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Provedor padrão</label>
+              <select x-model="setupForm.provider" @change="setupForm.model = setupProviderModels()[0]; setupTestResult=null"
+                class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
+                <option value="claude-cli" x-show="setupAuthOk('claude')">Claude Code CLI (OAuth)</option>
+                <option value="anthropic" x-show="setupAuthOk('claude')">Anthropic (API/OAuth)</option>
+                <option value="codex" x-show="setupAuthOk('openai')">OpenAI Codex (OAuth/API)</option>
+                <option value="openrouter" x-show="setupAuthOk('openrouter')">OpenRouter</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Modelo padrão</label>
+              <select x-model="setupForm.model"
+                class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
+                <template x-for="m in setupProviderModels()" :key="m">
+                  <option :value="m" x-text="m"></option>
+                </template>
+              </select>
+            </div>
+
+            <div>
+              <button @click="setupTestProvider()" :disabled="setupTesting"
+                class="w-full py-2.5 rounded-xl border border-brand/20 text-brand text-sm font-600 hover:bg-brand/5 transition-colors cursor-pointer disabled:opacity-50">
+                <span x-show="!setupTesting">Testar Conexão</span>
+                <span x-show="setupTesting" class="flex items-center justify-center gap-2">
+                  <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                  Testando...
+                </span>
+              </button>
+              <div x-show="setupTestResult" class="mt-2 text-sm px-3 py-2 rounded-lg"
+                   :class="setupTestResult?.ok ? 'bg-success/5 text-success' : 'bg-danger/5 text-danger'">
+                <span x-show="setupTestResult?.ok" x-text="'Conectado com ' + (setupTestResult?.model || '')"></span>
+                <span x-show="!setupTestResult?.ok" x-text="setupTestResult?.error || 'Falha na conexão'"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Admin ID + Access mode -->
+          <div class="space-y-5">
+            <div>
+              <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Admin Telegram ID</label>
+              <input x-model="setupForm.admin_id" type="text" placeholder="Seu ID numérico"
+                class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
+              <p class="text-[10px] text-slate-400 mt-1">Para descobrir: envie /id para qualquer bot no Telegram</p>
+            </div>
+
+            <div>
+              <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Modo de acesso</label>
+              <select x-model="setupForm.access_mode"
+                class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
+                <option value="approval">Aprovação — novos usuários precisam de aprovação</option>
+                <option value="open">Aberto — qualquer pessoa pode usar</option>
+                <option value="closed">Fechado — somente pré-aprovados</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 4: First Bot -->
+      <div x-show="setupStep===4" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-x-4" x-transition:enter-end="opacity-100 translate-x-0">
+        <h2 class="text-xl font-700 text-slate-900 mb-1">Primeiro Agente</h2>
+        <p class="text-slate-500 text-sm mb-5">Crie seu primeiro agente de IA no Telegram.</p>
+
+        <label class="flex items-center gap-3 cursor-pointer mb-5 p-4 rounded-xl border transition-colors"
+               :class="setupForm.create_bot ? 'bg-brand/5 border-brand/25' : 'border-surface-border hover:bg-slate-50'">
+          <input type="checkbox" x-model="setupForm.create_bot" class="rounded text-brand w-5 h-5 cursor-pointer" />
+          <div>
+            <span class="font-600 text-slate-800">Criar agente agora</span>
+            <span class="text-slate-400 text-xs block mt-0.5">Você pode criar agentes depois pelo painel</span>
+          </div>
+        </label>
+
+        <div x-show="setupForm.create_bot" x-transition>
+          <div class="grid grid-cols-2 gap-8">
+            <!-- Left: Name + Token + Description -->
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Nome do Agente <span class="text-danger normal-case">*</span></label>
+                <input x-model="setupForm.bot_display_name" @input="setupForm.bot_name = slugify(setupForm.bot_display_name)" type="text" placeholder="Assistente Pessoal"
+                  class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
+                <p class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                  <span class="text-slate-300">Pasta:</span>
+                  <code class="font-mono text-slate-500" x-text="setupForm.bot_name || '...'"></code>
+                </p>
+              </div>
+
+              <div>
+                <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Token do Telegram <span class="text-danger normal-case">*</span></label>
+                <input x-model="setupForm.bot_telegram_token" type="text" placeholder="Cole o token do @BotFather"
+                  class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
+                <p class="text-[10px] text-slate-400 mt-1">Crie via <strong>@BotFather</strong> no Telegram</p>
+              </div>
+
+              <div>
+                <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Descrição</label>
+                <input x-model="setupForm.bot_description" type="text" placeholder="Ex: Assistente de suporte ao cliente"
+                  class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
+              </div>
+            </div>
+
+            <!-- Right: Tools -->
+            <div>
+              <label class="block text-xs font-600 text-slate-600 mb-2 uppercase tracking-wide">Ferramentas</label>
+              <div class="grid grid-cols-2 gap-2">
+                <template x-for="tool in toolOptions" :key="tool.key">
+                  <label class="flex items-start gap-2 cursor-pointer p-2.5 rounded-lg border transition-colors"
+                    :class="setupForm.bot_tools.includes(tool.key) ? 'bg-brand/5 border-brand/25' : 'border-surface-border hover:bg-slate-50'">
+                    <input type="checkbox" :value="tool.key" x-model="setupForm.bot_tools" class="rounded text-brand w-4 h-4 cursor-pointer mt-0.5" />
+                    <div>
+                      <span class="text-slate-700 font-600 text-sm" x-text="tool.label"></span>
+                      <span class="text-slate-400 font-400 text-[10px] block mt-0.5" x-text="tool.desc"></span>
+                    </div>
+                  </label>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 5: Summary -->
+      <div x-show="setupStep===5" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-x-4" x-transition:enter-end="opacity-100 translate-x-0">
+        <h2 class="text-xl font-700 text-slate-900 mb-1">Tudo pronto!</h2>
+        <p class="text-slate-500 text-sm mb-5">Revise as configurações e finalize o setup.</p>
+
+        <div class="grid grid-cols-2 gap-6">
+          <!-- Left: Config + Auth -->
+          <div class="space-y-4">
+            <div class="p-4 bg-slate-50 rounded-xl space-y-2.5">
+              <p class="text-xs font-600 text-slate-500 uppercase tracking-wider mb-1">Configuração Global</p>
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Provedor</span>
+                <span class="font-600 text-slate-800" x-text="setupForm.provider"></span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Modelo</span>
+                <span class="font-600 text-slate-800" x-text="setupForm.model"></span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Admin ID</span>
+                <span class="font-600 text-slate-800" x-text="setupForm.admin_id || '—'"></span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Acesso</span>
+                <span class="font-600 text-slate-800" x-text="setupForm.access_mode"></span>
+              </div>
+            </div>
+
+            <div class="p-4 bg-slate-50 rounded-xl space-y-2">
+              <p class="text-xs font-600 text-slate-500 uppercase tracking-wider mb-1">Autenticação</p>
+              <div class="flex items-center gap-2 text-sm" :class="setupAuthOk('claude') ? 'text-success' : 'text-slate-300'">
+                <svg x-show="setupAuthOk('claude')" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <svg x-show="!setupAuthOk('claude')" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                <span>Claude (Anthropic)</span>
+              </div>
+              <div class="flex items-center gap-2 text-sm" :class="setupAuthOk('openai') ? 'text-success' : 'text-slate-300'">
+                <svg x-show="setupAuthOk('openai')" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <svg x-show="!setupAuthOk('openai')" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                <span>OpenAI (Codex)</span>
+              </div>
+              <div class="flex items-center gap-2 text-sm" :class="setupAuthOk('openrouter') ? 'text-success' : 'text-slate-300'">
+                <svg x-show="setupAuthOk('openrouter')" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <svg x-show="!setupAuthOk('openrouter')" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                <span>OpenRouter</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Bot summary -->
+          <div>
+            <div x-show="setupForm.create_bot && setupForm.bot_display_name" class="p-4 bg-slate-50 rounded-xl space-y-2.5">
+              <p class="text-xs font-600 text-slate-500 uppercase tracking-wider mb-1">Primeiro Agente</p>
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Nome</span>
+                <span class="font-600 text-slate-800" x-text="setupForm.bot_display_name"></span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Token</span>
+                <span class="font-600 text-slate-800" x-text="setupForm.bot_telegram_token ? '****' + setupForm.bot_telegram_token.slice(-6) : '—'"></span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Ferramentas</span>
+                <span class="font-600 text-slate-800 text-right" x-text="setupForm.bot_tools.join(', ') || 'nenhuma'"></span>
+              </div>
+            </div>
+            <div x-show="!setupForm.create_bot || !setupForm.bot_display_name" class="p-4 bg-slate-50 rounded-xl">
+              <p class="text-xs font-600 text-slate-500 uppercase tracking-wider mb-2">Primeiro Agente</p>
+              <p class="text-sm text-slate-400">Nenhum agente sera criado neste setup. Crie depois pelo painel.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer Navigation -->
+  <div class="border-t border-surface-border px-8 py-4 flex justify-between items-center">
+    <button x-show="setupStep > 1" @click="setupPrev()"
+      class="px-6 py-2.5 rounded-xl border border-surface-border text-sm font-600 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
+      Voltar
+    </button>
+    <div x-show="setupStep <= 1"></div>
+
+    <div>
+      <button x-show="setupStep < setupTotalSteps" @click="setupNext()" :disabled="!setupCanNext()"
+        class="btn-primary px-8 py-2.5 rounded-xl bg-brand text-white text-sm font-600 hover:bg-brand-hover disabled:opacity-40 transition-colors cursor-pointer">
+        Próximo
+      </button>
+      <button x-show="setupStep === setupTotalSteps" @click="setupSave()" :disabled="setupSaving"
+        class="btn-primary px-8 py-2.5 rounded-xl bg-brand text-white text-sm font-600 hover:bg-brand-hover disabled:opacity-50 transition-colors cursor-pointer">
+        <span x-show="!setupSaving">Finalizar Setup</span>
+        <span x-show="setupSaving" class="flex items-center gap-2">
+          <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+          Salvando...
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Layout ─────────────────────────────────────────────────────────────── -->
 <div class="flex h-screen overflow-hidden">
 
@@ -286,9 +816,7 @@
         <button @click="openSubagentsGlobal()"
           :class="showingSubagents ? 'bg-white/10 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-white'"
           class="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-600 transition text-left cursor-pointer">
-          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-          </svg>
+          <i data-lucide="bot" class="w-4 h-4 flex-shrink-0"></i>
           <span class="flex-1">Sub-agentes</span>
           <span x-show="allSubagents.length > 0" x-text="allSubagents.length"
             class="text-[10px] font-700 px-1.5 py-0.5 rounded-full"
@@ -296,28 +824,32 @@
         </button>
       </div>
 
-      <!-- Config Global -->
-      <div class="mt-2">
-        <button @click="openGlobalConfig()"
-          :class="showingGlobalConfig ? 'bg-white/10 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-white'"
-          class="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-600 transition text-left cursor-pointer">
-          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
-          Config Global
-        </button>
-      </div>
     </nav>
 
-    <!-- New Bot button -->
-    <div class="px-3 py-4" style="border-top:1px solid rgba(255,255,255,0.07)">
+    <!-- Bottom actions -->
+    <div class="px-3 py-4 space-y-2" style="border-top:1px solid rgba(255,255,255,0.07)">
       <button @click="openNewBotModal()"
         class="btn-primary w-full flex items-center justify-center gap-2 py-2.5 bg-white hover:bg-zinc-100 rounded-xl text-sm font-700 text-zinc-900 cursor-pointer">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
         </svg>
         Novo Agente
+      </button>
+      <button @click="openGlobalConfig()"
+        :class="showingGlobalConfig ? 'bg-white/15 text-white' : 'text-zinc-400 hover:text-zinc-300 hover:bg-white/5'"
+        class="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-600 transition-colors cursor-pointer">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        Configurações
+      </button>
+      <button @click="checkSetupStatus().then(() => { showSetupWizard=true; setupStep=1; })"
+        class="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-600 text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors cursor-pointer">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Setup Wizard
       </button>
     </div>
   </aside>
@@ -444,16 +976,24 @@
           </template>
           <div x-show="bots.length===0" class="col-span-full text-center py-20 animate-fadeSlideUp">
             <div class="w-20 h-20 bg-zinc-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
-              <svg class="w-10 h-10 text-brand/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-              </svg>
+              <img src="/static/icon.png" class="w-12 h-12 object-contain">
             </div>
             <p class="text-lg font-700 text-slate-700">Nenhum agente encontrado</p>
-            <p class="text-sm text-slate-400 mt-1.5 mb-5">Crie seu primeiro agente de IA para começar</p>
-            <button @click="openNewBotModal()" class="btn-primary inline-flex items-center gap-2 px-5 py-2.5 bg-brand text-white text-sm font-600 rounded-xl hover:bg-brand-hover cursor-pointer">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-              Novo Agente
-            </button>
+            <p class="text-sm text-slate-400 mt-1.5 mb-6">Configure o sistema e crie seu primeiro agente de IA</p>
+            <div class="flex items-center justify-center gap-3">
+              <button @click="checkSetupStatus().then(() => { showSetupWizard=true; setupStep=1; })"
+                class="btn-primary inline-flex items-center gap-2 px-6 py-2.5 bg-brand text-white text-sm font-600 rounded-xl hover:bg-brand-hover cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                Configurar Sistema
+              </button>
+              <button @click="openNewBotModal()" class="inline-flex items-center gap-2 px-5 py-2.5 border border-surface-border text-sm font-600 text-slate-600 rounded-xl hover:bg-slate-50 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+                Novo Agente
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -468,7 +1008,7 @@
           <div>
             <div class="flex items-center gap-2 mb-1">
               <div class="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center">
-                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                <i data-lucide="bot" class="w-4 h-4 text-white"></i>
               </div>
               <span class="text-xs font-700 text-zinc-700 uppercase tracking-widest">Global</span>
             </div>
@@ -491,8 +1031,8 @@
             <div class="bg-white rounded-2xl border border-surface-border shadow-card p-5 animate-fadeSlideUp">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex items-start gap-3 min-w-0">
-                  <div class="w-9 h-9 rounded-xl bg-zinc-100 flex items-center justify-center flex-shrink-0">
-                    <svg class="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                  <div class="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="bot" class="w-5 h-5 text-violet-600"></i>
                   </div>
                   <div class="min-w-0">
                     <div class="flex items-center gap-2 flex-wrap mb-1">
@@ -582,6 +1122,7 @@
                     <select x-model="saForm.provider" @change="onSaProviderChange()" class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
                       <option value="claude-cli">Claude Code (OAuth)</option>
                       <option value="anthropic">Anthropic (API Key)</option>
+                      <option value="codex">OpenAI Codex (OAuth/API)</option>
                       <option value="openrouter">OpenRouter (Multi-modelo)</option>
                     </select>
                   </div>
@@ -672,8 +1213,8 @@
 
         <!-- Empty state -->
         <div x-show="allSubagents.length === 0 && !showSubagentForm" class="text-center py-20 animate-fadeSlideUp">
-          <div class="w-16 h-16 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto mb-4">
-            <svg class="w-8 h-8 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+          <div class="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
+            <i data-lucide="bot" class="w-8 h-8 text-violet-400"></i>
           </div>
           <p class="text-slate-700 font-600 mb-1">Nenhum sub-agente criado</p>
           <p class="text-slate-400 text-sm mb-5">Sub-agentes são chamados automaticamente pelo modelo pai via tool call</p>
@@ -705,7 +1246,7 @@
             </svg>
           </button>
           <div>
-            <h1 class="text-2xl font-800 text-slate-900">Config Global</h1>
+            <h1 class="text-2xl font-800 text-slate-900">Configurações</h1>
             <p class="text-sm text-slate-500 mt-0.5">Configurações compartilhadas entre todos os agentes</p>
           </div>
         </div>
@@ -717,22 +1258,17 @@
             class="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-600 transition cursor-pointer">
             <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
             Contexto Global</button>
-          <button @click="globalTab='config.global'; globalEnvFile='config.global'; parseGlobalEnv()"
-            :class="globalTab==='config.global' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
+          <button @click="globalTab='config'; globalEnvFile='config.global'; parseGlobalEnv()"
+            :class="globalTab==='config' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
             class="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-600 transition cursor-pointer">
             <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
             Configuração</button>
-          <button @click="globalTab='secrets.global'; globalEnvFile='secrets.global'; parseGlobalEnv()"
-            :class="globalTab==='secrets.global' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
-            class="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-600 transition cursor-pointer">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-            Credenciais</button>
           <button @click="globalTab='crontab'"
             :class="globalTab==='crontab' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
             class="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-600 transition cursor-pointer">
             <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             Cron</button>
-          <button @click="globalTab='sistema'; loadBugfixer()"
+          <button @click="globalTab='sistema'; loadBugfixer(); checkSetupStatus()"
             :class="globalTab==='sistema' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
             class="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-600 transition cursor-pointer">
             <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
@@ -755,108 +1291,178 @@
             rows="22" x-model="globalFiles['context.global']"></textarea>
         </div>
 
-        <!-- config.global / secrets.global panel (CRUD + raw) -->
-        <div x-show="globalTab==='config.global' || globalTab==='secrets.global'" class="space-y-4">
+        <!-- Configuração unificada (config.global + secrets.global) -->
+        <div x-show="globalTab==='config'" class="space-y-6">
 
           <!-- Header -->
           <div class="flex items-center justify-between">
-            <div>
-              <p class="text-xs text-slate-500"
-                x-text="globalEnvFile==='secrets.global'
-                  ? 'Credenciais sensíveis — sobrescrevem config.global em runtime. Nunca commitadas no git.'
-                  : 'Variáveis globais padrão — aplicadas a todos os agentes no boot. Reinicie os agentes após salvar.'"></p>
-            </div>
-            <button x-show="globalEnvFile==='config.global'" @click="restartAllBots()" :disabled="restartingAll"
+            <p class="text-xs text-slate-500">Variáveis globais aplicadas a todos os agentes. Reinicie os agentes após salvar.</p>
+            <button @click="restartAllBots()" :disabled="restartingAll"
               class="flex items-center gap-2 px-4 py-2 text-sm font-600 bg-warn/10 text-warn border border-warn/30 rounded-xl hover:bg-warn/20 transition disabled:opacity-50 cursor-pointer">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
               <span x-text="restartingAll ? 'Reiniciando...' : 'Reiniciar todos os agentes'"></span>
             </button>
           </div>
 
-          <!-- Tabela de variáveis -->
-          <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="bg-slate-50 border-b border-surface-border">
-                  <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide w-64">Variável</th>
-                  <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Valor</th>
-                  <th class="px-5 py-3 w-36"></th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-surface-border">
-                <template x-if="globalEnvVars.length === 0">
-                  <tr>
-                    <td colspan="3" class="px-5 py-8 text-center text-sm text-slate-400">Nenhuma variável encontrada</td>
-                  </tr>
-                </template>
-                <template x-for="(v, idx) in globalEnvVars" :key="v.key">
-                  <tr class="hover:bg-slate-50/60 transition-colors">
-                    <td class="px-5 py-3 font-mono text-xs font-600 text-slate-800" x-text="v.key"></td>
-                    <td class="px-5 py-3">
-                      <div class="flex items-center gap-2">
-                        <input :type="isSensitiveGlobalKey(v.key) && !v.showVal ? 'password' : 'text'"
-                          x-model="v.value"
-                          class="flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white min-w-0"/>
-                        <button x-show="isSensitiveGlobalKey(v.key)" @click="v.showVal = !v.showVal"
-                          class="text-slate-400 hover:text-slate-600 transition flex-shrink-0 cursor-pointer" :title="v.showVal ? 'Ocultar' : 'Mostrar'">
-                          <svg x-show="!v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                          <svg x-show="v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
-                        </button>
-                      </div>
-                    </td>
-                    <td class="px-5 py-3 text-right">
-                      <div class="flex items-center justify-end gap-2">
-                        <button @click="saveGlobalEnvRow(idx)"
-                          class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
-                          <i data-lucide="save" class="w-3 h-3 flex-shrink-0"></i>Salvar
-                        </button>
-                        <button @click="deleteGlobalEnv(idx)"
-                          class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
-                          <i data-lucide="trash-2" class="w-3 h-3 flex-shrink-0"></i>Deletar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Formulário de adição -->
-          <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
-            <h3 class="text-sm font-700 text-slate-900 mb-4">Adicionar Variável</h3>
-            <div class="grid grid-cols-[250px_1fr_auto] gap-3 items-end">
-              <div>
-                <label class="block text-xs font-600 text-slate-600 mb-1.5">Nome</label>
-                <input x-model="newGlobalEnv.key" type="text" placeholder="MINHA_VARIAVEL"
-                  class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+          <!-- config.global section -->
+          <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden"
+            x-data="{showRaw:false}" x-init="globalEnvFile='config.global'; parseGlobalEnv()">
+            <div class="px-5 py-3.5 bg-slate-50 border-b border-surface-border flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                <span class="text-sm font-700 text-slate-700">Configuração Geral</span>
+                <span class="text-[10px] font-mono text-slate-400">config.global</span>
               </div>
-              <div>
-                <label class="block text-xs font-600 text-slate-600 mb-1.5">Valor</label>
-                <input x-model="newGlobalEnv.value" type="text" placeholder="valor"
-                  class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+              <button @click="showRaw=!showRaw" class="text-[10px] font-600 text-slate-400 hover:text-slate-600 cursor-pointer"
+                x-text="showRaw ? 'Tabela' : 'Raw'"></button>
+            </div>
+            <!-- Table view -->
+            <div x-show="!showRaw">
+              <table class="w-full text-sm">
+                <tbody class="divide-y divide-surface-border">
+                  <template x-if="globalEnvVars.length === 0">
+                    <tr><td colspan="3" class="px-5 py-6 text-center text-sm text-slate-400">Nenhuma variável</td></tr>
+                  </template>
+                  <template x-for="(v, idx) in globalEnvVars" :key="v.key">
+                    <tr class="hover:bg-slate-50/60 transition-colors">
+                      <td class="px-5 py-2.5 font-mono text-xs font-600 text-slate-800 w-56" x-text="v.key"></td>
+                      <td class="px-5 py-2.5">
+                        <div class="flex items-center gap-2">
+                          <input :type="isSensitiveGlobalKey(v.key) && !v.showVal ? 'password' : 'text'" x-model="v.value"
+                            class="flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white min-w-0"/>
+                          <button x-show="isSensitiveGlobalKey(v.key)" @click="v.showVal = !v.showVal"
+                            class="text-slate-400 hover:text-slate-600 transition flex-shrink-0 cursor-pointer">
+                            <svg x-show="!v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            <svg x-show="v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                          </button>
+                        </div>
+                      </td>
+                      <td class="px-5 py-2.5 text-right">
+                        <div class="flex items-center justify-end gap-1.5">
+                          <button @click="saveGlobalEnvRow(idx)"
+                            class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Salvar</button>
+                          <button @click="deleteGlobalEnv(idx)"
+                            class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Deletar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <!-- Add row -->
+              <div class="px-5 py-3 border-t border-surface-border bg-slate-50/50">
+                <div class="flex gap-2 items-center">
+                  <input x-model="newGlobalEnv.key" type="text" placeholder="VARIAVEL" class="w-48 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+                  <input x-model="newGlobalEnv.value" type="text" placeholder="valor" class="flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+                  <button @click="addGlobalEnv()" class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
+                    <i data-lucide="plus" class="w-3 h-3 flex-shrink-0"></i>Adicionar
+                  </button>
+                </div>
               </div>
-              <button @click="addGlobalEnv()"
-                class="btn-primary text-sm bg-brand text-white px-4 py-2.5 rounded-xl hover:bg-brand-hover font-600 cursor-pointer whitespace-nowrap flex items-center gap-1.5">
-                <i data-lucide="plus" class="w-3.5 h-3.5 flex-shrink-0"></i>Adicionar
-              </button>
+            </div>
+            <!-- Raw view -->
+            <div x-show="showRaw" class="p-4">
+              <textarea class="code-editor w-full border border-surface-border rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50/50"
+                rows="10" :value="globalFiles['config.global']" @input="globalFiles['config.global'] = $event.target.value"></textarea>
+              <div class="flex justify-end mt-2">
+                <button @click="globalEnvFile='config.global'; saveConfigGlobal(); showRaw=false"
+                  class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
+                  <i data-lucide="save" class="w-3 h-3 flex-shrink-0"></i>Salvar
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- Raw textarea -->
-          <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
-            <div class="flex items-center justify-between mb-3">
-              <div>
-                <h3 class="font-700 text-slate-900 text-sm">Arquivo raw</h3>
-                <p class="text-xs text-slate-400 mt-0.5">Edição direta — salvar recarrega a tabela acima</p>
+          <!-- secrets.global section -->
+          <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden"
+            x-data="{showRaw:false, secretVars:[], newSecret:{key:'',value:''}}">
+            <div class="px-5 py-3.5 bg-slate-50 border-b border-surface-border flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                <span class="text-sm font-700 text-slate-700">Credenciais</span>
+                <span class="text-[10px] font-mono text-slate-400">secrets.global</span>
               </div>
-              <button @click="saveConfigGlobal()"
-                class="btn-primary text-sm bg-brand text-white px-4 py-2 rounded-xl hover:bg-brand-hover font-600 cursor-pointer flex items-center gap-1.5">
-                <i data-lucide="save" class="w-3.5 h-3.5 flex-shrink-0"></i>Salvar
-              </button>
+              <button @click="showRaw=!showRaw" class="text-[10px] font-600 text-slate-400 hover:text-slate-600 cursor-pointer"
+                x-text="showRaw ? 'Tabela' : 'Raw'"></button>
             </div>
-            <textarea class="code-editor w-full border border-surface-border rounded-xl p-3.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50/50"
-              rows="12" :value="globalFiles[globalEnvFile]" @input="globalFiles[globalEnvFile] = $event.target.value"></textarea>
+            <template x-effect="
+              secretVars = (globalFiles['secrets.global']||'').split('\n')
+                .filter(l => l.trim() && !l.trim().startsWith('#'))
+                .map(l => { const [k,...v] = l.split('='); return {key:k.trim(), value:v.join('=').trim(), showVal:false}; })
+                .filter(v => v.key);
+            "></template>
+            <!-- Table view -->
+            <div x-show="!showRaw">
+              <table class="w-full text-sm">
+                <tbody class="divide-y divide-surface-border">
+                  <template x-if="secretVars.length === 0">
+                    <tr><td colspan="3" class="px-5 py-6 text-center text-sm text-slate-400">Nenhuma credencial configurada</td></tr>
+                  </template>
+                  <template x-for="(v, idx) in secretVars" :key="v.key">
+                    <tr class="hover:bg-slate-50/60 transition-colors">
+                      <td class="px-5 py-2.5 font-mono text-xs font-600 text-slate-800 w-56" x-text="v.key"></td>
+                      <td class="px-5 py-2.5">
+                        <div class="flex items-center gap-2">
+                          <input :type="v.showVal ? 'text' : 'password'" x-model="v.value"
+                            class="flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white min-w-0"/>
+                          <button @click="v.showVal = !v.showVal" class="text-slate-400 hover:text-slate-600 transition flex-shrink-0 cursor-pointer">
+                            <svg x-show="!v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            <svg x-show="v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                          </button>
+                        </div>
+                      </td>
+                      <td class="px-5 py-2.5 text-right">
+                        <div class="flex items-center justify-end gap-1.5">
+                          <button @click="
+                            const lines = globalFiles['secrets.global'].split('\n');
+                            const ci = lines.findIndex(l => l.startsWith(v.key+'='));
+                            if(ci>=0) lines[ci]=v.key+'='+v.value;
+                            globalFiles['secrets.global']=lines.join('\n');
+                            saveGlobalFile('secrets.global');
+                            toast('Salvo!');
+                          " class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Salvar</button>
+                          <button @click="
+                            showConfirm({title:'Deletar',message:'Deletar credencial '+v.key+'?',confirmText:'Deletar',type:'danger'}).then(ok=>{
+                              if(!ok) return;
+                              globalFiles['secrets.global']=globalFiles['secrets.global'].split('\n').filter(l=>!l.startsWith(v.key+'=')).join('\n');
+                              saveGlobalFile('secrets.global');
+                            });
+                          " class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Deletar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <!-- Add row -->
+              <div class="px-5 py-3 border-t border-surface-border bg-slate-50/50">
+                <div class="flex gap-2 items-center">
+                  <input x-model="newSecret.key" type="text" placeholder="CHAVE" class="w-48 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+                  <input x-model="newSecret.value" type="password" placeholder="valor sensível" class="flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+                  <button @click="
+                    if(!newSecret.key.trim()){toast('Nome obrigatório','error');return;}
+                    const content = globalFiles['secrets.global']||'';
+                    globalFiles['secrets.global'] = (content.endsWith('\n')?content:content+'\n') + newSecret.key.trim()+'='+newSecret.value;
+                    saveGlobalFile('secrets.global');
+                    newSecret={key:'',value:''};
+                    toast('Credencial adicionada!');
+                  " class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
+                    <i data-lucide="plus" class="w-3 h-3 flex-shrink-0"></i>Adicionar
+                  </button>
+                </div>
+              </div>
+            </div>
+            <!-- Raw view -->
+            <div x-show="showRaw" class="p-4">
+              <textarea class="code-editor w-full border border-surface-border rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50/50"
+                rows="8" :value="globalFiles['secrets.global']" @input="globalFiles['secrets.global'] = $event.target.value"></textarea>
+              <div class="flex justify-end mt-2">
+                <button @click="saveGlobalFile('secrets.global'); showRaw=false; toast('Salvo!')"
+                  class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
+                  <i data-lucide="save" class="w-3 h-3 flex-shrink-0"></i>Salvar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -916,8 +1522,135 @@
           </div>
         </div>
 
-        <!-- Sistema / Bug Fixer panel -->
+        <!-- Sistema panel -->
         <div x-show="globalTab==='sistema'" class="space-y-4">
+
+          <!-- Auth / OAuth Status -->
+          <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
+            <div class="px-6 py-5 border-b border-surface-border flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-brand/10 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4.5 h-4.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                </div>
+                <div>
+                  <h3 class="text-sm font-700 text-slate-900">Autenticação</h3>
+                  <p class="text-xs text-slate-500 mt-0.5">Status das conexões OAuth e API keys configuradas.</p>
+                </div>
+              </div>
+              <button @click="checkSetupStatus()" class="text-xs font-600 text-brand hover:text-brand-hover cursor-pointer flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Atualizar
+              </button>
+            </div>
+            <div class="px-6 py-5">
+              <div class="grid grid-cols-3 gap-4">
+                <!-- Claude -->
+                <div class="p-4 rounded-xl border transition-colors"
+                  :class="setupStatus?.auth?.claude_oauth?.status==='active' || setupStatus?.auth?.anthropic_key ? 'bg-success/5 border-success/20' : 'bg-slate-50 border-surface-border'">
+                  <div class="flex items-center gap-2 mb-3">
+                    <img src="/static/anthropic.png" class="w-7 h-7 rounded-lg object-contain" alt="Anthropic">
+                    <span class="font-700 text-slate-800 text-sm">Claude</span>
+                  </div>
+                  <div class="space-y-1.5">
+                    <div class="flex items-center gap-2 text-xs">
+                      <template x-if="setupStatus?.auth?.claude_oauth?.status==='active'">
+                        <span class="flex items-center gap-1.5 text-success font-600">
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                          OAuth conectado
+                        </span>
+                      </template>
+                      <template x-if="setupStatus?.auth?.claude_oauth?.status!=='active'">
+                        <span class="flex items-center gap-1.5 text-slate-400 font-500">
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                          OAuth não conectado
+                        </span>
+                      </template>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs">
+                      <template x-if="setupStatus?.auth?.anthropic_key">
+                        <span class="flex items-center gap-1.5 text-success font-600">
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                          API Key
+                        </span>
+                      </template>
+                      <template x-if="!setupStatus?.auth?.anthropic_key">
+                        <span class="flex items-center gap-1.5 text-slate-400 font-500">
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                          Sem API Key
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- OpenAI / Codex -->
+                <div class="p-4 rounded-xl border transition-colors"
+                  :class="setupStatus?.auth?.codex_oauth?.status==='active' || setupStatus?.auth?.openai_key ? 'bg-success/5 border-success/20' : 'bg-slate-50 border-surface-border'">
+                  <div class="flex items-center gap-2 mb-3">
+                    <img src="/static/openai.png" class="w-7 h-7 rounded-lg object-contain" alt="OpenAI">
+                    <span class="font-700 text-slate-800 text-sm">OpenAI</span>
+                  </div>
+                  <div class="space-y-1.5">
+                    <div class="flex items-center gap-2 text-xs">
+                      <template x-if="setupStatus?.auth?.codex_oauth?.status==='active'">
+                        <span class="flex items-center gap-1.5 text-success font-600">
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                          Codex OAuth conectado
+                        </span>
+                      </template>
+                      <template x-if="setupStatus?.auth?.codex_oauth?.status!=='active'">
+                        <span class="flex items-center gap-1.5 text-slate-400 font-500">
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                          Codex OAuth não conectado
+                        </span>
+                      </template>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs">
+                      <template x-if="setupStatus?.auth?.openai_key">
+                        <span class="flex items-center gap-1.5 text-success font-600">
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                          API Key
+                        </span>
+                      </template>
+                      <template x-if="!setupStatus?.auth?.openai_key">
+                        <span class="flex items-center gap-1.5 text-slate-400 font-500">
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                          Sem API Key
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- OpenRouter -->
+                <div class="p-4 rounded-xl border transition-colors"
+                  :class="setupStatus?.auth?.openrouter_key ? 'bg-success/5 border-success/20' : 'bg-slate-50 border-surface-border'">
+                  <div class="flex items-center gap-2 mb-3">
+                    <img src="/static/openrouter.png" class="w-7 h-7 rounded-lg object-contain" alt="OpenRouter">
+                    <span class="font-700 text-slate-800 text-sm">OpenRouter</span>
+                  </div>
+                  <div class="space-y-1.5">
+                    <div class="flex items-center gap-2 text-xs">
+                      <template x-if="setupStatus?.auth?.openrouter_key">
+                        <span class="flex items-center gap-1.5 text-success font-600">
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                          API Key configurada
+                        </span>
+                      </template>
+                      <template x-if="!setupStatus?.auth?.openrouter_key">
+                        <span class="flex items-center gap-1.5 text-slate-400 font-500">
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                          Sem API Key
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bug Fixer -->
           <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
             <!-- Card header -->
             <div class="px-6 py-5 border-b border-surface-border flex items-center gap-3">
@@ -1306,6 +2039,24 @@
 
           <!-- Config -->
           <div x-show="activeTab==='config'" x-cloak>
+
+            <!-- Sub-tabs: Configuração | Credenciais -->
+            <div class="flex gap-1 mb-5 bg-slate-100 rounded-xl p-1 w-fit">
+              <button @click="configSubTab='settings'"
+                :class="configSubTab==='settings' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
+                class="px-4 py-2 text-xs font-600 rounded-lg transition-all cursor-pointer flex items-center gap-1.5">
+                <i data-lucide="settings" class="w-3.5 h-3.5"></i> Configuração
+              </button>
+              <button @click="configSubTab='credentials'"
+                :class="configSubTab==='credentials' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
+                class="px-4 py-2 text-xs font-600 rounded-lg transition-all cursor-pointer flex items-center gap-1.5">
+                <i data-lucide="key-round" class="w-3.5 h-3.5"></i> Credenciais
+                <span x-show="botSecrets.length > 0" class="bg-brand/10 text-brand text-[10px] font-700 px-1.5 py-0.5 rounded-full" x-text="botSecrets.length"></span>
+              </button>
+            </div>
+
+            <!-- Sub-tab: Configuração -->
+            <div x-show="configSubTab==='settings'">
             <div class="grid grid-cols-2 gap-4">
 
               <!-- Coluna esquerda: Telegram + IA -->
@@ -1362,6 +2113,7 @@
                         class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer bg-slate-50">
                         <option value="claude-cli">Claude Code (OAuth)</option>
                         <option value="anthropic">Anthropic (API Key)</option>
+                        <option value="codex">OpenAI Codex (OAuth/API)</option>
                         <option value="openrouter">OpenRouter</option>
                       </select>
                     </div>
@@ -1456,6 +2208,87 @@
                 Salvar Configuração
               </button>
             </div>
+            </div><!-- /Sub-tab: Configuração -->
+
+            <!-- Sub-tab: Credenciais -->
+            <div x-show="configSubTab==='credentials'">
+              <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden"
+                x-data="{showRaw:false}">
+                <div class="px-5 py-3.5 bg-slate-50 border-b border-surface-border flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                    <span class="text-sm font-700 text-slate-700">Credenciais do Agente</span>
+                    <span class="text-[10px] font-mono text-slate-400">secrets.env</span>
+                  </div>
+                  <button @click="showRaw=!showRaw" class="text-[10px] font-600 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    x-text="showRaw ? 'Tabela' : 'Raw'"></button>
+                </div>
+                <p class="px-5 py-2.5 text-[10px] text-slate-400 bg-slate-50/50 border-b border-surface-border">
+                  Credenciais exclusivas deste agente (DB_URL, GIT_TOKEN, APIs). Credenciais compartilhadas ficam em <span class="font-600">Configurações</span> <span class="font-mono">&rarr; secrets.global</span>.
+                </p>
+                <!-- Table view -->
+                <div x-show="!showRaw">
+                  <table class="w-full text-sm">
+                    <tbody class="divide-y divide-surface-border">
+                      <template x-if="botSecrets.length === 0">
+                        <tr><td colspan="3" class="px-5 py-8 text-center text-sm text-slate-400">
+                          <div class="flex flex-col items-center gap-2">
+                            <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                            <span>Nenhuma credencial configurada para este agente</span>
+                          </div>
+                        </td></tr>
+                      </template>
+                      <template x-for="(v, idx) in botSecrets" :key="v.key">
+                        <tr class="hover:bg-slate-50/60 transition-colors">
+                          <td class="px-5 py-2.5 font-mono text-xs font-600 text-slate-800 w-56" x-text="v.key"></td>
+                          <td class="px-5 py-2.5">
+                            <div class="flex items-center gap-2">
+                              <input :type="v.showVal ? 'text' : 'password'" x-model="v.value"
+                                class="flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white min-w-0"/>
+                              <button @click="v.showVal = !v.showVal" class="text-slate-400 hover:text-slate-600 transition flex-shrink-0 cursor-pointer">
+                                <svg x-show="!v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                <svg x-show="v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                              </button>
+                            </div>
+                          </td>
+                          <td class="px-5 py-2.5 text-right">
+                            <div class="flex items-center justify-end gap-1.5">
+                              <button @click="saveBotSecret(idx)"
+                                class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Salvar</button>
+                              <button @click="deleteBotSecret(idx)"
+                                class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Deletar</button>
+                            </div>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                  <!-- Add row -->
+                  <div class="px-5 py-3 border-t border-surface-border bg-slate-50/50">
+                    <div class="flex gap-2 items-center">
+                      <input x-model="newBotSecret.key" type="text" placeholder="VARIAVEL" class="w-48 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+                      <input x-model="newBotSecret.value" type="password" placeholder="valor sensível" class="flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+                      <button @click="addBotSecret()"
+                        class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
+                        <i data-lucide="plus" class="w-3 h-3 flex-shrink-0"></i>Adicionar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <!-- Raw view -->
+                <div x-show="showRaw" class="p-4">
+                  <textarea class="code-editor w-full border border-surface-border rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50/50"
+                    rows="10" x-model="botSecretsRaw"></textarea>
+                  <div class="flex justify-end mt-2">
+                    <button @click="saveBotSecretsRaw(); showRaw=false"
+                      class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
+                      <i data-lucide="save" class="w-3 h-3 flex-shrink-0"></i>Salvar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div><!-- /Sub-tab: Credenciais -->
+
           </div>
 
           <!-- Persona -->
@@ -1822,7 +2655,7 @@
       <div class="bg-white rounded-2xl border border-surface-border shadow-card px-5 py-4 flex items-center justify-between gap-4">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
-            <svg class="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            <i data-lucide="bot" class="w-4 h-4 text-violet-600"></i>
           </div>
           <div class="min-w-0">
             <div class="flex items-center gap-2 mb-0.5">
@@ -1857,8 +2690,8 @@
 
   <!-- Empty state -->
   <div x-show="botSubagents.length === 0" class="text-center py-16">
-    <div class="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
-      <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+    <div class="w-12 h-12 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-3">
+      <i data-lucide="bot" class="w-6 h-6 text-violet-400"></i>
     </div>
     <p class="text-slate-500 font-600 mb-1">Nenhum sub-agente no sistema</p>
     <button @click="openSubagentsGlobal()" class="text-sm text-violet-600 hover:text-violet-800 font-600 cursor-pointer">Criar sub-agente →</button>
@@ -1885,6 +2718,7 @@
 const MODELS_BY_PROVIDER = {
   'anthropic': ['claude-opus-4-6','claude-sonnet-4-6','claude-haiku-4-5-20251001'],
   'claude-cli': ['claude-opus-4-6','claude-sonnet-4-6','claude-haiku-4-5-20251001'],
+  'codex': ['gpt-4o','gpt-4o-mini','o3','o4-mini'],
   'openrouter': ['minimax/minimax-m2.5','google/gemini-3-flash-preview','deepseek/deepseek-v3.2',
                  'anthropic/claude-sonnet-4.6','anthropic/claude-opus-4.6','x-ai/grok-4.1-fast',
                  'moonshotai/kimi-k2.5','google/gemini-2.5-flash','openai/gpt-oss-120b',
@@ -1912,6 +2746,7 @@ function adminApp() {
     saFormSaving: false,
     saProviderModels: {
       anthropic: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-6', 'claude-opus-4-6'],
+      codex: ['gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'],
       openrouter: ['minimax/minimax-m2.5','google/gemini-3-flash-preview','deepseek/deepseek-v3.2',
                    'anthropic/claude-sonnet-4.6','anthropic/claude-opus-4.6','x-ai/grok-4.1-fast',
                    'moonshotai/kimi-k2.5','google/gemini-2.5-flash','openai/gpt-oss-120b',
@@ -1926,7 +2761,7 @@ function adminApp() {
       {id:'users',     label:'Usuários',       icon:'users'},
       {id:'analytics', label:'Métricas',       icon:'trending-up'},
       {id:'schedules', label:'Agendamentos',   icon:'clock'},
-      {id:'subagents', label:'Sub-agentes',    icon:'cpu'},
+      {id:'subagents', label:'Sub-agentes',    icon:'bot'},
       {id:'logs',      label:'Log',            icon:'file-text'},
     ],
     toasts: [],
@@ -1936,6 +2771,8 @@ function adminApp() {
     modelsByProvider: MODELS_BY_PROVIDER,
     showDeleteModal: false, deleteConfirmName: '', deletingBot: false,
     configForm: { BOT_NAME:'', DESCRIPTION:'', TELEGRAM_TOKEN:'', PROVIDER:'claude-cli', MODEL:'claude-opus-4-6', MODEL_CUSTOM:'', ACCESS_MODE:'approval', MAX_HISTORY:20, GROUP_MODE:'always', TOOLS_ARRAY:[] },
+    configSubTab: 'settings',
+    botSecretsRaw: '', botSecrets: [], newBotSecret: {key:'', value:''},
     showToken: false,
     currentModelOptions: MODELS_BY_PROVIDER['claude-cli'],
     personaContent: '', personaPreview: false,
@@ -1959,6 +2796,23 @@ function adminApp() {
     actionLoading: false,
     avatarTs: {},
     confirmModal: { show:false, title:'', message:'', confirmText:'Confirmar', type:'warn', resolver:null },
+    // Setup wizard
+    showSetupWizard: false,
+    setupStep: 1,
+    setupTotalSteps: 5,
+    setupLoading: true,
+    setupStatus: null,
+    setupForm: {
+      anthropic_key: '', openai_key: '', openrouter_key: '',
+      provider: 'claude-cli', model: 'claude-opus-4-6',
+      admin_id: '', access_mode: 'approval',
+      create_bot: true,
+      bot_display_name: '', bot_name: '', bot_telegram_token: '',
+      bot_description: '', bot_tools: ['shell','files','http'],
+    },
+    setupInstalling: false,
+    setupTesting: false, setupTestResult: null,
+    setupSaving: false,
     toolOptions: [
       {key:'shell',    label:'Terminal',         desc:'Executar comandos no servidor'},
       {key:'cron',     label:'Cron Jobs',        desc:'Tarefas agendadas do sistema'},
@@ -1990,7 +2844,15 @@ function adminApp() {
     },
 
     async init() {
+      await this.checkSetupStatus();
       await this.loadBots();
+      // First visit: no bots → auto-open wizard
+      if (this.bots.length === 0 && !this.showSetupWizard) {
+        this.showSetupWizard = true;
+        this.setupStep = 1;
+      }
+      try { const r = await fetch('/api/subagents'); if (r.ok) this.allSubagents = await r.json(); } catch(e) {}
+      this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
       setInterval(() => this.loadBots(), 30000);
     },
 
@@ -2043,6 +2905,47 @@ function adminApp() {
       if (this.currentModelOptions.includes(modelVal)) {
         this.configForm.MODEL = modelVal; this.configForm.MODEL_CUSTOM = '';
       } else { this.configForm.MODEL = '__custom__'; this.configForm.MODEL_CUSTOM = modelVal; }
+      // Load secrets.env
+      const sr = await fetch(`/api/bots/${this.currentBot}/file/secrets.env`);
+      if (sr.ok) { const sd = await sr.json(); this.botSecretsRaw = sd.content || ''; this.parseBotSecrets(); }
+    },
+
+    parseBotSecrets() {
+      this.botSecrets = this.botSecretsRaw.split('\n')
+        .filter(l => l.trim() && !l.trim().startsWith('#'))
+        .map(l => { const [k,...v] = l.split('='); return {key:k.trim(), value:v.join('=').trim(), showVal:false}; })
+        .filter(v => v.key);
+    },
+
+    async saveBotSecret(idx) {
+      const v = this.botSecrets[idx];
+      const lines = this.botSecretsRaw.split('\n');
+      const ci = lines.findIndex(l => l.startsWith(v.key+'='));
+      if (ci >= 0) lines[ci] = v.key+'='+v.value;
+      this.botSecretsRaw = lines.join('\n');
+      const r = await fetch(`/api/bots/${this.currentBot}/file/secrets.env`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:this.botSecretsRaw})});
+      r.ok ? this.toast('Salvo!') : this.toast('Erro ao salvar','error');
+    },
+
+    async deleteBotSecret(idx) {
+      const v = this.botSecrets[idx];
+      const ok = await this.showConfirm({title:'Deletar',message:'Deletar credencial '+v.key+'?',confirmText:'Deletar',type:'danger'});
+      if (!ok) return;
+      this.botSecretsRaw = this.botSecretsRaw.split('\n').filter(l => !l.startsWith(v.key+'=')).join('\n');
+      const r = await fetch(`/api/bots/${this.currentBot}/file/secrets.env`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:this.botSecretsRaw})});
+      if (r.ok) { this.toast('Deletado!'); this.parseBotSecrets(); } else this.toast('Erro','error');
+    },
+
+    async addBotSecret() {
+      if (!this.newBotSecret.key.trim()) { this.toast('Nome obrigatório','error'); return; }
+      this.botSecretsRaw = (this.botSecretsRaw.endsWith('\n') ? this.botSecretsRaw : this.botSecretsRaw+'\n') + this.newBotSecret.key.trim()+'='+this.newBotSecret.value;
+      const r = await fetch(`/api/bots/${this.currentBot}/file/secrets.env`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:this.botSecretsRaw})});
+      if (r.ok) { this.toast('Credencial adicionada!'); this.newBotSecret = {key:'',value:''}; this.parseBotSecrets(); } else this.toast('Erro','error');
+    },
+
+    async saveBotSecretsRaw() {
+      const r = await fetch(`/api/bots/${this.currentBot}/file/secrets.env`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:this.botSecretsRaw})});
+      if (r.ok) { this.toast('Salvo!'); this.parseBotSecrets(); } else this.toast('Erro','error');
     },
 
     onProviderChange() {
@@ -2615,6 +3518,116 @@ function adminApp() {
         }
       }
       else this.toast('Erro ao deletar.', 'error');
+    },
+
+    // ── Setup Wizard Methods ──────────────────────────────────────────────
+
+    async checkSetupStatus() {
+      try {
+        const r = await fetch('/api/setup/status');
+        if (r.ok) {
+          this.setupStatus = await r.json();
+          if (this.setupStatus.needs_setup) this.showSetupWizard = true;
+          const c = this.setupStatus.config;
+          if (c) {
+            if (c.provider) this.setupForm.provider = c.provider;
+            if (c.model) this.setupForm.model = c.model;
+            if (c.admin_id) this.setupForm.admin_id = c.admin_id;
+            if (c.access_mode) this.setupForm.access_mode = c.access_mode;
+          }
+        }
+      } catch(e) {} finally { this.setupLoading = false; }
+    },
+
+    setupAuthOk(which) {
+      if (!this.setupStatus) return false;
+      const a = this.setupStatus.auth;
+      if (which === 'claude') return a.claude_oauth?.status === 'active' || a.anthropic_key || this.setupForm.anthropic_key;
+      if (which === 'openai') return a.codex_oauth?.status === 'active' || a.openai_key || this.setupForm.openai_key;
+      if (which === 'openrouter') return a.openrouter_key || this.setupForm.openrouter_key;
+      return false;
+    },
+
+    setupHasAnyAuth() {
+      return this.setupAuthOk('claude') || this.setupAuthOk('openai') || this.setupAuthOk('openrouter');
+    },
+
+    setupCanNext() {
+      if (this.setupStep === 2) return this.setupHasAnyAuth();
+      if (this.setupStep === 3) return this.setupForm.provider && this.setupForm.model;
+      if (this.setupStep === 4 && this.setupForm.create_bot) return this.setupForm.bot_display_name && this.setupForm.bot_telegram_token;
+      return true;
+    },
+
+    setupNext() { if (this.setupCanNext() && this.setupStep < this.setupTotalSteps) this.setupStep++; },
+    setupPrev() { if (this.setupStep > 1) this.setupStep--; },
+
+    setupProviderModels() {
+      return MODELS_BY_PROVIDER[this.setupForm.provider] || ['claude-opus-4-6'];
+    },
+
+    async setupInstallDeps() {
+      if (!this.setupStatus) return;
+      const missing = Object.entries(this.setupStatus.deps.pip).filter(([,ok]) => !ok).map(([pkg]) => pkg);
+      if (!missing.length) { this.toast('Todos os pacotes já estão instalados!'); return; }
+      this.setupInstalling = true;
+      try {
+        const r = await fetch('/api/setup/install-deps', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({packages:missing})});
+        const d = await r.json();
+        if (d.ok) { this.toast('Pacotes instalados!'); await this.checkSetupStatus(); }
+        else this.toast('Erro: ' + (d.output||'').slice(0,200), 'error');
+      } catch(e) { this.toast('Erro ao instalar.', 'error'); }
+      finally { this.setupInstalling = false; }
+    },
+
+    async setupTestProvider() {
+      this.setupTesting = true; this.setupTestResult = null;
+      try {
+        const payload = { provider: this.setupForm.provider, model: this.setupForm.model };
+        if (this.setupForm.provider === 'anthropic' && this.setupForm.anthropic_key) payload.api_key = this.setupForm.anthropic_key;
+        if (this.setupForm.provider === 'codex' && this.setupForm.openai_key) payload.api_key = this.setupForm.openai_key;
+        if (this.setupForm.provider === 'openrouter' && this.setupForm.openrouter_key) payload.api_key = this.setupForm.openrouter_key;
+        const r = await fetch('/api/setup/test-provider', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+        this.setupTestResult = await r.json();
+      } catch(e) { this.setupTestResult = {ok:false, error: e.message}; }
+      finally { this.setupTesting = false; }
+    },
+
+    async setupSave() {
+      this.setupSaving = true;
+      try {
+        const payload = {
+          provider: this.setupForm.provider,
+          model: this.setupForm.model,
+          admin_id: this.setupForm.admin_id,
+          access_mode: this.setupForm.access_mode,
+          anthropic_key: this.setupForm.anthropic_key,
+          openai_key: this.setupForm.openai_key,
+          openrouter_key: this.setupForm.openrouter_key,
+        };
+        if (this.setupForm.create_bot && this.setupForm.bot_display_name) {
+          payload.create_bot = {
+            name: this.setupForm.bot_name || this.slugify(this.setupForm.bot_display_name),
+            display_name: this.setupForm.bot_display_name,
+            telegram_token: this.setupForm.bot_telegram_token,
+            description: this.setupForm.bot_description,
+            tools: this.setupForm.bot_tools,
+            provider: this.setupForm.provider,
+            model: this.setupForm.model,
+          };
+        }
+        const r = await fetch('/api/setup/save', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+        const d = await r.json();
+        if (d.ok) {
+          this.toast('Setup concluído!');
+          this.showSetupWizard = false;
+          await this.loadBots();
+          if (d.bot?.created) this.selectBot(d.bot.name);
+        } else {
+          this.toast('Erro ao salvar.', 'error');
+        }
+      } catch(e) { this.toast('Erro: ' + e.message, 'error'); }
+      finally { this.setupSaving = false; }
     },
   };
 }

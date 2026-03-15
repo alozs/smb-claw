@@ -21,10 +21,10 @@ BASE_DIR = Path("/home/ubuntu/claude-bots")
 BOTS_DIR = BASE_DIR / "bots"
 SUBAGENTS_DIR = BASE_DIR / "subagents"
 
-FILE_WHITELIST = {"soul.md", "USER.md", "MEMORY.md", "welcome.md"}
+FILE_WHITELIST = {"soul.md", "USER.md", "MEMORY.md", "welcome.md", "secrets.env"}
 GLOBAL_WHITELIST = {"context.global", "config.global", "secrets.global"}
 
-SENSITIVE_KEYS = {"ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"}
+SENSITIVE_KEYS = {"ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY"}
 
 app = FastAPI(title="Claude Bots Admin")
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
@@ -796,6 +796,482 @@ async def restart_all_bots():
         )
         results.append({"name": name, "ok": r.returncode == 0})
     return {"results": results}
+
+
+# ── Routes: Setup Wizard ──────────────────────────────────────────────────────
+
+CLAUDE_CREDS_PATH = Path.home() / ".claude" / ".credentials.json"
+CODEX_AUTH_PATH = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "auth.json"
+
+# OAuth PKCE state (ephemeral, per-session)
+import hashlib, base64, secrets as _secrets, urllib.parse
+_oauth_state: dict = {}  # state -> {verifier, provider, created_at}
+
+OAUTH_PROVIDERS = {
+    "codex": {
+        "authorize_url": "https://auth.openai.com/oauth/authorize",
+        "token_url": "https://auth.openai.com/oauth/token",
+        "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+        "redirect_uri": "http://localhost:1455/auth/callback",
+        "scopes": "openid profile email offline_access",
+        "extra_params": {
+            "id_token_add_organizations": "true",
+            "codex_cli_simplified_flow": "true",
+            "originator": "pi",
+        },
+        "creds_path": CODEX_AUTH_PATH,
+    },
+    "claude": {
+        "authorize_url": "https://auth.anthropic.com/oauth/authorize",
+        "token_url": "https://auth.anthropic.com/oauth/token",
+        "client_id": "d912a2d4-0544-4661-8498-7638e8196c55",
+        "redirect_uri": "http://localhost:18217/oauth/callback",
+        "scopes": "user:inference",
+        "extra_params": {},
+        "creds_path": CLAUDE_CREDS_PATH,
+    },
+}
+
+
+def _check_oauth(path: Path, accessor: list[str]) -> dict:
+    """Check if an OAuth credential file has a valid token."""
+    if not path.exists():
+        return {"status": "not_configured", "path": str(path)}
+    try:
+        data = json.loads(path.read_text())
+        obj = data
+        for key in accessor:
+            obj = obj.get(key, {})
+        if obj and isinstance(obj, str):
+            return {"status": "active", "path": str(path)}
+        return {"status": "empty_token", "path": str(path)}
+    except Exception:
+        return {"status": "error", "path": str(path)}
+
+
+def _pkce_pair() -> tuple[str, str]:
+    """Generate PKCE code_verifier and code_challenge (S256)."""
+    verifier = base64.urlsafe_b64encode(_secrets.token_bytes(32)).rstrip(b"=").decode()
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode()).digest()
+    ).rstrip(b"=").decode()
+    return verifier, challenge
+
+
+class OAuthStartRequest(BaseModel):
+    provider: str  # "codex" or "claude"
+
+
+@app.post("/api/setup/oauth/start")
+async def oauth_start(body: OAuthStartRequest):
+    """Generate OAuth authorization URL with PKCE."""
+    cfg = OAUTH_PROVIDERS.get(body.provider)
+    if not cfg:
+        raise HTTPException(400, detail=f"Unknown provider: {body.provider}")
+
+    verifier, challenge = _pkce_pair()
+    state = _secrets.token_hex(16)
+
+    _oauth_state[state] = {
+        "verifier": verifier,
+        "provider": body.provider,
+        "created_at": datetime.now().timestamp(),
+    }
+
+    # Cleanup old states (> 10 min)
+    cutoff = datetime.now().timestamp() - 600
+    _oauth_state.update({
+        k: v for k, v in _oauth_state.items() if v["created_at"] > cutoff
+    })
+
+    params = {
+        "response_type": "code",
+        "client_id": cfg["client_id"],
+        "redirect_uri": cfg["redirect_uri"],
+        "scope": cfg["scopes"],
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+        "state": state,
+        **cfg["extra_params"],
+    }
+
+    url = cfg["authorize_url"] + "?" + urllib.parse.urlencode(params)
+    return {"url": url, "state": state}
+
+
+class OAuthCompleteRequest(BaseModel):
+    provider: str
+    redirect_url: str  # The full redirect URL pasted by user
+
+
+@app.post("/api/setup/oauth/complete")
+async def oauth_complete(body: OAuthCompleteRequest):
+    """Exchange OAuth code from redirect URL for tokens and save credentials."""
+    import urllib.request
+
+    cfg = OAUTH_PROVIDERS.get(body.provider)
+    if not cfg:
+        raise HTTPException(400, detail=f"Unknown provider: {body.provider}")
+
+    # Parse the redirect URL to extract code and state
+    parsed = urllib.parse.urlparse(body.redirect_url)
+    query = urllib.parse.parse_qs(parsed.query)
+
+    code = query.get("code", [None])[0]
+    state = query.get("state", [None])[0]
+
+    if not code:
+        return {"ok": False, "error": "Código de autorização não encontrado na URL."}
+
+    # Look up PKCE verifier from state
+    state_data = _oauth_state.pop(state, None) if state else None
+    if not state_data:
+        # Try any matching provider state as fallback
+        for k, v in list(_oauth_state.items()):
+            if v["provider"] == body.provider:
+                state_data = _oauth_state.pop(k)
+                break
+
+    if not state_data:
+        return {"ok": False, "error": "Sessão OAuth expirada. Tente novamente."}
+
+    verifier = state_data["verifier"]
+
+    # Exchange code for tokens
+    token_data = urllib.parse.urlencode({
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": cfg["redirect_uri"],
+        "client_id": cfg["client_id"],
+        "code_verifier": verifier,
+    }).encode()
+
+    try:
+        req = urllib.request.Request(
+            cfg["token_url"],
+            data=token_data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            tokens = json.loads(resp.read())
+    except Exception as e:
+        return {"ok": False, "error": f"Erro ao trocar código por token: {e}"}
+
+    # Save credentials
+    try:
+        creds_path = cfg["creds_path"]
+        creds_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if body.provider == "codex":
+            creds = {
+                "auth_mode": "chatgpt",
+                "tokens": {
+                    "access_token": tokens.get("access_token", ""),
+                    "id_token": tokens.get("id_token", ""),
+                    "refresh_token": tokens.get("refresh_token", ""),
+                },
+                "last_refresh": datetime.now().isoformat(),
+            }
+            creds_path.write_text(json.dumps(creds, indent=2))
+
+        elif body.provider == "claude":
+            # Read existing or create new
+            existing = {}
+            if creds_path.exists():
+                try:
+                    existing = json.loads(creds_path.read_text())
+                except Exception:
+                    pass
+            existing["claudeAiOauth"] = {
+                "accessToken": tokens.get("access_token", ""),
+                "refreshToken": tokens.get("refresh_token", ""),
+                "expiresAt": datetime.now().timestamp() + tokens.get("expires_in", 3600),
+            }
+            creds_path.write_text(json.dumps(existing, indent=2))
+
+        os.chmod(creds_path, 0o600)
+        return {"ok": True}
+
+    except Exception as e:
+        return {"ok": False, "error": f"Erro ao salvar credenciais: {e}"}
+
+
+@app.get("/api/setup/status")
+async def setup_status():
+    """Return setup status: dependencies, auth, config, whether setup is needed."""
+    # Dependencies — check in system Python (bot.py runs there, not in admin venv)
+    pip_pkgs = {"anthropic": "anthropic", "openai": "openai", "telegram": "python-telegram-bot",
+                "pdfplumber": "pdfplumber", "whisper": "openai-whisper"}
+    deps_pip = {}
+    try:
+        check_code = ";".join(
+            f"print('{pkg}',__import__('importlib').util.find_spec('{mod}') is not None)"
+            for mod, pkg in pip_pkgs.items()
+        )
+        result = subprocess.run(
+            ["/usr/bin/python3", "-c", check_code],
+            capture_output=True, text=True, timeout=10,
+        )
+        for line in result.stdout.strip().splitlines():
+            parts = line.split()
+            if len(parts) == 2:
+                deps_pip[parts[0]] = parts[1] == "True"
+    except Exception:
+        for pkg in pip_pkgs.values():
+            deps_pip[pkg] = False
+
+    deps_cli = {}
+    for cmd in ["python3", "node", "npm", "ffmpeg", "claude", "codex"]:
+        deps_cli[cmd] = shutil.which(cmd) is not None
+
+    # Auth status
+    auth = {
+        "claude_oauth": _check_oauth(CLAUDE_CREDS_PATH, ["claudeAiOauth", "accessToken"]),
+        "codex_oauth": _check_oauth(CODEX_AUTH_PATH, ["tokens", "access_token"]),
+        "anthropic_key": bool(
+            load_env(BASE_DIR / "secrets.global").get("ANTHROPIC_API_KEY")
+            or load_env(BASE_DIR / "config.global").get("ANTHROPIC_API_KEY")
+        ),
+        "openai_key": bool(
+            load_env(BASE_DIR / "secrets.global").get("OPENAI_API_KEY")
+        ),
+        "openrouter_key": bool(
+            load_env(BASE_DIR / "secrets.global").get("OPENROUTER_API_KEY")
+            or load_env(BASE_DIR / "config.global").get("OPENROUTER_API_KEY")
+        ),
+    }
+
+    # Config
+    cfg = load_env(BASE_DIR / "config.global")
+    config = {
+        "provider": cfg.get("PROVIDER", ""),
+        "model": cfg.get("MODEL", ""),
+        "admin_id": cfg.get("ADMIN_ID", ""),
+        "access_mode": cfg.get("ACCESS_MODE", ""),
+    }
+
+    # Has bots?
+    has_bots = BOTS_DIR.is_dir() and any(
+        d.is_dir() and (d / ".env").exists() for d in BOTS_DIR.iterdir()
+    )
+
+    needs_setup = (
+        not (BASE_DIR / "config.global").exists()
+        or not config["provider"]
+        or not has_bots
+    )
+
+    return {
+        "needs_setup": needs_setup,
+        "deps": {"pip": deps_pip, "cli": deps_cli},
+        "auth": auth,
+        "config": config,
+        "has_bots": has_bots,
+    }
+
+
+class InstallDepsRequest(BaseModel):
+    packages: list[str]
+
+
+@app.post("/api/setup/install-deps")
+async def setup_install_deps(body: InstallDepsRequest):
+    """Install missing pip packages."""
+    allowed = {"anthropic", "openai", "python-telegram-bot", "pdfplumber", "openai-whisper", "jinja2", "aiofiles"}
+    pkgs = [p for p in body.packages if p in allowed]
+    if not pkgs:
+        return {"ok": True, "output": "Nothing to install."}
+    try:
+        result = subprocess.run(
+            ["pip", "install", "--break-system-packages"] + pkgs,
+            capture_output=True, text=True, timeout=180,
+        )
+        return {"ok": result.returncode == 0, "output": result.stdout + result.stderr}
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, detail="Installation timed out")
+
+
+class TestProviderRequest(BaseModel):
+    provider: str
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+
+
+@app.post("/api/setup/test-provider")
+async def setup_test_provider(body: TestProviderRequest):
+    """Test API connection to a provider with a tiny completion request."""
+    import asyncio
+
+    provider = body.provider
+    api_key = body.api_key
+    model = body.model
+
+    try:
+        if provider in ("anthropic", "claude-cli"):
+            import anthropic as anthropic_sdk
+            if not api_key:
+                # Try OAuth
+                if CLAUDE_CREDS_PATH.exists():
+                    creds = json.loads(CLAUDE_CREDS_PATH.read_text())
+                    api_key = creds.get("claudeAiOauth", {}).get("accessToken", "")
+                if not api_key:
+                    api_key = (load_env(BASE_DIR / "secrets.global").get("ANTHROPIC_API_KEY")
+                               or load_env(BASE_DIR / "config.global").get("ANTHROPIC_API_KEY"))
+            if not api_key:
+                return {"ok": False, "error": "No API key or OAuth token found."}
+            kwargs = {}
+            if api_key.startswith("sk-ant-"):
+                kwargs["api_key"] = api_key
+            else:
+                kwargs["auth_token"] = api_key
+            client = anthropic_sdk.Anthropic(**kwargs)
+            test_model = model or "claude-haiku-4-5-20251001"
+            resp = client.messages.create(
+                model=test_model, max_tokens=5,
+                messages=[{"role": "user", "content": "Hi"}],
+            )
+            return {"ok": True, "model": test_model}
+
+        elif provider in ("codex", "openrouter"):
+            from openai import OpenAI
+            if provider == "codex":
+                if not api_key:
+                    if CODEX_AUTH_PATH.exists():
+                        auth = json.loads(CODEX_AUTH_PATH.read_text())
+                        api_key = auth.get("tokens", {}).get("access_token", "")
+                    if not api_key:
+                        api_key = load_env(BASE_DIR / "secrets.global").get("OPENAI_API_KEY")
+                if not api_key:
+                    return {"ok": False, "error": "No API key or Codex OAuth token found."}
+                client = OpenAI(api_key=api_key)
+                test_model = model or "gpt-4o-mini"
+            else:  # openrouter
+                if not api_key:
+                    api_key = (load_env(BASE_DIR / "secrets.global").get("OPENROUTER_API_KEY")
+                               or load_env(BASE_DIR / "config.global").get("OPENROUTER_API_KEY"))
+                if not api_key:
+                    return {"ok": False, "error": "No OpenRouter API key found."}
+                client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+                test_model = model or "google/gemini-2.5-flash"
+
+            resp = client.chat.completions.create(
+                model=test_model, max_tokens=5,
+                messages=[{"role": "user", "content": "Hi"}],
+            )
+            return {"ok": True, "model": test_model}
+
+        else:
+            return {"ok": False, "error": f"Unknown provider: {provider}"}
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:300]}
+
+
+class SetupSaveRequest(BaseModel):
+    provider: str
+    model: str
+    admin_id: str = ""
+    access_mode: str = "approval"
+    anthropic_key: str = ""
+    openai_key: str = ""
+    openrouter_key: str = ""
+    create_bot: Optional[dict] = None
+
+
+@app.post("/api/setup/save")
+async def setup_save(body: SetupSaveRequest):
+    """Save global config and optionally create first bot."""
+    # Preserve existing bugfixer settings
+    existing_cfg = load_env(BASE_DIR / "config.global")
+
+    cfg_content = f"""# Configurações globais compartilhadas por todos os bots.
+# Gerado pelo setup wizard em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+PROVIDER={body.provider}
+ADMIN_ID={body.admin_id}
+MODEL={body.model}
+ACCESS_MODE={body.access_mode}
+
+BUGFIXER_ENABLED={existing_cfg.get('BUGFIXER_ENABLED', 'false')}
+BUGFIXER_TIMES_PER_DAY={existing_cfg.get('BUGFIXER_TIMES_PER_DAY', '1')}
+BUGFIXER_TELEGRAM_TOKEN={existing_cfg.get('BUGFIXER_TELEGRAM_TOKEN', '')}
+"""
+    (BASE_DIR / "config.global").write_text(cfg_content)
+
+    # Write secrets.global
+    existing_secrets = load_env(BASE_DIR / "secrets.global")
+    secrets = {}
+    if body.anthropic_key and "****" not in body.anthropic_key:
+        secrets["ANTHROPIC_API_KEY"] = body.anthropic_key
+    elif existing_secrets.get("ANTHROPIC_API_KEY"):
+        secrets["ANTHROPIC_API_KEY"] = existing_secrets["ANTHROPIC_API_KEY"]
+
+    if body.openai_key and "****" not in body.openai_key:
+        secrets["OPENAI_API_KEY"] = body.openai_key
+    elif existing_secrets.get("OPENAI_API_KEY"):
+        secrets["OPENAI_API_KEY"] = existing_secrets["OPENAI_API_KEY"]
+
+    if body.openrouter_key and "****" not in body.openrouter_key:
+        secrets["OPENROUTER_API_KEY"] = body.openrouter_key
+    elif existing_secrets.get("OPENROUTER_API_KEY"):
+        secrets["OPENROUTER_API_KEY"] = existing_secrets["OPENROUTER_API_KEY"]
+
+    # Preserve ALL existing secrets not already handled above
+    for k, v in existing_secrets.items():
+        if k not in secrets and v:
+            secrets[k] = v
+
+    secrets_path = BASE_DIR / "secrets.global"
+    lines = ["# Credenciais sensíveis — NÃO versionar",
+             f"# Gerado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ""]
+    for k, v in secrets.items():
+        if v:
+            lines.append(f"{k}={v}")
+    secrets_path.write_text("\n".join(lines) + "\n")
+    os.chmod(secrets_path, 0o600)
+
+    # Create first bot if requested
+    bot_result = None
+    if body.create_bot:
+        bc = body.create_bot
+        bot_name = bc.get("name", "")
+        if bot_name and re.match(r"^[a-zA-Z0-9_-]+$", bot_name):
+            result = subprocess.run(
+                [str(BASE_DIR / "criar-bot.sh"), bot_name],
+                capture_output=True, text=True, timeout=30,
+                cwd=str(BASE_DIR),
+            )
+            if result.returncode == 0:
+                # Patch .env with provided values
+                env_path = BOTS_DIR / bot_name / ".env"
+                patches = {"BOT_NAME": bc.get("display_name", bot_name)}
+                if bc.get("telegram_token"):
+                    patches["TELEGRAM_TOKEN"] = bc["telegram_token"]
+                if bc.get("tools"):
+                    patches["TOOLS"] = ",".join(bc["tools"]) if isinstance(bc["tools"], list) else bc["tools"]
+                if bc.get("provider"):
+                    patches["PROVIDER"] = bc["provider"]
+                if bc.get("model"):
+                    patches["MODEL"] = bc["model"]
+                write_env(env_path, patches)
+
+                # Write soul.md if provided
+                if bc.get("soul"):
+                    (BOTS_DIR / bot_name / "soul.md").write_text(bc["soul"])
+
+                # Start the bot
+                if bc.get("telegram_token"):
+                    subprocess.run(
+                        ["sudo", "systemctl", "enable", "--now", f"claude-bot-{bot_name}"],
+                        capture_output=True, timeout=15,
+                    )
+
+                bot_result = {"name": bot_name, "created": True}
+            else:
+                bot_result = {"name": bot_name, "created": False, "error": result.stderr[:300]}
+
+    return {"ok": True, "bot": bot_result}
 
 
 # ── Routes: Bug Fixer ─────────────────────────────────────────────────────────

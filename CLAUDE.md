@@ -33,6 +33,7 @@ subagents/      — NOVO: diretório de sub-agentes especializados
 
 | Arquivo | Papel |
 |---|---|
+| `setup.sh` | **Bootstrap mínimo** — instala deps, sobe painel admin; onboarding completo é no painel web |
 | `criar-bot.sh` | Cria novo bot — deve refletir 100% do que `bot.py` suporta |
 | `config.global` | Fonte de verdade em runtime: carregado por `bot.py` como defaults globais |
 | `secrets.global` | Credenciais sensíveis compartilhadas por todos os bots (chmod 600) |
@@ -232,7 +233,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 | `WORK_DIR` | — | `<bot>/workspace` | Sandbox do file tool |
 | `MODEL` | — | do config.global | Override do modelo (opcional) |
 | `ACCESS_MODE` | — | do config.global | Override do modo de acesso (opcional) |
-| `PROVIDER` | — | do config.global | Override do provedor: `anthropic`, `openrouter` ou `claude-cli` |
+| `PROVIDER` | — | do config.global | Override do provedor: `anthropic`, `openrouter`, `codex` ou `claude-cli` |
 | `GROUP_MODE` | — | `always` | Comportamento em grupos: `always` (responde tudo) ou `mention_only` (só quando marcado com @bot ou reply) |
 
 ## Variáveis do config.global
@@ -241,7 +242,8 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 |---|---|
 | `ANTHROPIC_API_KEY` | Chave da API Anthropic — **opcional** se usar OAuth do Claude Code |
 | `OPENROUTER_API_KEY` | Chave da API OpenRouter — necessária para bots com `PROVIDER=openrouter` |
-| `PROVIDER` | Provedor padrão: `anthropic`, `openrouter` ou `claude-cli` |
+| `OPENAI_API_KEY` | Chave da API OpenAI — **opcional** se usar OAuth do Codex CLI |
+| `PROVIDER` | Provedor padrão: `anthropic`, `openrouter`, `codex` ou `claude-cli` |
 | `ADMIN_ID` | Telegram ID do admin (compartilhado) |
 | `MODEL` | Modelo padrão (Claude ou OpenRouter conforme PROVIDER) |
 | `ACCESS_MODE` | Modo de acesso padrão (`open` / `approval` / `closed`) |
@@ -257,6 +259,11 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
   2. Se não → lê `~/.claude/.credentials.json` (OAuth do Claude Code)
   O token OAuth é lido a cada chamada — renovação automática sem reiniciar.
 - **openrouter**: usa `OPENROUTER_API_KEY` (obrigatória). Qualquer modelo disponível no OpenRouter.
+- **codex**: modelos OpenAI via OAuth do Codex CLI (ChatGPT OAuth) ou `OPENAI_API_KEY`.
+  1. Se `OPENAI_API_KEY` está preenchida → usa API key
+  2. Se não → lê `~/.codex/auth.json` (OAuth do Codex CLI, campo `tokens.access_token`)
+  O token OAuth é lido a cada chamada — renovação automática pelo Codex CLI sem reiniciar.
+  Modelos suportados: `gpt-4o`, `gpt-4o-mini`, `o3`, `o4-mini`, etc.
 - **claude-cli**: chama `claude -p` como subprocess. Usa OAuth do Claude Code — sem API key. Conversa mantida por session_id por usuário. System prompt reinjetado a cada `/start` ou `/clear`. Ferramentas customizadas não são suportadas neste modo.
 
 ## Variáveis do secrets.env
@@ -294,7 +301,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 - `.env` e `secrets.env` → `chmod 600` (só o dono lê)
 - Pastas dos bots → `chmod 700`
 - `bot_data.db` → `chmod 600`
-- Shell tool tem denylist: bloqueia leitura de `config.global`, `.env`, `secrets.env`, `~/.claude/.credentials.json`, `printenv`, variáveis de credencial
+- Shell tool tem denylist: bloqueia leitura de `config.global`, `.env`, `secrets.env`, `~/.claude/.credentials.json`, `~/.codex/auth.json`, `printenv`, variáveis de credencial
 - `context.global` e instruções de tools não devem mandar exibir segredos; para HTTP use placeholders como `$OPENROUTER_API_KEY` para substituição em memória
 - File tool é sandboxado em `WORK_DIR` (path traversal bloqueado)
 - HTTP tool bloqueia IPs internos (169.254.x, localhost, metadata endpoints); resolve placeholders `$VAR`/`${VAR}` nos headers internamente — **nunca instrua o bot a imprimir secrets via shell para usá-los em chamadas HTTP**
@@ -310,6 +317,9 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 - Erros em `handle_message` notificam o admin via Telegram com detalhes do erro
 - Lock per-user garante serialização de mensagens — sem perda por concorrência
 - Conversas persistidas no SQLite — sobrevivem restarts
+- **Lock de token**: `_check_duplicate_token()` no startup adquire lock exclusivo (`BASE_DIR/.locks/bot_<token_id>.lock`) e valida que nenhum outro bot usa o mesmo `TELEGRAM_TOKEN`. Impede 409 Conflict por instâncias simultâneas.
+- **Drop pending updates**: `run_polling(drop_pending_updates=True)` descarta updates acumulados durante downtime/restart, evitando reprocessamento.
+- **Markdown safety**: mensagens com `parse_mode="Markdown"` usam `escape_markdown()` em dados dinâmicos (nomes, títulos, transcrições) para evitar 400 Bad Request do Telegram.
 
 ---
 

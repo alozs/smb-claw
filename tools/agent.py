@@ -294,25 +294,61 @@ async def _simple_anthropic(api_key: str, model: str, system: str, user_content:
 
 
 async def _simple_openrouter(api_key: str, model: str, system: str, user_content: str) -> tuple[str, dict]:
-    """Uma única chamada OpenRouter — sem tools, sem loop. Rápido."""
-    try:
-        from openai import AsyncOpenAI
-    except ImportError:
-        return "[Sub-agente OpenRouter] Erro: openai package não instalado", {}
+    """Uma única chamada OpenRouter — sem tools, sem loop. Rápido.
+    Suporta modelos de geração de imagem: retorna imagens base64 salvas no WORK_DIR
+    via campo 'images' do OpenRouter (extensão não-padrão da spec OpenAI).
+    """
+    import base64
+    import httpx
 
     if not api_key:
         return "[Sub-agente OpenRouter] Erro: OPENROUTER_API_KEY não configurada", {}
 
-    client = AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
-    response = await client.chat.completions.create(
-        model=model, max_tokens=4096,
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": user_content}],
-    )
-    text = response.choices[0].message.content or "[Sub-agente sem resposta]"
+    async with httpx.AsyncClient() as http:
+        resp = await http.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": model,
+                "max_tokens": 4096,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_content},
+                ],
+            },
+            timeout=90,
+        )
+        data = resp.json()
+
+    if "error" in data:
+        return f"[Sub-agente OpenRouter] Erro: {data['error'].get('message', data['error'])}", {}
+
+    choice = data.get("choices", [{}])[0]
+    msg = choice.get("message", {})
+    usage_raw = data.get("usage", {})
     usage = {
-        "input_tokens": getattr(response.usage, "prompt_tokens", 0),
-        "output_tokens": getattr(response.usage, "completion_tokens", 0),
+        "input_tokens": usage_raw.get("prompt_tokens", 0),
+        "output_tokens": usage_raw.get("completion_tokens", 0),
     }
+
+    # Campo 'images' — extensão OpenRouter para modelos de geração de imagem
+    images = msg.get("images", [])
+    if images:
+        saved = []
+        for i, img_part in enumerate(images):
+            data_url = img_part.get("image_url", {}).get("url", "")
+            if data_url.startswith("data:"):
+                mime, b64 = data_url.split(";base64,", 1)
+                ext = mime.split("/")[-1] or "png"
+                fname = f"subagente_imagem_{i+1}.{ext}"
+                fpath = Path(os.environ.get("WORK_DIR", "/tmp")) / fname
+                fpath.write_bytes(base64.b64decode(b64))
+                saved.append(str(fpath))
+        text = msg.get("content") or ""
+        img_info = "\n".join(f"[imagem gerada salva em: {p}]" for p in saved)
+        return (f"{text}\n{img_info}".strip() or "[Sub-agente sem resposta]"), usage
+
+    text = msg.get("content") or "[Sub-agente sem resposta]"
     return text, usage
 
 

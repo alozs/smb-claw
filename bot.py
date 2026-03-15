@@ -12,6 +12,7 @@ Arquitetura modular:
 Provedores suportados (variável PROVIDER no .env do bot):
   anthropic     — Claude via API Anthropic ou OAuth do Claude Code (padrão)
   openrouter    — Qualquer modelo via OpenRouter (requer OPENROUTER_API_KEY)
+  codex         — OpenAI via OAuth do Codex CLI (ChatGPT OAuth, sem API key)
 
 ATENÇÃO: ao adicionar ferramentas, comandos ou camadas de memória,
 leia /home/ubuntu/claude-bots/CLAUDE.md e siga os checklists.
@@ -39,6 +40,7 @@ from telegram.ext import (
     CallbackQueryHandler, filters, ContextTypes,
 )
 from telegram.constants import ChatAction
+from telegram.helpers import escape_markdown
 
 from db import BotDB
 import tools as tool_registry
@@ -90,7 +92,8 @@ MODEL              = os.environ.get("MODEL", "claude-opus-4-6")
 MAX_HISTORY        = int(os.environ.get("MAX_HISTORY", "20"))
 ADMIN_ID           = int(os.environ.get("ADMIN_ID") or "0")
 ACCESS_MODE        = os.environ.get("ACCESS_MODE", "approval").lower()
-PROVIDER           = os.environ.get("PROVIDER", "anthropic").lower()  # anthropic | openrouter
+OPENAI_API_KEY     = os.environ.get("OPENAI_API_KEY", "")
+PROVIDER           = os.environ.get("PROVIDER", "anthropic").lower()  # anthropic | openrouter | codex
 
 _tools_raw    = os.environ.get("TOOLS", "none").lower()
 ENABLED_TOOLS = set() if _tools_raw == "none" else {t.strip() for t in _tools_raw.split(",")}
@@ -111,6 +114,7 @@ _PROTECTED_PATHS = [
     str(BASE_DIR / "config.global"),
     str(BOT_DIR / ".env"), str(BOT_DIR / "secrets.env"),
     str(Path.home() / ".claude" / ".credentials.json"),
+    str(Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "auth.json"),
     "/etc/passwd", "/etc/shadow", "/root", str(Path.home() / ".ssh"),
 ]
 
@@ -302,6 +306,31 @@ def _make_openrouter_client():
     return AsyncOpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=OPENROUTER_API_KEY,
+        default_headers={
+            "X-Title": f"SMBCLAW-{BOT_NAME}",
+        },
+    )
+
+_CODEX_AUTH_PATH = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "auth.json"
+
+def _make_codex_client():
+    """Cria cliente OpenAI usando OAuth do Codex CLI (ChatGPT OAuth) ou OPENAI_API_KEY.
+    Lê access_token de ~/.codex/auth.json a cada chamada (token refresh automático)."""
+    from openai import AsyncOpenAI
+    if OPENAI_API_KEY:
+        return AsyncOpenAI(api_key=OPENAI_API_KEY)
+    if _CODEX_AUTH_PATH.exists():
+        try:
+            with open(_CODEX_AUTH_PATH) as f:
+                auth = json.load(f)
+            token = auth.get("tokens", {}).get("access_token", "")
+            if token:
+                return AsyncOpenAI(api_key=token)
+        except Exception as e:
+            logger.warning(f"Falha ao ler credenciais do Codex: {e}")
+    raise RuntimeError(
+        "Sem credenciais OpenAI. Configure OPENAI_API_KEY ou faça login no Codex CLI "
+        "(`codex` no terminal → OAuth flow)."
     )
 
 def _extract_reply_context(message) -> str:
@@ -374,7 +403,7 @@ async def _describe_image_for_cli(image_path: str) -> str:
     try:
         with open(image_path, "rb") as f:
             img_data = base64.b64encode(f.read()).decode()
-        if ANTHROPIC_API_KEY or _CLAUDE_CREDS_PATH.exists():
+        if ANTHROPIC_API_KEY:
             client = _make_async_client()
             response = await client.messages.create(
                 model="claude-haiku-4-5-20251001",
@@ -385,11 +414,16 @@ async def _describe_image_for_cli(image_path: str) -> str:
                 ]}],
             )
             return next((b.text for b in response.content if b.type == "text"), "[imagem]")
-        elif OPENROUTER_API_KEY:
+        elif OPENROUTER_API_KEY or (OPENAI_API_KEY or _CODEX_AUTH_PATH.exists()):
             from openai import AsyncOpenAI
-            or_client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
-            response = await or_client.chat.completions.create(
-                model="google/gemini-2.0-flash",
+            if OPENROUTER_API_KEY:
+                oai_client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY, default_headers={"X-Title": f"SMBCLAW-{BOT_NAME}"})
+                vision_model = "google/gemini-2.0-flash"
+            else:
+                oai_client = _make_codex_client()
+                vision_model = "gpt-4o-mini"
+            response = await oai_client.chat.completions.create(
+                model=vision_model,
                 max_tokens=512,
                 messages=[{"role": "user", "content": [
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}},
@@ -493,11 +527,17 @@ async def request_access(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         InlineKeyboardButton("✅ Aprovar", callback_data=f"approve:{uid}"),
         InlineKeyboardButton("❌ Negar",   callback_data=f"deny:{uid}"),
     ]])
-    await context.bot.send_message(
-        chat_id=ADMIN_ID,
-        text=f"🔔 *Solicitação — {BOT_NAME}*\n\n👤 {user.full_name}\n🆔 `{uid}`\n📎 {pending[uid]['username']}",
-        parse_mode="Markdown", reply_markup=kb,
-    )
+    safe_name = escape_markdown(user.full_name, version=1)
+    safe_bot = escape_markdown(BOT_NAME, version=1)
+    safe_user = escape_markdown(pending[uid]['username'], version=1)
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"🔔 *Solicitação — {safe_bot}*\n\n👤 {safe_name}\n🆔 `{uid}`\n📎 {safe_user}",
+            parse_mode="Markdown", reply_markup=kb,
+        )
+    except Exception as e:
+        logger.warning(f"[access] Falha ao notificar admin sobre solicitação de {uid}: {e}")
     await update.message.reply_text("📩 Solicitação enviada. Você será notificado quando aprovado.")
 
 async def callback_approval(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -510,12 +550,12 @@ async def callback_approval(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     info = pending.pop(uid, {"name": str(uid), "username": ""})
     if action == "approve":
         _sync_approve(uid, info)
-        await query.edit_message_text(f"✅ *{info['name']}* (`{uid}`) aprovado.", parse_mode="Markdown")
+        await query.edit_message_text(f"✅ *{escape_markdown(info['name'], version=1)}* (`{uid}`) aprovado.", parse_mode="Markdown")
         await context.bot.send_message(uid, f"✅ Acesso aprovado! Bem-vindo ao {BOT_NAME}.\nEnvie /start para começar.")
         logger.info(f"Aprovado: {uid}")
         _append_daily_log(f"Usuário aprovado: {info['name']} (id:{uid})")
     else:
-        await query.edit_message_text(f"❌ *{info['name']}* (`{uid}`) negado.", parse_mode="Markdown")
+        await query.edit_message_text(f"❌ *{escape_markdown(info['name'], version=1)}* (`{uid}`) negado.", parse_mode="Markdown")
         await context.bot.send_message(uid, "❌ Acesso negado.")
         logger.info(f"Negado: {uid}")
 
@@ -604,6 +644,63 @@ async def _ask_openrouter(messages: list, user_id: int = 0) -> str:
                     except Exception:
                         tool_input = {}
                     logger.info(f"[tool/openrouter] {tc.function.name} {json.dumps(tool_input)[:120]}")
+                    result = await tool_registry.execute(
+                        tc.function.name, tool_input,
+                        user_id=user_id, db=db, config=TOOL_CONFIG,
+                    )
+                    oai_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result,
+                    })
+                continue
+            break
+        return choice.message.content or ""
+    except Exception as e:
+        error_str = f"{type(e).__name__}: {e}"
+        raise
+    finally:
+        latency = int((time.monotonic() - t0) * 1000)
+        try:
+            db.log_event(BOT_NAME, user_id, total_input, total_output,
+                         total_tool_calls, latency, error_str)
+        except Exception:
+            pass
+
+
+async def _ask_codex(messages: list, user_id: int = 0) -> str:
+    """Loop agêntico OpenAI via Codex OAuth (ChatGPT OAuth) — mesma lógica do OpenRouter."""
+    system = get_system_prompt()
+    oai_messages = [{"role": "system", "content": system}] + [
+        {"role": m["role"], "content": _convert_content_for_openai(m["content"])}
+        for m in messages
+        if isinstance(m.get("content"), str) or _has_media_content(m.get("content"))
+    ]
+    oai_tools = _anthropic_tools_to_openai(TOOL_DEFINITIONS) if TOOL_DEFINITIONS else None
+    client = _make_codex_client()
+    t0 = time.monotonic()
+    total_input = total_output = total_tool_calls = 0
+    error_str = ""
+    try:
+        for _ in range(20):
+            kwargs = dict(model=MODEL, messages=oai_messages, max_tokens=4096)
+            if oai_tools:
+                kwargs["tools"] = oai_tools
+            response = await client.chat.completions.create(**kwargs)
+            choice = response.choices[0]
+            total_input += getattr(response.usage, "prompt_tokens", 0)
+            total_output += getattr(response.usage, "completion_tokens", 0)
+            if choice.finish_reason == "stop":
+                return choice.message.content or ""
+            if choice.finish_reason == "tool_calls":
+                oai_messages.append(choice.message)
+                for tc in choice.message.tool_calls or []:
+                    total_tool_calls += 1
+                    try:
+                        tool_input = json.loads(tc.function.arguments)
+                    except Exception:
+                        tool_input = {}
+                    logger.info(f"[tool/codex] {tc.function.name} {json.dumps(tool_input)[:120]}")
                     result = await tool_registry.execute(
                         tc.function.name, tool_input,
                         user_id=user_id, db=db, config=TOOL_CONFIG,
@@ -776,9 +873,11 @@ async def _ask_cli(messages: list, user_id: int = 0, notify_fn=None) -> str:
 
 
 async def ask_claude(messages: list, user_id: int = 0, notify_fn=None) -> str:
-    """Roteador principal: delega para Anthropic, OpenRouter ou Claude CLI conforme PROVIDER."""
+    """Roteador principal: delega para Anthropic, OpenRouter, Codex ou Claude CLI conforme PROVIDER."""
     if PROVIDER == "openrouter":
         return await _ask_openrouter(messages, user_id)
+    if PROVIDER == "codex":
+        return await _ask_codex(messages, user_id)
     if PROVIDER == "claude-cli":
         return await _ask_cli(messages, user_id, notify_fn=notify_fn)
     return await _ask_anthropic(messages, user_id)
@@ -997,7 +1096,7 @@ async def cmd_revoke(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if uid in approved_users:
         info = approved_users[uid]
         _sync_revoke(uid)
-        await update.message.reply_text(f"✅ Acesso de *{info.get('name',uid)}* revogado.", parse_mode="Markdown")
+        await update.message.reply_text(f"✅ Acesso de *{escape_markdown(str(info.get('name',uid)), version=1)}* revogado.", parse_mode="Markdown")
         try:
             await context.bot.send_message(uid, "⚠️ Seu acesso foi revogado.")
         except Exception:
@@ -1117,7 +1216,7 @@ async def callback_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     if action == "cancelar":
         db.task_update(tid, status="cancelled")
-        await query.edit_message_text(f"🚫 Tarefa *{t['title']}* cancelada.", parse_mode="Markdown")
+        await query.edit_message_text(f"🚫 Tarefa *{escape_markdown(t['title'], version=1)}* cancelada.", parse_mode="Markdown")
         _append_daily_log(f"Tarefa cancelada: {tid} ({t['title']})")
         return
 
@@ -1137,7 +1236,7 @@ async def callback_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         resume_msg += f"Contexto salvo: {json.dumps(ctx_data, ensure_ascii=False)}\n"
     resume_msg += "Continue de onde parou."
 
-    await query.edit_message_text(f"▶️ Retomando *{t['title']}*...", parse_mode="Markdown")
+    await query.edit_message_text(f"▶️ Retomando *{escape_markdown(t['title'], version=1)}*...", parse_mode="Markdown")
     user_lock = await _get_user_lock(user_id)
     async with user_lock:
         history = conversations.setdefault(user_id, [])
@@ -1301,6 +1400,8 @@ async def _process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, c
 
         # Mensagem de status em tempo real (apenas claude-cli com stream-json)
         status_msg = None
+        _thinking_active = False
+        _thinking_task = None
         if PROVIDER == "claude-cli":
             try:
                 status_msg = await context.bot.send_message(
@@ -1310,13 +1411,46 @@ async def _process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, c
             except Exception:
                 pass
 
+            # Animação do "Pensando" — alterna frames a cada 1.2s
+            if status_msg:
+                _thinking_active = True
+                _thinking_frames = [
+                    "⏳ Pensando",
+                    "⏳ Pensando.",
+                    "⏳ Pensando..",
+                    "⏳ Pensando...",
+                    "⏳ Pensando..",
+                    "⏳ Pensando.",
+                ]
+                async def _animate_thinking():
+                    idx = 0
+                    while _thinking_active:
+                        await asyncio.sleep(1.2)
+                        if not _thinking_active:
+                            break
+                        try:
+                            await context.bot.edit_message_text(
+                                text=_thinking_frames[idx % len(_thinking_frames)],
+                                chat_id=update.effective_chat.id,
+                                message_id=status_msg.message_id,
+                            )
+                        except Exception:
+                            pass
+                        idx += 1
+                _thinking_task = asyncio.create_task(_animate_thinking())
+
         _last_notify_time = [0.0]
 
         async def _notify_tool(name: str, inp: dict):
+            nonlocal _thinking_active
             now = time.monotonic()
             if now - _last_notify_time[0] < 2.5:
                 return
             _last_notify_time[0] = now
+            # Para a animação de "Pensando" ao mostrar tool
+            _thinking_active = False
+            if _thinking_task:
+                _thinking_task.cancel()
             if status_msg:
                 try:
                     await context.bot.edit_message_text(
@@ -1374,9 +1508,9 @@ async def _process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, c
                     await context.bot.send_message(
                         chat_id=ADMIN_ID,
                         text=(
-                            f"🚨 *Erro em {BOT_NAME}*\n\n"
-                            f"👤 {user.full_name} (`{user.id}`)\n"
-                            f"❌ `{type(e).__name__}: {str(e)[:200]}`"
+                            f"🚨 *Erro em {escape_markdown(BOT_NAME, version=1)}*\n\n"
+                            f"👤 {escape_markdown(user.full_name, version=1)} (`{user.id}`)\n"
+                            f"❌ `{type(e).__name__}: {escape_markdown(str(e)[:200], version=1)}`"
                         ),
                         parse_mode="Markdown",
                     )
@@ -1384,7 +1518,10 @@ async def _process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, c
                     pass
         finally:
             _typing_active = False
+            _thinking_active = False
             typing_task.cancel()
+            if _thinking_task:
+                _thinking_task.cancel()
             if status_msg:
                 try:
                     await context.bot.delete_message(
@@ -1544,7 +1681,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         reply_prefix = _extract_reply_context(update.message)
 
         logger.info(f"[whisper/video] Transcrição de {user.id}: {text[:80]}")
-        await update.message.reply_text(f"🎬 _{text}_", parse_mode="Markdown")
+        await update.message.reply_text(f"🎬 _{escape_markdown(text, version=1)}_", parse_mode="Markdown")
 
         parts = []
         if reply_prefix:
@@ -1598,7 +1735,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     logger.info(f"[whisper] Transcrição de {user.id}: {text[:80]}")
-    await update.message.reply_text(f"🎙️ _{text}_", parse_mode="Markdown")
+    await update.message.reply_text(f"🎙️ _{escape_markdown(text, version=1)}_", parse_mode="Markdown")
     reply_prefix = _extract_reply_context(update.message)
     await _process_message(update, context, reply_prefix + text if reply_prefix else text)
 
@@ -1616,7 +1753,7 @@ async def post_init(application: Application) -> None:
             uid = int(_RESTART_FLAG.read_text().strip())
             await application.bot.send_message(
                 chat_id=uid,
-                text=f"✅ *{BOT_NAME}* online | `{PROVIDER}` · `{MODEL}`",
+                text=f"✅ *{escape_markdown(BOT_NAME, version=1)}* online | `{PROVIDER}` · `{MODEL}`",
                 parse_mode="Markdown",
             )
         except Exception as e:
@@ -1652,12 +1789,12 @@ async def post_init(application: Application) -> None:
                 InlineKeyboardButton("❌ Cancelar", callback_data=f"cancelar:{t['id']}"),
             ]])
             msg = (
-                f"⚠️ *Tarefa interrompida — {BOT_NAME}*\n\n"
-                f"📌 `{t['id']}` — {t['title']}\n"
-                f"📍 Passo {step_idx+1}/{len(steps) or 1}: {step_txt}\n"
+                f"⚠️ *Tarefa interrompida — {escape_markdown(BOT_NAME, version=1)}*\n\n"
+                f"📌 `{t['id']}` — {escape_markdown(t['title'], version=1)}\n"
+                f"📍 Passo {step_idx+1}/{len(steps) or 1}: {escape_markdown(str(step_txt), version=1)}\n"
             )
             if t.get("progress"):
-                msg += f"💾 Progresso: {t['progress'][:120]}\n"
+                msg += f"💾 Progresso: {escape_markdown(t['progress'][:120], version=1)}\n"
             msg += "\nDeseja continuar?"
             try:
                 await application.bot.send_message(
@@ -1670,12 +1807,71 @@ async def post_init(application: Application) -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def _check_duplicate_token() -> None:
+    """Verifica se outro bot no mesmo BASE_DIR usa o mesmo TELEGRAM_TOKEN.
+    Também adquire um lock file por token para impedir execução simultânea."""
+    # 1. Verificação estática: escaneia .env de todos os bots
+    token_id = TELEGRAM_TOKEN.split(":")[0]  # bot user ID (parte numérica)
+    bots_dir = BASE_DIR / "bots"
+    if bots_dir.exists():
+        for entry in bots_dir.iterdir():
+            if not entry.is_dir() or entry == BOT_DIR:
+                continue
+            env_path = entry / ".env"
+            if not env_path.exists():
+                continue
+            with open(env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("TELEGRAM_TOKEN="):
+                        other_token = line.partition("=")[2].strip()
+                        if other_token.split(":")[0] == token_id:
+                            logger.error(
+                                f"TELEGRAM_TOKEN duplicado! Bot '{entry.name}' usa o mesmo token "
+                                f"(ID {token_id}). Cada bot DEVE ter um token único."
+                            )
+                            sys.exit(1)
+
+    # 2. Lock file: impede duas instâncias do mesmo bot/token
+    import fcntl
+    lock_dir = BASE_DIR / ".locks"
+    lock_dir.mkdir(exist_ok=True)
+    lock_path = lock_dir / f"bot_{token_id}.lock"
+    try:
+        lock_fd = open(lock_path, "w")
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_fd.write(f"{os.getpid()} {BOT_NAME}\n")
+        lock_fd.flush()
+        # Mantém o fd aberto (lock vive enquanto o processo roda)
+        globals()["_token_lock_fd"] = lock_fd
+    except BlockingIOError:
+        # Outra instância já está rodando com este token
+        try:
+            existing = open(lock_path).read().strip()
+        except Exception:
+            existing = "?"
+        logger.error(
+            f"Outra instância já está rodando com este token (ID {token_id})! "
+            f"Lock: {existing}. Encerrando para evitar 409 Conflict."
+        )
+        sys.exit(1)
+
+
 def main() -> None:
     if not TELEGRAM_TOKEN:
         logger.error("TELEGRAM_TOKEN não definido!"); sys.exit(1)
+
+    # Proteção contra token duplicado e instância simultânea
+    _check_duplicate_token()
+
     if PROVIDER == "openrouter":
         if not OPENROUTER_API_KEY:
             logger.error("PROVIDER=openrouter mas OPENROUTER_API_KEY não definida!"); sys.exit(1)
+    elif PROVIDER == "codex":
+        if not OPENAI_API_KEY and not _CODEX_AUTH_PATH.exists():
+            logger.error("PROVIDER=codex mas OPENAI_API_KEY não definida e OAuth do Codex não encontrado em "
+                         f"{_CODEX_AUTH_PATH}! Faça login com `codex` ou defina OPENAI_API_KEY."); sys.exit(1)
+        logger.info(f"Usando OpenAI via {'API key' if OPENAI_API_KEY else 'Codex OAuth'} ({_CODEX_AUTH_PATH})")
     elif PROVIDER == "claude-cli":
         import shutil
         if not shutil.which("claude"):
@@ -1685,7 +1881,7 @@ def main() -> None:
         if not ANTHROPIC_API_KEY and not _CLAUDE_CREDS_PATH.exists():
             logger.error("ANTHROPIC_API_KEY não definida e OAuth não encontrado!"); sys.exit(1)
     else:
-        logger.error(f"PROVIDER inválido: '{PROVIDER}'. Use 'anthropic', 'openrouter' ou 'claude-cli'."); sys.exit(1)
+        logger.error(f"PROVIDER inválido: '{PROVIDER}'. Use 'anthropic', 'openrouter', 'codex' ou 'claude-cli'."); sys.exit(1)
     if ACCESS_MODE == "approval" and ADMIN_ID == 0:
         logger.warning("ACCESS_MODE=approval sem ADMIN_ID configurado!")
     logger.info(f"Bot '{BOT_NAME}' | provider={PROVIDER} | model={MODEL} | access={ACCESS_MODE} | tools={ENABLED_TOOLS or 'none'} | admin={ADMIN_ID}")
@@ -1712,7 +1908,7 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(MessageHandler(filters.VIDEO | filters.VIDEO_NOTE, handle_video))
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 
 if __name__ == "__main__":

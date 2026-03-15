@@ -55,6 +55,35 @@ async def scheduler_loop(application, db, ask_claude_fn, conversations: dict,
                     except Exception:
                         pass
 
+                    # Animação do "Pensando" — alterna frames a cada 1.2s
+                    _thinking_stop = asyncio.Event()
+                    _thinking_task = None
+                    if status_msg:
+                        _thinking_frames = [
+                            "⏳ Pensando",
+                            "⏳ Pensando.",
+                            "⏳ Pensando..",
+                            "⏳ Pensando...",
+                            "⏳ Pensando..",
+                            "⏳ Pensando.",
+                        ]
+                        async def _animate_thinking():
+                            idx = 0
+                            while not _thinking_stop.is_set():
+                                await asyncio.sleep(1.2)
+                                if _thinking_stop.is_set():
+                                    break
+                                try:
+                                    await application.bot.edit_message_text(
+                                        text=_thinking_frames[idx % len(_thinking_frames)],
+                                        chat_id=user_id,
+                                        message_id=status_msg.message_id,
+                                    )
+                                except Exception:
+                                    pass
+                                idx += 1
+                        _thinking_task = asyncio.create_task(_animate_thinking())
+
                     # Loop de typing indicator em paralelo
                     typing_stop = asyncio.Event()
                     async def _typing_loop():
@@ -83,6 +112,9 @@ async def scheduler_loop(application, db, ask_claude_fn, conversations: dict,
                             lock.release()
                         typing_stop.set()
                         typing_task.cancel()
+                        _thinking_stop.set()
+                        if _thinking_task:
+                            _thinking_task.cancel()
                         if status_msg:
                             try:
                                 await application.bot.delete_message(

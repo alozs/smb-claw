@@ -57,9 +57,15 @@ WORK_DIR=$BOT_DIR/workspace
 
 # Provedor de IA:
 #   anthropic  -> Claude via Anthropic API / OAuth Claude Code (padrao)
+#   codex      -> OpenAI via Codex OAuth / OPENAI_API_KEY (sem API key se logado no Codex CLI)
 #   openrouter -> Qualquer modelo via OpenRouter (requer OPENROUTER_API_KEY no config.global)
 # PROVIDER=anthropic
 
+# Modelos OpenAI/Codex (exemplos):
+#   gpt-4o     -> GPT-4o (mais inteligente)
+#   gpt-4o-mini -> GPT-4o Mini (rápido e barato)
+#   o3         -> O3 (raciocínio avançado)
+#   o4-mini    -> O4 Mini (raciocínio rápido)
 # Modelo OpenRouter (exemplos):
 #   x-ai/grok-3                   -> Grok 3 (xAI)
 #   google/gemini-2.0-flash       -> Gemini Flash (Google)
