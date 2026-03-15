@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMB Claw — Framework de Agentes IA para Telegram</title>
+  <meta name="description" content="Framework ultra leve para rodar múltiplos agentes de IA no Telegram. Sem Docker, sem Kubernetes. Um script e seu agente está rodando." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0f;
+      --bg-card:   #111118;
+      --bg-subtle: #16161f;
+      --border:    #1e1e2e;
+      --text:      #e2e8f0;
+      --text-muted:#94a3b8;
+      --text-dim:  #64748b;
+      --primary:   #3b82f6;
+      --primary-glow: rgba(59,130,246,.18);
+      --accent:    #22c55e;
+      --accent-glow: rgba(34,197,94,.15);
+      --cta:       #f97316;
+      --cta-hover: #ea6c0a;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ────────────────────────────── */
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    section { padding: 80px 0; }
+
+    /* ── Nav ───────────────────────────────── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,10,15,.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-inner {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-logo svg { color: var(--accent); }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: .875rem;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: color .15s, background .15s;
+    }
+
+    .nav-links a:hover { color: var(--text); background: var(--bg-subtle); }
+
+    .nav-links .btn-nav {
+      background: var(--primary);
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 6px;
+    }
+
+    .nav-links .btn-nav:hover { background: #2563eb; }
+
+    /* ── Hero ──────────────────────────────── */
+    #hero {
+      padding: 96px 0 80px;
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent-glow);
+      border: 1px solid rgba(34,197,94,.25);
+      color: var(--accent);
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.25rem);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -.02em;
+      margin-bottom: 20px;
+      color: #f1f5f9;
+    }
+
+    h1 span { color: var(--primary); }
+
+    .hero-sub {
+      font-size: 1.125rem;
+      color: var(--text-muted);
+      max-width: 580px;
+      margin: 0 auto 40px;
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: .9375rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s, background .15s;
+    }
+
+    .btn:active { transform: scale(.97); }
+
+    .btn-primary {
+      background: var(--cta);
+      color: #fff;
+      box-shadow: 0 0 20px rgba(249,115,22,.25);
+    }
+
+    .btn-primary:hover {
+      background: var(--cta-hover);
+      box-shadow: 0 0 28px rgba(249,115,22,.35);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-subtle);
+      border-color: #2e2e40;
+      transform: translateY(-1px);
+    }
+
+    /* ── Origin ────────────────────────────── */
+    #origin {
+      padding: 56px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .origin-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--primary);
+      border-radius: 12px;
+      padding: 32px 36px;
+    }
+
+    .origin-card p {
+      color: var(--text-muted);
+      font-size: 1rem;
+      line-height: 1.8;
+      margin-bottom: 12px;
+    }
+
+    .origin-card p:last-child { margin-bottom: 0; }
+
+    .origin-card strong { color: var(--text); font-weight: 600; }
+
+    /* ── Stats ─────────────────────────────── */
+    #stats {
+      padding: 64px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 20px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1.1;
+      margin-bottom: 6px;
+      text-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .stat-label {
+      font-size: .8125rem;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    /* ── Features ──────────────────────────── */
+    #features {
+      border-top: 1px solid var(--border);
+    }
+
+    .section-label {
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 700;
+      color: #f1f5f9;
+      line-height: 1.25;
+      margin-bottom: 12px;
+      letter-spacing: -.02em;
+    }
+
+    .section-sub {
+      color: var(--text-muted);
+      font-size: 1rem;
+      margin-bottom: 48px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      transition: border-color .2s, background .2s;
+    }
+
+    .feature-card:hover {
+      border-color: #2a2a3d;
+      background: var(--bg-subtle);
+    }
+
+    .feature-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--primary-glow);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+      color: var(--primary);
+    }
+
+    .feature-title {
+      font-size: .9375rem;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 6px;
+    }
+
+    .feature-desc {
+      font-size: .875rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* ── How it works ──────────────────────── */
+    #howto {
+      border-top: 1px solid var(--border);
+    }
+
+    .steps { display: flex; flex-direction: column; gap: 0; }
+
+    .step {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      padding: 28px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .step:last-child { border-bottom: none; }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--primary-glow);
+      border: 1px solid rgba(59,130,246,.3);
+      color: var(--primary);
+      font-size: .875rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .step-title {
+      font-size: .9375rem;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 4px;
+    }
+
+    .step-desc { font-size: .875rem; color: var(--text-muted); }
+
+    .code-block {
+      margin-top: 10px;
+      background: #0d0d14;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: .8125rem;
+      color: var(--accent);
+      overflow-x: auto;
+    }
+
+    /* ── Providers ─────────────────────────── */
+    #providers {
+      border-top: 1px solid var(--border);
+    }
+
+    .providers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+
+    .provider-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .provider-name {
+      font-size: .9375rem;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 4px;
+    }
+
+    .provider-tag {
+      display: inline-block;
+      font-size: .6875rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid rgba(34,197,94,.2);
+    }
+
+    .provider-tag.paid {
+      background: rgba(249,115,22,.1);
+      color: #f97316;
+      border-color: rgba(249,115,22,.2);
+    }
+
+    .provider-models {
+      margin-top: 8px;
+      font-size: .8125rem;
+      color: var(--text-dim);
+    }
+
+    /* ── CTA ───────────────────────────────── */
+    #cta {
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    #cta h2 { margin-bottom: 16px; }
+
+    #cta p {
+      color: var(--text-muted);
+      margin-bottom: 36px;
+      font-size: 1rem;
+    }
+
+    /* ── Footer ────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 0;
+      text-align: center;
+    }
+
+    footer p {
+      font-size: .8125rem;
+      color: var(--text-dim);
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    footer a:hover { text-decoration: underline; }
+
+    /* ── Responsive ────────────────────────── */
+    @media (max-width: 600px) {
+      section { padding: 56px 0; }
+      #hero { padding: 64px 0 56px; }
+      .origin-card { padding: 24px 20px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav aria-label="Navegação principal">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo" aria-label="SMB Claw - início">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+        </svg>
+        SMB Claw
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">Recursos</a></li>
+        <li><a href="#howto">Instalação</a></li>
+        <li><a href="https://github.com/seu-usuario/smb-claw" class="btn-nav" target="_blank" rel="noopener">GitHub</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section id="hero" aria-labelledby="hero-title">
+    <div class="container">
+      <div class="badge" aria-label="Categoria">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="10"/></svg>
+        Open Source · MIT License
+      </div>
+      <h1 id="hero-title">
+        Agentes de IA no Telegram.<br />
+        <span>Sem Docker. Sem complicação.</span>
+      </h1>
+      <p class="hero-sub">
+        SMB Claw é um framework ultra leve para rodar múltiplos bots de IA no Telegram numa única VPS.
+        Um script e você já tem um agente funcionando — com memória, ferramentas e personalidade própria.
+      </p>
+      <div class="hero-actions">
+        <a href="#howto" class="btn btn-primary" aria-label="Começar instalação">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+          Começar agora
+        </a>
+        <a href="https://github.com/seu-usuario/smb-claw" class="btn btn-secondary" target="_blank" rel="noopener" aria-label="Ver código no GitHub">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          Ver no GitHub
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Origin -->
+  <section id="origin" aria-labelledby="origin-title">
+    <div class="container">
+      <div class="origin-card">
+        <p>
+          <strong>Por que o SMB Claw existe?</strong> Depois de semanas passando raiva com o OpenClaw —
+          que às vezes funciona, às vezes não, você pede uma coisa e ele faz outra — decidimos criar
+          nossa própria alternativa com uma proposta diferente:
+          <strong>extremamente simples, eficiente e confiável</strong>.
+        </p>
+        <p>
+          Sem precisar lidar com infraestrutura complexa como Docker ou Kubernetes.
+          Basicamente um script e você já tem um agente de IA rodando no Telegram —
+          com memória persistente, ferramentas modulares e personalidade própria.
+          Do jeito que deveria ser desde o começo.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats -->
+  <section id="stats" aria-label="Métricas do projeto">
+    <div class="container">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">~75 MB</div>
+          <div class="stat-label">RAM por agente em idle</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">0</div>
+          <div class="stat-label">Portas de rede abertas</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">∞</div>
+          <div class="stat-label">Agentes por VPS</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">~11k</div>
+          <div class="stat-label">Linhas de código total</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" aria-labelledby="features-title">
+    <div class="container">
+      <div class="section-label">Recursos</div>
+      <h2 id="features-title">Tudo que você precisa,<br />nada do que você não precisa</h2>
+      <p class="section-sub">Um framework completo sem a complexidade que ninguém pediu.</p>
+
+      <div class="features-grid">
+
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          </div>
+          <div class="feature-title">Ultra leve</div>
+          <div class="feature-desc">~75 MB por agente em idle. 10, 20, 50 agentes na mesma VPS de $5/mês. Zero overhead de container.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+          </div>
+          <div class="feature-title">Multi-provedor de IA</div>
+          <div class="feature-desc">Claude (API ou CLI), OpenRouter (Grok, GPT-4o, Gemini), OpenAI — tudo com OAuth automático ou API key.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div class="feature-title">Segurança por padrão</div>
+          <div class="feature-desc">Tokens isolados, sandbox de comandos, controle de acesso por aprovação, credenciais com chmod 600.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          </div>
+          <div class="feature-title">Memória em camadas</div>
+          <div class="feature-desc">Personalidade, perfil do usuário, memória de longo prazo e diários diários auto-destilados toda noite.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </div>
+          <div class="feature-title">Ferramentas modulares</div>
+          <div class="feature-desc">Shell, HTTP, Git, GitHub, banco de dados, arquivos, cron — ative só o que cada agente precisa.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+          </div>
+          <div class="feature-title">Painel web</div>
+          <div class="feature-desc">Dashboard FastAPI com setup wizard, editor de configuração, logs em tempo real e gerenciamento de usuários.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="feature-title">Subagentes</div>
+          <div class="feature-desc">Delegue tarefas para agentes especializados — geração de imagens, análise de dados, qualquer especialidade.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <div class="feature-title">Bug Fixer autônomo</div>
+          <div class="feature-desc">Agente que monitora erros nos logs, chama o Claude para analisar e te notifica no Telegram.</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section id="howto" aria-labelledby="howto-title">
+    <div class="container">
+      <div class="section-label">Instalação</div>
+      <h2 id="howto-title">Rodando em minutos</h2>
+      <p class="section-sub">Sem Docker, sem Kubernetes, sem drama.</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num" aria-hidden="true">1</div>
+          <div>
+            <div class="step-title">Clone o repositório</div>
+            <div class="step-desc">Python 3.10+ e Linux com systemd são os únicos pré-requisitos obrigatórios.</div>
+            <div class="code-block" role="code" aria-label="Comando: git clone e cd smb-claw">git clone https://github.com/seu-usuario/smb-claw.git &amp;&amp; cd smb-claw</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num" aria-hidden="true">2</div>
+          <div>
+            <div class="step-title">Rode o setup</div>
+            <div class="step-desc">O script verifica dependências, detecta autenticações existentes e abre o painel admin com o wizard de configuração.</div>
+            <div class="code-block" role="code" aria-label="Comando: bash setup.sh">bash setup.sh</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num" aria-hidden="true">3</div>
+          <div>
+            <div class="step-title">Configure pelo painel web</div>
+            <div class="step-desc">Acesse <strong>http://&lt;ip&gt;:8080</strong> — escolha o provedor de IA, configure o Telegram Token e crie seu primeiro agente com personalidade, ferramentas e modo de acesso.</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num" aria-hidden="true">4</div>
+          <div>
+            <div class="step-title">Crie quantos agentes quiser</div>
+            <div class="step-desc">Cada agente é um serviço systemd independente — isolado, resiliente e com reinício automático.</div>
+            <div class="code-block" role="code" aria-label="Comando: bash criar-bot.sh meu-agente">bash criar-bot.sh meu-agente</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Providers -->
+  <section id="providers" aria-labelledby="providers-title">
+    <div class="container">
+      <div class="section-label">Provedores</div>
+      <h2 id="providers-title">Escolha seu modelo de IA</h2>
+      <p class="section-sub">OAuth automático ou API key — você decide. Pode misturar provedores entre agentes.</p>
+
+      <div class="providers-grid">
+        <div class="provider-card">
+          <div class="provider-name">Claude CLI</div>
+          <span class="provider-tag">Grátis com assinatura</span>
+          <div class="provider-models">Opus · Sonnet · Haiku</div>
+        </div>
+        <div class="provider-card">
+          <div class="provider-name">Anthropic API</div>
+          <span class="provider-tag paid">Pay-per-use</span>
+          <div class="provider-models">Opus · Sonnet · Haiku</div>
+        </div>
+        <div class="provider-card">
+          <div class="provider-name">OpenRouter</div>
+          <span class="provider-tag paid">Pay-per-use</span>
+          <div class="provider-models">Grok · Gemini · Mistral · LLaMA</div>
+        </div>
+        <div class="provider-card">
+          <div class="provider-name">OpenAI / Codex</div>
+          <span class="provider-tag paid">Pay-per-use</span>
+          <div class="provider-models">GPT-5.x · Codex</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section id="cta" aria-labelledby="cta-title">
+    <div class="container">
+      <h2 id="cta-title">Pronto para ter seu agente no ar?</h2>
+      <p>Código aberto, licença MIT. Sem surpresas.</p>
+      <div class="hero-actions">
+        <a href="https://github.com/seu-usuario/smb-claw" class="btn btn-primary" target="_blank" rel="noopener" aria-label="Ver SMB Claw no GitHub">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          Ver no GitHub
+        </a>
+        <a href="#howto" class="btn btn-secondary">Guia de instalação</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>SMB Claw · Licença <a href="https://github.com/seu-usuario/smb-claw/blob/main/LICENSE" target="_blank" rel="noopener">MIT</a> · Feito com frustração e determinação</p>
+    </div>
+  </footer>
+
+</body>
+</html>

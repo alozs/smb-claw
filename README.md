@@ -4,6 +4,12 @@ Sistema de gestão de agentes de IA para Telegram, focado em **simplicidade**, *
 
 Pensado para quem quer colocar agentes de IA em produção rápido — sem infraestrutura complexa, sem Docker, sem Kubernetes. Um script e você tem um agente funcionando.
 
+## Por que o SMB Claw existe?
+
+Depois de semanas passando raiva com o OpenClaw — que às vezes funciona, às vezes não, você pede uma coisa e ele faz outra — decidi criar minha própria alternativa com uma proposta diferente: **extremamente simples, eficiente e funcionando como um verdadeiro assistente de IA confiável**.
+
+Sem precisar lidar com infraestrutura complexa como Docker ou Kubernetes. Basicamente um script e você já tem um agente rodando — do jeito que deveria ser desde o começo.
+
 ### Ultra leve
 
 Todo o sistema — bot engine, painel admin, ferramentas, scheduler, bugfixer — soma **~11.300 linhas de código** (Python + HTML + Shell). Sem frameworks pesados, sem camadas de abstração desnecessárias, sem Docker.
