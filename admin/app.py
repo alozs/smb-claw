@@ -1145,7 +1145,7 @@ async def setup_test_provider(body: TestProviderRequest):
                 if not api_key:
                     return {"ok": False, "error": "No API key or Codex OAuth token found."}
                 client = OpenAI(api_key=api_key)
-                test_model = model or "gpt-4o-mini"
+                test_model = model or "gpt-5.1-codex-mini"
             else:  # openrouter
                 if not api_key:
                     api_key = (load_env(BASE_DIR / "secrets.global").get("OPENROUTER_API_KEY")

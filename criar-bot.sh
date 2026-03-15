@@ -62,14 +62,18 @@ WORK_DIR=$BOT_DIR/workspace
 # PROVIDER=anthropic
 
 # Modelos OpenAI/Codex (exemplos):
-#   gpt-4o     -> GPT-4o (mais inteligente)
-#   gpt-4o-mini -> GPT-4o Mini (rápido e barato)
-#   o3         -> O3 (raciocínio avançado)
-#   o4-mini    -> O4 Mini (raciocínio rápido)
+#   gpt-5.4              -> GPT-5.4 (mais recente)
+#   gpt-5.3-codex-spark  -> GPT-5.3 Codex Spark (rápido)
+#   gpt-5.3-codex        -> GPT-5.3 Codex
+#   gpt-5.2-codex        -> GPT-5.2 Codex
+#   gpt-5.2              -> GPT-5.2
+#   gpt-5.1-codex-max    -> GPT-5.1 Codex Max (mais capaz)
+#   gpt-5.1-codex-mini   -> GPT-5.1 Codex Mini (rápido e barato)
+#   gpt-5.1              -> GPT-5.1
 # Modelo OpenRouter (exemplos):
 #   x-ai/grok-3                   -> Grok 3 (xAI)
 #   google/gemini-2.0-flash       -> Gemini Flash (Google)
-#   openai/gpt-4o                 -> GPT-4o (OpenAI)
+#   openai/gpt-5.4                -> GPT-5.4 (OpenAI)
 #   mistralai/mistral-small-3.1   -> Mistral Small
 # MODEL=x-ai/grok-3
 EOF

@@ -421,7 +421,7 @@ async def _describe_image_for_cli(image_path: str) -> str:
                 vision_model = "google/gemini-2.0-flash"
             else:
                 oai_client = _make_codex_client()
-                vision_model = "gpt-4o-mini"
+                vision_model = "gpt-5.1-codex-mini"
             response = await oai_client.chat.completions.create(
                 model=vision_model,
                 max_tokens=512,

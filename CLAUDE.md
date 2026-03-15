@@ -263,7 +263,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
   1. Se `OPENAI_API_KEY` está preenchida → usa API key
   2. Se não → lê `~/.codex/auth.json` (OAuth do Codex CLI, campo `tokens.access_token`)
   O token OAuth é lido a cada chamada — renovação automática pelo Codex CLI sem reiniciar.
-  Modelos suportados: `gpt-4o`, `gpt-4o-mini`, `o3`, `o4-mini`, etc.
+  Modelos suportados: `gpt-5.4`, `gpt-5.3-codex`, `gpt-5.2`, `gpt-5.1`, etc.
 - **claude-cli**: chama `claude -p` como subprocess. Usa OAuth do Claude Code — sem API key. Conversa mantida por session_id por usuário. System prompt reinjetado a cada `/start` ou `/clear`. Ferramentas customizadas não são suportadas neste modo.
 
 ## Variáveis do secrets.env

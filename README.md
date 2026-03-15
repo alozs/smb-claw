@@ -239,13 +239,13 @@ MODEL=claude-sonnet-4-6
 
 ### `codex` — OpenAI / ChatGPT
 
-> Modelos OpenAI via API key ou OAuth do Codex CLI (ChatGPT). Ideal para GPT-4o e família o3/o4.
+> Modelos OpenAI via API key ou OAuth do Codex CLI (ChatGPT). Ideal para GPT-5.x e família codex.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Provedor:   codex                                      │
 │  Auth:       API key OU OAuth do Codex CLI (ChatGPT)    │
-│  Modelos:    GPT-4o, GPT-4o-mini, o3, o4-mini          │
+│  Modelos:    GPT-5.4, GPT-5.3-codex, GPT-5.2, GPT-5.1  │
 │  Ferramentas: tools customizadas do framework           │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -257,7 +257,7 @@ OPENAI_API_KEY=sk-...
 
 # config.global:
 PROVIDER=codex
-MODEL=gpt-4o
+MODEL=gpt-5.4
 ```
 
 **Opção B — OAuth do Codex CLI (sem API key):**
@@ -271,7 +271,7 @@ codex login
 # 3. Configure — o token fica em ~/.codex/auth.json
 # config.global:
 PROVIDER=codex
-MODEL=gpt-4o
+MODEL=gpt-5.4
 # (sem OPENAI_API_KEY — usa OAuth)
 ```
 
@@ -319,16 +319,20 @@ MODEL=claude-opus-4-6
 MODEL=claude-haiku-4-5-20251001
 
 # OpenAI (codex)
-MODEL=gpt-4o
-MODEL=gpt-4o-mini
-MODEL=o3
-MODEL=o4-mini
+MODEL=gpt-5.4
+MODEL=gpt-5.3-codex-spark
+MODEL=gpt-5.3-codex
+MODEL=gpt-5.2-codex
+MODEL=gpt-5.2
+MODEL=gpt-5.1-codex-max
+MODEL=gpt-5.1-codex-mini
+MODEL=gpt-5.1
 
 # OpenRouter (qualquer modelo disponível)
 MODEL=x-ai/grok-3
 MODEL=x-ai/grok-3:online           # com busca em tempo real
 MODEL=google/gemini-2.0-flash
-MODEL=openai/gpt-4o
+MODEL=openai/gpt-5.4
 MODEL=mistralai/mistral-small-3.1
 ```
 
