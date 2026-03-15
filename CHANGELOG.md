@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.2 (2026-03-14)
+- fix: gitignore para locks, bugfixer_state e avatars + release.sh não usa git add -A
+
 ## 0.1.1 (2026-03-14)
 - feat: sistema de versionamento com release/update via Telegram
 - feat: timezone UTC-3, edição de agendamentos e suporte a day_of_month
