@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.3 (2026-03-14)
+- docs: adiciona versionamento, contagem de linhas e comandos /version /update ao README
+
 ## 0.1.2 (2026-03-14)
 - fix: gitignore para locks, bugfixer_state e avatars + release.sh não usa git add -A
 
