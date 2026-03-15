@@ -8,7 +8,7 @@
 set -e
 
 BOT_NAME="$1"
-BASE_DIR="/home/ubuntu/claude-bots"
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 BOT_DIR="$BASE_DIR/bots/$BOT_NAME"
 SERVICE_NAME="claude-bot-$BOT_NAME"
 GLOBAL_CFG="$BASE_DIR/config.global"

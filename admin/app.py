@@ -17,7 +17,7 @@ from typing import Optional
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BASE_DIR = Path("/home/ubuntu/claude-bots")
+BASE_DIR = Path(__file__).resolve().parent.parent
 BOTS_DIR = BASE_DIR / "bots"
 SUBAGENTS_DIR = BASE_DIR / "subagents"
 

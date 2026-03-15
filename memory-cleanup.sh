@@ -3,7 +3,7 @@
 # Uso: ./memory-cleanup.sh [dias_para_manter]  (padrão: 30)
 
 KEEP_DAYS="${1:-30}"
-BASE_DIR="/home/ubuntu/claude-bots"
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 COUNT=0
 
 echo "=== Limpeza de memória diária (mantendo últimos $KEEP_DAYS dias) ==="

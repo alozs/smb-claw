@@ -2,7 +2,7 @@
 # Gerencia todos os bots Claude
 # Uso: ./gerenciar.sh [status|start|stop|restart|logs <bot>]
 
-BASE_DIR="/home/ubuntu/claude-bots/bots"
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)/bots"
 
 list_bots() {
     ls "$BASE_DIR" 2>/dev/null

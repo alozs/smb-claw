@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-BASE_DIR="/home/ubuntu/claude-bots"
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 TODAY=$(date +%Y-%m-%d)
 
 # Carrega OPENROUTER_API_KEY do config.global ou ambiente

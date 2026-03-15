@@ -6,7 +6,8 @@
 set -e
 
 BOT_NAME="$1"
-BOT_DIR="/home/ubuntu/claude-bots/bots/$BOT_NAME"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BOT_DIR="$SCRIPT_DIR/bots/$BOT_NAME"
 SECRETS_FILE="$BOT_DIR/secrets.env"
 
 if [ -z "$BOT_NAME" ]; then

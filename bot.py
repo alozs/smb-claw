@@ -1,6 +1,6 @@
 """
 Claude Multi-Bot Framework — com sistema de memória em camadas
-Uso: python3 bot.py --bot-dir /home/ubuntu/claude-bots/bots/assistente
+Uso: python3 bot.py --bot-dir /caminho/para/claude-bots/bots/assistente
 
 Arquitetura modular:
   bot.py        — Core: config, handlers, main loop
@@ -15,7 +15,7 @@ Provedores suportados (variável PROVIDER no .env do bot):
   codex         — OpenAI via OAuth do Codex CLI (ChatGPT OAuth, sem API key)
 
 ATENÇÃO: ao adicionar ferramentas, comandos ou camadas de memória,
-leia /home/ubuntu/claude-bots/CLAUDE.md e siga os checklists.
+leia CLAUDE.md e siga os checklists.
 """
 
 import os
@@ -58,7 +58,7 @@ if not BOT_DIR.exists():
     print(f"Erro: '{BOT_DIR}' não encontrado.")
     sys.exit(1)
 
-BASE_DIR = BOT_DIR.parent.parent  # /home/ubuntu/claude-bots
+BASE_DIR = BOT_DIR.parent.parent  # raiz do projeto
 
 # ── Carrega config.global, .env e secrets.env ─────────────────────────────────
 

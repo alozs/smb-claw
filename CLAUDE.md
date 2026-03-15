@@ -334,7 +334,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 ## Testes
 
 ```bash
-cd /home/ubuntu/claude-bots
+cd claude-bots
 pytest tests/ -v
 ```
 

@@ -13,7 +13,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-BASE_DIR = Path("/home/ubuntu/claude-bots")
+BASE_DIR = Path(__file__).resolve().parent
 BOTS_DIR = BASE_DIR / "bots"
 STATE_FILE = BASE_DIR / ".bugfixer_state"
 LOG_FILE = BASE_DIR / "logs" / "bugfixer.log"
@@ -169,7 +169,7 @@ def build_prompt(bot_name: str, errors: list, journal_logs: str) -> str:
     return f"""Você é o Bug Fixer Agent do sistema SMB Claw.
 
 Bot: {bot_name}
-Base: /home/ubuntu/claude-bots/
+Base: {BASE_DIR}/
 
 Erros detectados:
 {error_lines}

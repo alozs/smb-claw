@@ -1,18 +1,24 @@
 """Testes de segurança: shell denylist, path traversal, SQL safety."""
+import os
 import re
 import pytest
+from pathlib import Path
 from tools.http import _resolve_secret_headers
 
 
+# ── Base dir dinâmico ────────────────────────────────────────────────────────
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+HOME_DIR = Path.home()
+
 # ── Shell safety ─────────────────────────────────────────────────────────────
 
-# Reproduz a lógica de _check_shell_safety sem importar bot.py (evita dependências)
 PROTECTED_PATHS_EXAMPLE = [
-    "/home/ubuntu/claude-bots/config.global",
-    "/home/ubuntu/claude-bots/bots/test/.env",
-    "/home/ubuntu/claude-bots/bots/test/secrets.env",
-    "/home/ubuntu/.claude/.credentials.json",
-    "/etc/passwd", "/etc/shadow", "/root", "/home/ubuntu/.ssh",
+    str(BASE_DIR / "config.global"),
+    str(BASE_DIR / "bots" / "test" / ".env"),
+    str(BASE_DIR / "bots" / "test" / "secrets.env"),
+    str(HOME_DIR / ".claude" / ".credentials.json"),
+    "/etc/passwd", "/etc/shadow", str(HOME_DIR / ".ssh"),
 ]
 
 BLOCKED_PATTERNS = [
@@ -33,16 +39,16 @@ def check_shell_safety(command: str, protected_paths=None) -> str | None:
 
 class TestShellSafety:
     def test_blocks_config_global(self):
-        assert check_shell_safety("cat /home/ubuntu/claude-bots/config.global") is not None
+        assert check_shell_safety(f"cat {BASE_DIR}/config.global") is not None
 
     def test_blocks_env_file(self):
-        assert check_shell_safety("cat /home/ubuntu/claude-bots/bots/test/.env") is not None
+        assert check_shell_safety(f"cat {BASE_DIR}/bots/test/.env") is not None
 
     def test_blocks_secrets_env(self):
-        assert check_shell_safety("cat /home/ubuntu/claude-bots/bots/test/secrets.env") is not None
+        assert check_shell_safety(f"cat {BASE_DIR}/bots/test/secrets.env") is not None
 
     def test_blocks_credentials(self):
-        assert check_shell_safety("cat /home/ubuntu/.claude/.credentials.json") is not None
+        assert check_shell_safety(f"cat {HOME_DIR}/.claude/.credentials.json") is not None
 
     def test_blocks_etc_passwd(self):
         assert check_shell_safety("cat /etc/passwd") is not None
@@ -51,7 +57,7 @@ class TestShellSafety:
         assert check_shell_safety("cat /etc/shadow") is not None
 
     def test_blocks_ssh(self):
-        assert check_shell_safety("cat /home/ubuntu/.ssh/id_rsa") is not None
+        assert check_shell_safety(f"cat {HOME_DIR}/.ssh/id_rsa") is not None
 
     def test_blocks_printenv(self):
         assert check_shell_safety("printenv") is not None
@@ -109,9 +115,7 @@ class TestHttpSecretHeaders:
 
 # ── Path traversal ───────────────────────────────────────────────────────────
 
-from pathlib import Path
-
-WORK_DIR = Path("/home/ubuntu/claude-bots/bots/test/workspace")
+WORK_DIR = BASE_DIR / "bots" / "test" / "workspace"
 
 
 def check_path_safety(path_raw: str) -> bool:
@@ -168,5 +172,3 @@ class TestSQLSafety:
 
     def test_allows_update(self):
         assert SQL_BLOCKED.match("UPDATE users SET name='test' WHERE id=1") is None
-
-

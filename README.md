@@ -732,7 +732,7 @@ O cron `check-update.sh` roda diariamente às 8h e notifica o admin no Telegram 
 ## Testes
 
 ```bash
-cd /home/ubuntu/claude-bots
+cd claude-bots
 pytest tests/ -v
 ```
 

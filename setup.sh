@@ -7,7 +7,7 @@
 
 set -e
 
-BASE_DIR="/home/ubuntu/claude-bots"
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 ADMIN_PORT="${ADMIN_PORT:-8080}"
 
 # ── Cores ────────────────────────────────────────────────────────────────────
