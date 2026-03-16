@@ -1836,6 +1836,53 @@ async def cmd_cancelar_wizard(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("Nenhum wizard em andamento.")
 
 
+async def cmd_painel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Gera link temporário de acesso ao painel admin."""
+    if not is_admin(update.effective_user.id):
+        return
+    import urllib.request
+    import json as _json
+
+    # TTL do argumento ou 30 min default
+    args = (context.args or [])
+    ttl_min = int(args[0]) if args else 30
+    ttl_sec = ttl_min * 60
+
+    try:
+        req = urllib.request.Request(
+            "http://127.0.0.1:8080/api/gen-token",
+            data=_json.dumps({"ttl": ttl_sec}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = _json.loads(resp.read())
+        token = data["token"]
+    except Exception as e:
+        await update.message.reply_text(f"❌ Erro ao gerar link: {e}")
+        return
+
+    panel_url = os.environ.get("ADMIN_PANEL_URL", "").rstrip("/")
+    if not panel_url:
+        import subprocess as _sp
+        try:
+            ip = _sp.run(
+                ["hostname", "-I"], capture_output=True, text=True, timeout=5
+            ).stdout.strip().split()[0]
+        except Exception:
+            ip = "SEU_IP"
+        panel_url = f"http://{ip}:8080"
+
+    url = f"{panel_url}/?token={token}"
+    await update.message.reply_text(
+        f"🔗 *Acesso ao painel admin*\n\n"
+        f"[Abrir painel]({url})\n\n"
+        f"⏱ Expira em {ttl_min} minutos\n"
+        f"🔒 Link de uso único",
+        parse_mode="Markdown",
+    )
+
+
 async def cmd_apagar_agente(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Lista agentes disponíveis para apagar (admin only)."""
     if not is_admin(update.effective_user.id):
@@ -2435,6 +2482,7 @@ async def post_init(application: Application) -> None:
         BotCommand("restart",         "Reiniciar o bot"),
         BotCommand("criar_agente",    "Criar novo agente (wizard)"),
         BotCommand("criar_subagente", "Criar novo sub-agente (wizard)"),
+        BotCommand("painel",           "Link temporário do painel admin"),
         BotCommand("apagar_agente",   "Apagar um agente existente"),
         BotCommand("cancelar_wizard", "Cancelar wizard em andamento"),
     ]
@@ -2611,6 +2659,7 @@ def main() -> None:
     app.add_handler(CommandHandler("criar_agente",    cmd_criar_agente))
     app.add_handler(CommandHandler("criar_subagente", cmd_criar_subagente))
     app.add_handler(CommandHandler("cancelar_wizard", cmd_cancelar_wizard))
+    app.add_handler(CommandHandler("painel",           cmd_painel))
     app.add_handler(CommandHandler("apagar_agente",   cmd_apagar_agente))
     app.add_handler(CallbackQueryHandler(callback_del_agent, pattern=r"^del_agent_"))
     app.add_handler(CallbackQueryHandler(callback_approval, pattern=r"^(approve|deny):\d+$"))

@@ -205,6 +205,7 @@ Se não estiver instalada, PDFs recebem fallback graceful com nome+tamanho.
 | `/stats [período]` | Analytics: tokens, custo, mensagens (hoje/semana/mes/N) |
 | `/version` | Mostra versão atual e se há atualizações pendentes |
 | `/update` | Puxa atualizações do remote e reinicia todos os serviços |
+| `/painel [min]` | Gera link temporário de acesso ao painel admin (default: 30 min) |
 | `/criar_agente` | Abre wizard passo a passo para criar novo agente Telegram |
 | `/criar_subagente` | Abre wizard passo a passo para criar novo sub-agente |
 | `/cancelar_wizard` | Cancela wizard em andamento |
@@ -260,6 +261,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 | `BUGFIXER_ENABLED` | `true` / `false` — habilita o Bug Fixer Agent (default: `false`) |
 | `BUGFIXER_TIMES_PER_DAY` | Quantas vezes por dia o Bug Fixer roda via cron (default: `3`) |
 | `BUGFIXER_TELEGRAM_TOKEN` | Token do bot usado para notificações ao admin. Se vazio, usa o token do primeiro bot disponível como fallback. |
+| `ADMIN_PANEL_URL` | URL pública do painel admin (ex: `https://painel.seudominio.com`). Usada pelo `/painel` e `gerar-acesso.sh`. Se vazio, fallback para `http://<ip>:8080`. |
 
 ### Autenticação: API key vs Claude Code
 
@@ -309,6 +311,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 
 ## Segurança
 
+- **Painel admin protegido por token temporário:** middleware em `admin/app.py` bloqueia todas as rotas sem cookie de sessão válido. Tokens gerados via `/painel` (Telegram) ou `gerar-acesso.sh` (CLI). In-memory, perdem-se no restart (by design). Secret HMAC vem de `ADMIN_PASSWORD` em `.env.admin`. TTL configurável via `TOKEN_TTL` no `.env.admin` (default 1800s = 30 min). Geração restrita a localhost (`/api/gen-token`).
 - `.env` e `secrets.env` → `chmod 600` (só o dono lê)
 - Pastas dos bots → `chmod 700`
 - `bot_data.db` → `chmod 600`

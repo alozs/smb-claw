@@ -1,10 +1,14 @@
 import asyncio
+import hashlib
+import hmac
 import json
 import os
 import re
+import secrets
 import shutil
 import sqlite3
 import subprocess
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -13,6 +17,8 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import RedirectResponse, Response
 from typing import Optional
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -31,6 +37,7 @@ SYSTEM_GLOBAL_KEYS: dict[str, set[str]] = {
     "config.global": {
         "PROVIDER", "ADMIN_ID", "MODEL", "ACCESS_MODE",
         "BUGFIXER_ENABLED", "BUGFIXER_TIMES_PER_DAY", "BUGFIXER_TELEGRAM_TOKEN",
+        "ADMIN_PANEL_URL",
     },
     "secrets.global": {"OPENROUTER_API_KEY"},
 }
@@ -38,6 +45,86 @@ SYSTEM_GLOBAL_KEYS: dict[str, set[str]] = {
 app = FastAPI(title="Claude Bots Admin")
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+# ── Auth: acesso temporário por token ────────────────────────────────────────
+
+def _load_admin_env() -> dict:
+    env_path = Path(__file__).resolve().parent / ".env.admin"
+    result = {}
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                k, v = line.split("=", 1)
+                result[k.strip()] = v.strip()
+    return result
+
+_admin_env = _load_admin_env()
+AUTH_SECRET = _admin_env.get("ADMIN_PASSWORD", secrets.token_urlsafe(32))
+TOKEN_TTL = int(_admin_env.get("TOKEN_TTL", "1800"))  # 30 min default
+COOKIE_NAME = "admin_session"
+
+# In-memory token store: {token: expiry_timestamp}
+# Nota: funciona com --workers 1 (default do systemd service)
+_valid_tokens: dict[str, float] = {}
+
+
+def generate_access_token(ttl: int = TOKEN_TTL) -> str:
+    raw = secrets.token_urlsafe(32)
+    sig = hmac.new(AUTH_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()[:16]
+    token = f"{raw}.{sig}"
+    _valid_tokens[token] = time.time() + ttl
+    _prune_expired_tokens()
+    return token
+
+
+def _prune_expired_tokens():
+    now = time.time()
+    expired = [t for t, exp in _valid_tokens.items() if exp <= now]
+    for t in expired:
+        del _valid_tokens[t]
+
+
+def validate_token(token: str) -> bool:
+    if token not in _valid_tokens:
+        return False
+    if time.time() > _valid_tokens[token]:
+        del _valid_tokens[token]
+        return False
+    return True
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Endpoint interno de geração de token (protegido por IP no handler)
+        if request.url.path == "/api/gen-token":
+            return await call_next(request)
+
+        # 1. Cookie de sessão válido
+        session_token = request.cookies.get(COOKIE_NAME)
+        if session_token and validate_token(session_token):
+            return await call_next(request)
+
+        # 2. Query param ?token= (link temporário)
+        query_token = request.query_params.get("token")
+        if query_token and validate_token(query_token):
+            redirect_path = request.url.path or "/"
+            response = RedirectResponse(url=redirect_path, status_code=302)
+            ttl_remaining = int(_valid_tokens.get(query_token, time.time()) - time.time())
+            response.set_cookie(
+                COOKIE_NAME, query_token,
+                max_age=max(ttl_remaining, 60),
+                httponly=True, samesite="lax",
+            )
+            return response
+
+        # 3. Sem autenticação — redireciona para landing page
+        return RedirectResponse(url="https://alozs.github.io/smb-claw/", status_code=302)
+
+
+app.add_middleware(AuthMiddleware)
 
 
 def validate_bot_name(name: str):
@@ -251,6 +338,24 @@ def get_analytics(bot_name: str, days: int) -> dict:
     except Exception as e:
         return {"msgs": 0, "input_tokens": 0, "output_tokens": 0,
                 "tool_calls": 0, "errors": 0, "cost_usd": 0.0, "error": str(e)}
+
+
+# ── Routes: Auth ──────────────────────────────────────────────────────────────
+
+@app.post("/api/gen-token")
+async def gen_token(request: Request):
+    """Gera token de acesso temporário. Apenas localhost."""
+    client = request.client
+    if not client or client.host not in ("127.0.0.1", "::1"):
+        raise HTTPException(403, detail="Only localhost allowed")
+    ttl = TOKEN_TTL
+    try:
+        body = await request.json()
+        ttl = int(body.get("ttl", TOKEN_TTL))
+    except Exception:
+        pass
+    token = generate_access_token(ttl)
+    return {"token": token, "ttl": ttl}
 
 
 # ── Routes: UI ────────────────────────────────────────────────────────────────
