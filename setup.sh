@@ -1078,8 +1078,18 @@ if [ "$BOT_COUNT" -gt 0 ]; then
             fi
 
             if [ "$HAS_TOKEN" = true ]; then
+                # Limpar locks órfãos e processos antigos antes de iniciar
+                OLD_PID=$(pgrep -f "bot.py --bot-dir.*bots/$bot_name" 2>/dev/null)
+                if [ -n "$OLD_PID" ]; then
+                    kill $OLD_PID 2>/dev/null
+                    sleep 1
+                fi
+                # Limpar lock files órfãos
+                TOKEN_ID=$(echo "$TOKEN_VAL" | cut -d: -f1)
+                rm -f "$BASE_DIR/.locks/bot_${TOKEN_ID}.lock" 2>/dev/null
+
                 if command -v systemctl &>/dev/null && [ -f "/etc/systemd/system/claude-bot-$bot_name.service" ]; then
-                    sudo systemctl start "claude-bot-$bot_name" 2>/dev/null
+                    sudo systemctl restart "claude-bot-$bot_name" 2>/dev/null
                     sleep 2
                     if systemctl is-active --quiet "claude-bot-$bot_name" 2>/dev/null; then
                         echo -e "  ${G}●${N} ${B}${bot_name}${N} ${D}— iniciado${N}"
