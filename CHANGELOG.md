@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.2 (2026-03-15)
+
+Novas funcionalidades
+
+• Wizard interativo para criação de novos agentes Telegram diretamente pelo chat, sem necessidade de editar arquivos manualmente.
+• Wizard interativo para criação de sub-agentes especializados, permitindo delegar tarefas a agentes dedicados com ferramentas e personalidades próprias.
+• Comando /cancelar_wizard para interromper qualquer wizard em andamento a qualquer momento.
+• Menu de comandos Telegram atualizado e organizado, exibindo todas as opções disponíveis para o usuário e para o administrador de forma clara.
+
+Melhorias
+
+• Proteção aprimorada contra uso indevido do sistema: bloqueio de tentativas de sobrescrever instruções de segurança via mensagens e comandos.
+• Boas-vindas do /start revisadas para refletir todos os comandos disponíveis, incluindo os novos wizards de criação.
+• Experiência do administrador mais fluida ao provisionar novos agentes — o processo agora guia passo a passo sem exigir acesso ao servidor.
+
 ## 0.2.1 (2026-03-15)
 
 Com base nas mudanças reais do repositório, aqui estão as notas de release:
