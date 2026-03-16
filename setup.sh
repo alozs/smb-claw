@@ -222,13 +222,25 @@ done <<< "$MISSING"
 if [ -n "$MISSING_PKGS" ]; then
     echo ""
     echo -ne "  ${C}⠋${N} Instalando${MISSING_PKGS}..."
-    pip install --break-system-packages $MISSING_PKGS -q 2>/dev/null &
+    # Detecta pip disponível
+    if command -v pip3 &>/dev/null; then
+        PIP_CMD="pip3"
+    elif command -v pip &>/dev/null; then
+        PIP_CMD="pip"
+    else
+        echo -e "\r  ${FAIL} pip não encontrado                             "
+        echo -e "  ${D}Instale: apt install python3-pip${N}"
+        exit 1
+    fi
+    $PIP_CMD install --break-system-packages $MISSING_PKGS -q 2>/tmp/smb-pip.log &
     PIP_PID=$!
     spinner $PIP_PID "Instalando pacotes..." && {
         echo -e "\r  ${OK} Pacotes instalados com sucesso              "
     } || {
         echo -e "\r  ${FAIL} Erro ao instalar pacotes                    "
-        echo -e "  ${D}Tente manualmente: pip install$MISSING_PKGS${N}"
+        echo -e "  ${D}Tente manualmente: $PIP_CMD install$MISSING_PKGS${N}"
+        echo -e "  ${D}Log: cat /tmp/smb-pip.log${N}"
+        exit 1
     }
 fi
 
