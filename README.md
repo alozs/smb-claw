@@ -2,13 +2,13 @@
 
 Sistema de gestão de agentes de IA para Telegram, focado em **simplicidade**, **facilidade de uso** e **segurança**. Rode múltiplos bots independentes numa única VPS, cada um com personalidade própria, memória persistente, ferramentas modulares e subagentes especializados.
 
-Pensado para quem quer colocar agentes de IA em produção rápido — sem infraestrutura complexa, sem Docker, sem Kubernetes. Um script e você tem um agente funcionando.
+Pensado para quem quer colocar agentes de IA em produção rápido — sem infraestrutura complexa, sem Kubernetes. Um script e você tem um agente funcionando. Roda em VPS com systemd ou em Docker.
 
 ## Por que o SMB Claw existe?
 
 Depois de semanas passando raiva com o OpenClaw — que às vezes funciona, às vezes não, você pede uma coisa e ele faz outra — decidi criar minha própria alternativa com uma proposta diferente: **extremamente simples, eficiente e funcionando como um verdadeiro assistente de IA confiável**.
 
-Sem precisar lidar com infraestrutura complexa como Docker ou Kubernetes. Basicamente um script e você já tem um agente rodando — do jeito que deveria ser desde o começo.
+Sem precisar lidar com infraestrutura complexa como Kubernetes. Basicamente um script e você já tem um agente rodando — do jeito que deveria ser desde o começo. Funciona tanto em VPS com systemd quanto em containers Docker.
 
 ### Ultra leve
 
@@ -22,12 +22,15 @@ Rode **10, 20, 50 agentes** na mesma VPS de $5/mês. Eles só processam quando r
 
 - **Ultra leve** — ~75 MB por agente em idle, zero portas abertas, escala em VPS barata
 - **Sem limites de agentes** — crie quantos quiser, cada um isolado com seu próprio banco, memória e personalidade
-- **Multi-provedor** — Claude (API ou CLI), OpenRouter (Grok, GPT-4o, Gemini), OpenAI (Codex CLI)
+- **Multi-provedor** — Claude (API ou CLI), OpenRouter (Grok, GPT-4o, Gemini), OpenAI (API ou ChatGPT Plus/Pro)
 - **Memória em camadas** — personalidade, perfil do usuário, memória de longo prazo, diários diários
 - **Ferramentas modulares** — shell, HTTP, Git, GitHub, banco de dados, arquivos, cron
 - **Subagentes** — delegue tarefas para agentes especializados (geração de imagens, análises etc.)
+- **Wizard CLI** — setup interativo no terminal com OAuth integrado (funciona em Docker e SSH headless)
+- **Reconfiguração fácil** — `./setup.sh --config` para editar valores sem reinstalar
 - **Painel web** — dashboard FastAPI com setup wizard, editor de configuração e logs em tempo real
 - **Wizard via Telegram** — crie e apague agentes e sub-agentes direto pelo chat, passo a passo, com geração de personalidade assistida por IA
+- **Docker ready** — detecta containers automaticamente, ajusta inicialização e orienta exposição de portas
 - **Menu de comandos** — botão nativo do Telegram com todos os comandos disponíveis (diferente por usuário comum vs admin)
 - **Bug Fixer autônomo** — agente que monitora erros e tenta corrigir sozinho
 - **Segurança por padrão** — tokens isolados, sandbox de comandos, controle de acesso por aprovação
@@ -37,13 +40,13 @@ Rode **10, 20, 50 agentes** na mesma VPS de $5/mês. Eles só processam quando r
 ## Requisitos
 
 - **Python 3.10+**
-- **Linux com systemd** (Ubuntu/Debian recomendado)
+- **Linux** (Ubuntu/Debian recomendado) — com systemd ou Docker
 - **Token do Telegram** via [@BotFather](https://t.me/BotFather) (um por agente)
 - **Provedor de IA** (pelo menos um):
   - [Claude Code](https://claude.ai) — assinatura ativa (sem API key, usa OAuth)
   - [Anthropic API](https://console.anthropic.com) — API key
   - [OpenRouter](https://openrouter.ai) — API key (acesso a Grok, GPT-4o, Gemini, Mistral etc.)
-  - [OpenAI/Codex](https://platform.openai.com) — API key ou Codex CLI OAuth
+  - [OpenAI/Codex](https://platform.openai.com) — API key ou ChatGPT Plus/Pro OAuth (sem custo extra)
 
 ### Dependências opcionais
 
@@ -58,26 +61,42 @@ Rode **10, 20, 50 agentes** na mesma VPS de $5/mês. Eles só processam quando r
 ## Instalação
 
 ```bash
-git clone https://github.com/seu-usuario/claude-bots.git
-cd claude-bots
+git clone https://github.com/alozs/smb-claw.git
+cd smb-claw
 bash setup.sh
 ```
 
 O `setup.sh` faz tudo automaticamente:
-1. Verifica Python, Node, ffmpeg, Claude CLI, Codex CLI
-2. Detecta autenticações já configuradas (OAuth, API keys)
-3. Instala pacotes Python faltantes
-4. Inicia o painel admin com o setup wizard
+1. Instala dependências do sistema (python3, pip, git, lsof) se necessário
+2. Verifica Python, Node, ffmpeg, Claude CLI, Codex CLI
+3. Detecta autenticações já configuradas (OAuth, API keys)
+4. Instala pacotes Python faltantes
+5. Inicia o painel admin
+6. Abre o **wizard CLI interativo** na primeira execução
 
-Ao final, abra o navegador no endereço exibido (padrão: `http://<ip>:8080`).
+### Wizard CLI (terminal)
+
+Na primeira execução, o setup roda um wizard interativo direto no terminal:
+- Escolhe o provedor de IA (Anthropic, OpenRouter, OpenAI/Codex)
+- Configura autenticação (OAuth do Claude/Codex ou API key)
+- Define modelo, Admin ID e modo de acesso
+- Cria e inicia o primeiro bot automaticamente
+
+Funciona em qualquer ambiente — VPS, Docker, SSH headless.
+
+### Reconfigurar (`--config`)
+
+Para editar a configuração existente sem reinstalar tudo:
+
+```bash
+./setup.sh --config    # ou -c
+```
+
+Mostra os valores atuais entre parênteses — pressione Enter para manter ou digite um novo valor. Útil para trocar de provedor, modelo ou modo de acesso.
 
 ### Setup wizard (painel web)
 
-Na primeira execução, o painel abre o **wizard de configuração** onde você:
-- Escolhe o provedor de IA (Claude CLI, Anthropic, OpenRouter, Codex)
-- Testa a conexão com o provedor
-- Define o `ADMIN_ID` (seu Telegram ID) e modelo padrão
-- Cria seu primeiro bot
+O painel admin também oferece um wizard visual em `http://<ip>:8080` com as mesmas funcionalidades.
 
 ### Instalação manual (sem wizard)
 
@@ -265,18 +284,19 @@ MODEL=claude-sonnet-4-6
 
 ### `codex` — OpenAI / ChatGPT
 
-> Modelos OpenAI via API key ou OAuth do Codex CLI (ChatGPT). Ideal para GPT-5.x e família codex.
+> Modelos OpenAI via API key ou OAuth do ChatGPT (plano Plus/Pro). Ideal para GPT-5.x e família codex.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Provedor:   codex                                      │
-│  Auth:       API key OU OAuth do Codex CLI (ChatGPT)    │
+│  Auth:       API key OU OAuth do ChatGPT (Plus/Pro)     │
 │  Modelos:    GPT-5.4, GPT-5.3-codex, GPT-5.2, GPT-5.1  │
 │  Ferramentas: tools customizadas do framework           │
+│  API:        Chat Completions (key) / Responses (OAuth) │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Opção A — API key:**
+**Opção A — API key (Chat Completions API):**
 ```bash
 # secrets.global:
 OPENAI_API_KEY=sk-...
@@ -286,7 +306,7 @@ PROVIDER=codex
 MODEL=gpt-5.4
 ```
 
-**Opção B — OAuth do Codex CLI (sem API key):**
+**Opção B — OAuth do ChatGPT Plus/Pro (sem API key, sem custo extra):**
 ```bash
 # 1. Instale o Codex CLI
 npm install -g @openai/codex
@@ -302,6 +322,8 @@ MODEL=gpt-5.4
 ```
 
 O token OAuth é lido a cada chamada — renovação automática pelo Codex CLI.
+
+> **Como funciona:** Com OAuth, o framework usa a Responses API via endpoint WHAM (`chatgpt.com/backend-api`), que aceita o token da assinatura ChatGPT Plus/Pro. Com API key, usa a Chat Completions API padrão (`api.openai.com`). A detecção é automática.
 
 ### `openrouter` — Multi-modelo
 
@@ -331,7 +353,7 @@ MODEL=x-ai/grok-3
 |:---|:---:|:---:|:---|
 | `claude-cli` | — | `claude login` | Incluso na assinatura Claude Code |
 | `anthropic` | `ANTHROPIC_API_KEY` | `claude login` | Pay-per-use (Anthropic) |
-| `codex` | `OPENAI_API_KEY` | `codex login` | Pay-per-use (OpenAI) |
+| `codex` | `OPENAI_API_KEY` | `codex login` | API key: pay-per-use / OAuth: incluso no ChatGPT Plus/Pro |
 | `openrouter` | `OPENROUTER_API_KEY` | — | Pay-per-use (OpenRouter) |
 
 > **Dica:** OAuth é sempre prioridade menor que API key. Se `ANTHROPIC_API_KEY` estiver definida, ela é usada mesmo com OAuth disponível. Remova a key para forçar OAuth.
@@ -641,7 +663,7 @@ sudo systemctl stop claude-bot-meu-agente
 sudo journalctl -u claude-bot-meu-agente -f
 ```
 
-Cada bot roda como um serviço systemd com `Restart=always` e `RestartSec=10` — se cair, volta sozinho.
+Em VPS com systemd, cada bot roda como um serviço com `Restart=always` e `RestartSec=10` — se cair, volta sozinho. Em Docker, os bots são iniciados via `nohup` automaticamente pelo `setup.sh`.
 
 ---
 
@@ -708,7 +730,7 @@ Em idle, cada agente consome **~75 MB de RAM** e **0% de CPU**. Só processa qua
 ## Arquitetura
 
 ```
-claude-bots/
+smb-claw/
 ├── bot.py                  # Core: handlers, loop principal, integração Telegram
 ├── db.py                   # Persistência SQLite (WAL mode)
 ├── scheduler.py            # Notificações proativas agendadas (loop 60s)
@@ -744,7 +766,7 @@ claude-bots/
 ├── secrets.global          # Credenciais globais (chmod 600)
 ├── context.global          # Instruções de sistema globais
 │
-├── setup.sh                # Bootstrap: verifica deps, inicia painel admin
+├── setup.sh                # Bootstrap: wizard CLI, deps, painel admin (--config para reconfigurar)
 ├── criar-bot.sh            # Cria novo bot com toda infraestrutura + systemd
 ├── gerenciar.sh            # Gerencia serviços (start/stop/restart/logs)
 ├── configurar-secrets.sh   # Entrada segura de credenciais
@@ -836,7 +858,7 @@ O cron `check-update.sh` roda diariamente às 8h e notifica o admin no Telegram 
 ## Testes
 
 ```bash
-cd claude-bots
+cd smb-claw
 pytest tests/ -v
 ```
 
