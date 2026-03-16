@@ -452,10 +452,11 @@ async def _describe_image_for_cli(image_path: str) -> str:
                     {"type": "input_image", "image_url": f"data:image/jpeg;base64,{img_data}"},
                     {"type": "input_text", "text": "Descreva esta imagem em detalhes em português."},
                 ]
-                response = await oai_client.responses.create(
-                    model=vision_model, store=False,
+                stream = await oai_client.responses.create(
+                    model=vision_model, store=False, stream=True,
                     input=[{"role": "user", "content": vision_content}],
                 )
+                response = await stream.get_final_response()
                 for item in response.output:
                     if getattr(item, "type", "") == "message":
                         for c in getattr(item, "content", []):
@@ -742,10 +743,12 @@ async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
     error_str = ""
     try:
         for _ in range(20):
-            kwargs = dict(model=MODEL, instructions=system, input=resp_input, store=False)
+            kwargs = dict(model=MODEL, instructions=system, input=resp_input, store=False, stream=True)
             if resp_tools:
                 kwargs["tools"] = resp_tools
-            response = await client.responses.create(**kwargs)
+            stream = await client.responses.create(**kwargs)
+            # Consumir stream e montar resposta completa
+            response = await stream.get_final_response()
             total_input += getattr(response.usage, "input_tokens", 0)
             total_output += getattr(response.usage, "output_tokens", 0)
 
