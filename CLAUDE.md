@@ -206,6 +206,7 @@ Se não estiver instalada, PDFs recebem fallback graceful com nome+tamanho.
 | `/version` | Mostra versão atual e se há atualizações pendentes |
 | `/update` | Puxa atualizações do remote e reinicia todos os serviços |
 | `/painel [min]` | Gera link temporário de acesso ao painel admin (default: 30 min) |
+| `/config` | Configurar agentes e config global via menus inline |
 | `/criar_agente` | Abre wizard passo a passo para criar novo agente Telegram |
 | `/criar_subagente` | Abre wizard passo a passo para criar novo sub-agente |
 | `/cancelar_wizard` | Cancela wizard em andamento |

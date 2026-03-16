@@ -1759,6 +1759,11 @@ async def _wizard_handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE
     uid = update.effective_user.id
     wtype = wizard["type"]
 
+    # Config wizard — delega para handler dedicado
+    if wtype == "config":
+        await _cfg_handle_text(update, context, wizard)
+        return
+
     if step == "name":
         if not re.match(r"^[a-zA-Z0-9_-]{2,32}$", text):
             await update.message.reply_text(
@@ -2009,6 +2014,653 @@ async def cmd_cancelar_wizard(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ Wizard cancelado.")
     else:
         await update.message.reply_text("Nenhum wizard em andamento.")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# COMANDO /config — Gerenciamento de agentes via Telegram
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Variáveis que NÃO podem ser editadas via /config
+_CFG_BLACKLIST = {"TELEGRAM_TOKEN", "WORK_DIR"}
+
+# Variáveis "conhecidas" do .env dos bots (tudo fora disso é custom)
+_CFG_KNOWN_BOT_VARS = {
+    "TELEGRAM_TOKEN", "BOT_NAME", "MAX_HISTORY", "TOOLS", "WORK_DIR",
+    "MODEL", "ACCESS_MODE", "PROVIDER", "GROUP_MODE", "DESCRIPTION",
+}
+
+# Variáveis conhecidas do config.global
+_CFG_KNOWN_GLOBAL_VARS = {
+    "PROVIDER", "ADMIN_ID", "MODEL", "ACCESS_MODE",
+    "BUGFIXER_ENABLED", "BUGFIXER_TIMES_PER_DAY", "BUGFIXER_TELEGRAM_TOKEN",
+    "ADMIN_PANEL_URL", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
+    "POSTHOG_PERSONAL_API_KEY", "POSTHOG_HOST",
+}
+
+
+def _mask_value(key: str, value: str) -> str:
+    """Mascara valores sensíveis (TOKEN/KEY/SECRET/PASSWORD)."""
+    sensitive = ("TOKEN", "KEY", "SECRET", "PASSWORD")
+    if any(s in key.upper() for s in sensitive) and len(value) > 6:
+        return value[:3] + "***" + value[-3:]
+    return value
+
+
+def _read_env_as_dict(path: Path) -> dict:
+    """Lê .env/config como dict ordenado, ignorando comentários."""
+    result = {}
+    if not path.exists():
+        return result
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key, _, value = stripped.partition("=")
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            result[key] = value
+    return result
+
+
+def _remove_env_key(path: Path, key: str) -> None:
+    """Remove (comenta) uma chave do .env."""
+    if not path.exists():
+        return
+    lines = path.read_text(encoding="utf-8").splitlines()
+    result = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            k = stripped.split("=", 1)[0].strip()
+            if k == key:
+                result.append(f"# REMOVED: {line}")
+                continue
+        result.append(line)
+    path.write_text("\n".join(result) + "\n", encoding="utf-8")
+
+
+def _get_custom_vars(env_dict: dict) -> dict:
+    """Retorna variáveis fora do set conhecido (custom do usuário)."""
+    return {k: v for k, v in env_dict.items() if k not in _CFG_KNOWN_BOT_VARS}
+
+
+def _cfg_target_keyboard() -> InlineKeyboardMarkup:
+    """Lista agentes disponíveis + opção global."""
+    bots_dir = BASE_DIR / "bots"
+    bots = sorted(d.name for d in bots_dir.iterdir() if d.is_dir()) if bots_dir.exists() else []
+    rows = []
+    for b in bots:
+        rows.append([InlineKeyboardButton(f"🤖 {b}", callback_data=f"cfg_agent_{b}")])
+    rows.append([InlineKeyboardButton("🌐 Config Global", callback_data="cfg_global")])
+    rows.append([InlineKeyboardButton("❌ Fechar", callback_data="cfg_cancel")])
+    return InlineKeyboardMarkup(rows)
+
+
+def _cfg_agent_menu_keyboard(bot_name: str, env_dict: dict) -> InlineKeyboardMarkup:
+    """Menu principal de um agente com valores atuais."""
+    def _btn(label, key, callback_key=None):
+        val = env_dict.get(key, "—")
+        display = _mask_value(key, val) if val != "—" else "—"
+        # Trunca display para caber no botão
+        if len(display) > 25:
+            display = display[:22] + "..."
+        return InlineKeyboardButton(
+            f"{label}: {display}", callback_data=f"cfg_var_{callback_key or key}"
+        )
+
+    rows = [
+        [_btn("Nome", "BOT_NAME"), _btn("Provedor", "PROVIDER")],
+        [_btn("Modelo", "MODEL"), _btn("Acesso", "ACCESS_MODE")],
+        [_btn("Grupo", "GROUP_MODE"), _btn("Histórico", "MAX_HISTORY")],
+        [InlineKeyboardButton("🔧 Ferramentas", callback_data="cfg_tools")],
+        [_btn("Descrição", "DESCRIPTION")],
+    ]
+    custom = _get_custom_vars(env_dict)
+    rows.append([InlineKeyboardButton(
+        f"📦 Variáveis customizadas ({len(custom)})", callback_data="cfg_custom"
+    )])
+    rows.append([
+        InlineKeyboardButton("📝 soul.md", callback_data="cfg_file_soul.md"),
+        InlineKeyboardButton("👤 USER.md", callback_data="cfg_file_USER.md"),
+    ])
+    rows.append([InlineKeyboardButton("<< Voltar", callback_data="cfg_back_main")])
+    return InlineKeyboardMarkup(rows)
+
+
+def _cfg_global_menu_keyboard(global_dict: dict) -> InlineKeyboardMarkup:
+    """Menu de config global."""
+    def _btn(label, key):
+        val = global_dict.get(key, "—")
+        display = _mask_value(key, val) if val != "—" else "—"
+        if len(display) > 25:
+            display = display[:22] + "..."
+        return InlineKeyboardButton(
+            f"{label}: {display}", callback_data=f"cfg_gvar_{key}"
+        )
+
+    rows = [
+        [_btn("Provedor", "PROVIDER"), _btn("Modelo", "MODEL")],
+        [_btn("Admin ID", "ADMIN_ID"), _btn("Acesso", "ACCESS_MODE")],
+        [_btn("BugFixer", "BUGFIXER_ENABLED"), _btn("BugFixer freq", "BUGFIXER_TIMES_PER_DAY")],
+        [InlineKeyboardButton("📄 context.global", callback_data="cfg_file_context.global")],
+        [InlineKeyboardButton("<< Voltar", callback_data="cfg_back_main")],
+    ]
+    return InlineKeyboardMarkup(rows)
+
+
+def _cfg_tools_keyboard(selected: list) -> InlineKeyboardMarkup:
+    """Toggle de ferramentas com prefixo cfg_tool_."""
+    rows = []
+    for key, label in WIZARD_TOOLS.items():
+        mark = "✅" if key in selected else "○"
+        rows.append([InlineKeyboardButton(f"{mark} {label}", callback_data=f"cfg_tool_{key}")])
+    rows.append([
+        InlineKeyboardButton("💾 Salvar", callback_data="cfg_tools_done"),
+        InlineKeyboardButton("<< Voltar", callback_data="cfg_back_agent"),
+    ])
+    return InlineKeyboardMarkup(rows)
+
+
+def _cfg_custom_vars_keyboard(custom_dict: dict) -> InlineKeyboardMarkup:
+    """Sub-menu de variáveis customizadas."""
+    rows = []
+    for key, val in custom_dict.items():
+        display = _mask_value(key, val)
+        if len(display) > 20:
+            display = display[:17] + "..."
+        rows.append([
+            InlineKeyboardButton(f"✏️ {key}={display}", callback_data=f"cfg_cust_e_{key}"),
+            InlineKeyboardButton("🗑️", callback_data=f"cfg_cust_d_{key}"),
+        ])
+    rows.append([InlineKeyboardButton("➕ Adicionar variável", callback_data="cfg_cust_add")])
+    rows.append([InlineKeyboardButton("<< Voltar", callback_data="cfg_back_agent")])
+    return InlineKeyboardMarkup(rows)
+
+
+def _cfg_file_keyboard(file_name: str) -> InlineKeyboardMarkup:
+    """Botões para ver/editar arquivo."""
+    back = "cfg_back_agent" if file_name != "context.global" else "cfg_back_global"
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✏️ Editar", callback_data=f"cfg_file_edit_{file_name}")],
+        [InlineKeyboardButton("<< Voltar", callback_data=back)],
+    ])
+
+
+async def cmd_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Entry point do /config — lista alvos."""
+    uid = update.effective_user.id
+    if not is_admin(uid):
+        return
+    kb = _cfg_target_keyboard()
+    await update.message.reply_text(
+        "⚙️ *Configuração*\n\nSelecione o que deseja configurar:",
+        parse_mode="Markdown",
+        reply_markup=kb,
+    )
+
+
+async def _cfg_handle_callback(query, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Dispatcher de callbacks cfg_."""
+    uid = query.from_user.id
+    data_cb = query.data
+    await query.answer()
+
+    if not is_admin(uid):
+        return
+
+    # ── Cancel ──
+    if data_cb == "cfg_cancel":
+        _wizard_state.pop(uid, None)
+        await query.edit_message_text("⚙️ Configuração fechada.")
+        return
+
+    # ── Selecionar agente ──
+    if data_cb.startswith("cfg_agent_"):
+        bot_name = data_cb[len("cfg_agent_"):]
+        env_path = BASE_DIR / "bots" / bot_name / ".env"
+        if not env_path.exists():
+            await query.edit_message_text(f"❌ Agente '{bot_name}' não encontrado.")
+            return
+        env_dict = _read_env_as_dict(env_path)
+        _wizard_state[uid] = {
+            "type": "config", "step": "agent_menu",
+            "data": {"target": "agent", "bot_name": bot_name, "msg_id": query.message.message_id},
+        }
+        await query.edit_message_text(
+            f"⚙️ *Configuração — {bot_name}*",
+            parse_mode="Markdown",
+            reply_markup=_cfg_agent_menu_keyboard(bot_name, env_dict),
+        )
+        return
+
+    # ── Selecionar global ──
+    if data_cb == "cfg_global":
+        global_dict = _read_env_as_dict(BASE_DIR / "config.global")
+        _wizard_state[uid] = {
+            "type": "config", "step": "global_menu",
+            "data": {"target": "global", "msg_id": query.message.message_id},
+        }
+        await query.edit_message_text(
+            "⚙️ *Configuração Global*",
+            parse_mode="Markdown",
+            reply_markup=_cfg_global_menu_keyboard(global_dict),
+        )
+        return
+
+    # ── Back navigation ──
+    if data_cb == "cfg_back_main":
+        _wizard_state.pop(uid, None)
+        await query.edit_message_text(
+            "⚙️ *Configuração*\n\nSelecione o que deseja configurar:",
+            parse_mode="Markdown",
+            reply_markup=_cfg_target_keyboard(),
+        )
+        return
+
+    # Precisa de wizard state a partir daqui
+    wizard = _wizard_state.get(uid)
+    if not wizard or wizard.get("type") != "config":
+        await query.edit_message_text("⚠️ Sessão expirada. Use /config para recomeçar.")
+        return
+
+    wdata = wizard["data"]
+
+    if data_cb == "cfg_back_agent":
+        bot_name = wdata["bot_name"]
+        env_dict = _read_env_as_dict(BASE_DIR / "bots" / bot_name / ".env")
+        wizard["step"] = "agent_menu"
+        wdata.pop("editing_key", None)
+        wdata.pop("editing_file", None)
+        wdata.pop("custom_key", None)
+        await query.edit_message_text(
+            f"⚙️ *Configuração — {bot_name}*",
+            parse_mode="Markdown",
+            reply_markup=_cfg_agent_menu_keyboard(bot_name, env_dict),
+        )
+        return
+
+    if data_cb == "cfg_back_global":
+        global_dict = _read_env_as_dict(BASE_DIR / "config.global")
+        wizard["step"] = "global_menu"
+        wdata.pop("editing_key", None)
+        wdata.pop("editing_file", None)
+        await query.edit_message_text(
+            "⚙️ *Configuração Global*",
+            parse_mode="Markdown",
+            reply_markup=_cfg_global_menu_keyboard(global_dict),
+        )
+        return
+
+    # ── Editar variável de agente ──
+    if data_cb.startswith("cfg_var_"):
+        key = data_cb[len("cfg_var_"):]
+        if key in _CFG_BLACKLIST:
+            await query.answer(f"❌ {key} não pode ser editado.", show_alert=True)
+            return
+        bot_name = wdata["bot_name"]
+        env_dict = _read_env_as_dict(BASE_DIR / "bots" / bot_name / ".env")
+        current = env_dict.get(key, "(não definido)")
+        display = _mask_value(key, current)
+        wizard["step"] = "edit_var"
+        wdata["editing_key"] = key
+        await query.edit_message_text(
+            f"✏️ *Editar {key}*\n\n"
+            f"Valor atual: `{display}`\n\n"
+            "Digite o novo valor:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("<< Voltar", callback_data="cfg_back_agent")]
+            ]),
+        )
+        return
+
+    # ── Editar variável global ──
+    if data_cb.startswith("cfg_gvar_"):
+        key = data_cb[len("cfg_gvar_"):]
+        global_dict = _read_env_as_dict(BASE_DIR / "config.global")
+        current = global_dict.get(key, "(não definido)")
+        display = _mask_value(key, current)
+        wizard["step"] = "edit_var"
+        wdata["editing_key"] = key
+        await query.edit_message_text(
+            f"✏️ *Editar {key} (global)*\n\n"
+            f"Valor atual: `{display}`\n\n"
+            "Digite o novo valor:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("<< Voltar", callback_data="cfg_back_global")]
+            ]),
+        )
+        return
+
+    # ── Ferramentas ──
+    if data_cb == "cfg_tools":
+        bot_name = wdata["bot_name"]
+        env_dict = _read_env_as_dict(BASE_DIR / "bots" / bot_name / ".env")
+        tools_raw = env_dict.get("TOOLS", "none").lower()
+        selected = [] if tools_raw == "none" else [t.strip() for t in tools_raw.split(",")]
+        wdata["tools_selected"] = selected
+        wizard["step"] = "tools_toggle"
+        await query.edit_message_text(
+            f"🔧 *Ferramentas — {bot_name}*\n\nToque para marcar/desmarcar:",
+            parse_mode="Markdown",
+            reply_markup=_cfg_tools_keyboard(selected),
+        )
+        return
+
+    if data_cb.startswith("cfg_tool_"):
+        tool = data_cb[len("cfg_tool_"):]
+        selected = wdata.get("tools_selected", [])
+        if tool in selected:
+            selected.remove(tool)
+        else:
+            selected.append(tool)
+        wdata["tools_selected"] = selected
+        await query.edit_message_reply_markup(reply_markup=_cfg_tools_keyboard(selected))
+        return
+
+    if data_cb == "cfg_tools_done":
+        bot_name = wdata["bot_name"]
+        selected = wdata.get("tools_selected", [])
+        tools_val = ",".join(selected) if selected else "none"
+        env_path = BASE_DIR / "bots" / bot_name / ".env"
+        _write_bot_env(env_path, {"TOOLS": tools_val})
+        _append_daily_log(f"[config] {bot_name} TOOLS={tools_val}")
+        env_dict = _read_env_as_dict(env_path)
+        wizard["step"] = "agent_menu"
+        wdata.pop("tools_selected", None)
+        # Perguntar restart
+        wizard["step"] = "ask_restart"
+        await query.edit_message_text(
+            f"✅ Ferramentas atualizadas: `{tools_val}`\n\n"
+            f"Reiniciar *{bot_name}* para aplicar?",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Sim, reiniciar", callback_data="cfg_restart_yes"),
+                 InlineKeyboardButton("Não", callback_data="cfg_restart_no")],
+            ]),
+        )
+        return
+
+    # ── Variáveis customizadas ──
+    if data_cb == "cfg_custom":
+        bot_name = wdata["bot_name"]
+        env_dict = _read_env_as_dict(BASE_DIR / "bots" / bot_name / ".env")
+        custom = _get_custom_vars(env_dict)
+        wizard["step"] = "custom_vars"
+        await query.edit_message_text(
+            f"📦 *Variáveis customizadas — {bot_name}*\n\n"
+            f"{len(custom)} variável(is) encontrada(s).",
+            parse_mode="Markdown",
+            reply_markup=_cfg_custom_vars_keyboard(custom),
+        )
+        return
+
+    if data_cb == "cfg_cust_add":
+        wizard["step"] = "custom_add_key"
+        await query.edit_message_text(
+            "➕ *Nova variável*\n\nDigite o nome da variável (ex: `API_KEY_3`):",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("<< Voltar", callback_data="cfg_custom")]
+            ]),
+        )
+        return
+
+    if data_cb.startswith("cfg_cust_e_"):
+        key = data_cb[len("cfg_cust_e_"):]
+        bot_name = wdata["bot_name"]
+        env_dict = _read_env_as_dict(BASE_DIR / "bots" / bot_name / ".env")
+        current = env_dict.get(key, "(não definido)")
+        display = _mask_value(key, current)
+        wizard["step"] = "custom_edit_val"
+        wdata["custom_key"] = key
+        await query.edit_message_text(
+            f"✏️ *Editar {key}*\n\nValor atual: `{display}`\n\nDigite o novo valor:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("<< Voltar", callback_data="cfg_custom")]
+            ]),
+        )
+        return
+
+    if data_cb.startswith("cfg_cust_d_"):
+        key = data_cb[len("cfg_cust_d_"):]
+        bot_name = wdata["bot_name"]
+        env_path = BASE_DIR / "bots" / bot_name / ".env"
+        _remove_env_key(env_path, key)
+        _append_daily_log(f"[config] {bot_name} removeu variável: {key}")
+        env_dict = _read_env_as_dict(env_path)
+        custom = _get_custom_vars(env_dict)
+        await query.edit_message_text(
+            f"🗑️ Variável `{key}` removida.\n\n"
+            f"📦 *Variáveis customizadas — {bot_name}*",
+            parse_mode="Markdown",
+            reply_markup=_cfg_custom_vars_keyboard(custom),
+        )
+        return
+
+    # ── Arquivos (soul.md, USER.md, context.global) ──
+    if data_cb.startswith("cfg_file_") and not data_cb.startswith("cfg_file_edit_"):
+        file_name = data_cb[len("cfg_file_"):]
+        if file_name == "context.global":
+            file_path = BASE_DIR / "context.global"
+        else:
+            bot_name = wdata["bot_name"]
+            file_path = BASE_DIR / "bots" / bot_name / file_name
+        content = _read_file_safe(file_path, max_chars=3000)
+        if not content:
+            content = "(arquivo vazio ou inexistente)"
+        wizard["step"] = "view_file"
+        wdata["editing_file"] = file_name
+        # Trunca para caber na mensagem Telegram (4096 chars)
+        preview = content[:2500]
+        if len(content) > 2500:
+            preview += "\n... (truncado)"
+        await query.edit_message_text(
+            f"📄 *{file_name}*\n\n```\n{preview}\n```",
+            parse_mode="Markdown",
+            reply_markup=_cfg_file_keyboard(file_name),
+        )
+        return
+
+    if data_cb.startswith("cfg_file_edit_"):
+        file_name = data_cb[len("cfg_file_edit_"):]
+        wizard["step"] = "edit_file"
+        wdata["editing_file"] = file_name
+        await query.edit_message_text(
+            f"✏️ *Editar {file_name}*\n\n"
+            "Envie o conteúdo completo do arquivo.\n"
+            "_(O conteúdo atual será substituído integralmente)_",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("<< Voltar",
+                    callback_data=f"cfg_file_{file_name}")]
+            ]),
+        )
+        return
+
+    # ── Restart ──
+    if data_cb == "cfg_restart_yes":
+        bot_name = wdata.get("bot_name", "")
+        is_self = (bot_name == BOT_DIR.name)
+        await _cfg_do_restart(query, bot_name, is_self)
+        _wizard_state.pop(uid, None)
+        return
+
+    if data_cb == "cfg_restart_no":
+        target = wdata.get("target")
+        if target == "global":
+            global_dict = _read_env_as_dict(BASE_DIR / "config.global")
+            wizard["step"] = "global_menu"
+            await query.edit_message_text(
+                "⚙️ *Configuração Global*",
+                parse_mode="Markdown",
+                reply_markup=_cfg_global_menu_keyboard(global_dict),
+            )
+        else:
+            bot_name = wdata["bot_name"]
+            env_dict = _read_env_as_dict(BASE_DIR / "bots" / bot_name / ".env")
+            wizard["step"] = "agent_menu"
+            await query.edit_message_text(
+                f"⚙️ *Configuração — {bot_name}*",
+                parse_mode="Markdown",
+                reply_markup=_cfg_agent_menu_keyboard(bot_name, env_dict),
+            )
+        return
+
+
+async def _cfg_handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE, wizard: dict) -> None:
+    """Processa texto nos states de edição do /config."""
+    step = wizard["step"]
+    wdata = wizard["data"]
+    text = (update.message.text or "").strip()
+    uid = update.effective_user.id
+    target = wdata.get("target", "agent")
+
+    if step == "edit_var":
+        key = wdata.get("editing_key", "")
+        if not key:
+            return
+        if target == "global":
+            env_path = BASE_DIR / "config.global"
+            label = "global"
+        else:
+            bot_name = wdata["bot_name"]
+            env_path = BASE_DIR / "bots" / bot_name / ".env"
+            label = bot_name
+        _write_bot_env(env_path, {key: text})
+        _append_daily_log(f"[config] {label} {key} alterado via /config")
+        # Perguntar restart
+        wizard["step"] = "ask_restart"
+        await update.message.reply_text(
+            f"✅ `{key}` atualizado.\n\n"
+            f"Reiniciar *{wdata.get('bot_name', 'serviço')}* para aplicar?",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Sim, reiniciar", callback_data="cfg_restart_yes"),
+                 InlineKeyboardButton("Não", callback_data="cfg_restart_no")],
+            ]),
+        )
+        return
+
+    if step == "custom_add_key":
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", text):
+            await update.message.reply_text(
+                "⚠️ Nome inválido. Use letras, números e underscore (ex: `MY_VAR`).",
+                parse_mode="Markdown",
+            )
+            return
+        wdata["custom_key"] = text.upper()
+        wizard["step"] = "custom_add_val"
+        await update.message.reply_text(
+            f"📝 Agora digite o valor para `{text.upper()}`:",
+            parse_mode="Markdown",
+        )
+        return
+
+    if step == "custom_add_val":
+        key = wdata.get("custom_key", "")
+        if not key:
+            return
+        bot_name = wdata["bot_name"]
+        env_path = BASE_DIR / "bots" / bot_name / ".env"
+        _write_bot_env(env_path, {key: text})
+        _append_daily_log(f"[config] {bot_name} nova variável: {key}")
+        env_dict = _read_env_as_dict(env_path)
+        custom = _get_custom_vars(env_dict)
+        wizard["step"] = "custom_vars"
+        await update.message.reply_text(
+            f"✅ `{key}` adicionada.\n\n📦 *Variáveis customizadas — {bot_name}*",
+            parse_mode="Markdown",
+            reply_markup=_cfg_custom_vars_keyboard(custom),
+        )
+        return
+
+    if step == "custom_edit_val":
+        key = wdata.get("custom_key", "")
+        if not key:
+            return
+        bot_name = wdata["bot_name"]
+        env_path = BASE_DIR / "bots" / bot_name / ".env"
+        _write_bot_env(env_path, {key: text})
+        _append_daily_log(f"[config] {bot_name} variável editada: {key}")
+        env_dict = _read_env_as_dict(env_path)
+        custom = _get_custom_vars(env_dict)
+        wizard["step"] = "custom_vars"
+        await update.message.reply_text(
+            f"✅ `{key}` atualizada.\n\n📦 *Variáveis customizadas — {bot_name}*",
+            parse_mode="Markdown",
+            reply_markup=_cfg_custom_vars_keyboard(custom),
+        )
+        return
+
+    if step == "edit_file":
+        file_name = wdata.get("editing_file", "")
+        if not file_name:
+            return
+        if file_name == "context.global":
+            file_path = BASE_DIR / "context.global"
+        else:
+            bot_name = wdata["bot_name"]
+            file_path = BASE_DIR / "bots" / bot_name / file_name
+        file_path.write_text(text, encoding="utf-8")
+        _append_daily_log(f"[config] {file_name} editado via /config")
+        back_cb = "cfg_back_global" if file_name == "context.global" else "cfg_back_agent"
+        await update.message.reply_text(
+            f"✅ `{file_name}` salvo ({len(text)} chars).",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("<< Voltar", callback_data=back_cb)]
+            ]),
+        )
+        wizard["step"] = "view_file"
+        return
+
+    # State que espera inline keyboard
+    await update.message.reply_text("👆 Use os botões acima para continuar.")
+
+
+async def _cfg_do_restart(query, bot_name: str, is_self: bool) -> None:
+    """Reinicia o agente (ou a si mesmo)."""
+    import subprocess as _sp
+    in_docker = Path("/.dockerenv").exists() or os.environ.get("IN_DOCKER")
+
+    if is_self:
+        await query.edit_message_text(f"🔄 Reiniciando *{bot_name}*...", parse_mode="Markdown")
+        _RESTART_FLAG.write_text(str(query.from_user.id))
+        if in_docker:
+            # Em Docker: exit para o orchestrator reiniciar
+            asyncio.get_event_loop().call_later(0.5, lambda: sys.exit(0))
+        else:
+            svc = f"claude-bot-{BOT_DIR.name}"
+            asyncio.get_event_loop().call_later(
+                0.5, lambda: _sp.run(["sudo", "systemctl", "restart", svc])
+            )
+    else:
+        await query.edit_message_text(f"🔄 Reiniciando *{bot_name}*...", parse_mode="Markdown")
+        svc = f"claude-bot-{bot_name}"
+        try:
+            if in_docker:
+                # Em Docker: tenta kill + nohup
+                pid_result = _sp.run(
+                    ["pgrep", "-f", f"--bot-dir.*bots/{bot_name}"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if pid_result.stdout.strip():
+                    for pid in pid_result.stdout.strip().split("\n"):
+                        _sp.run(["kill", pid.strip()], timeout=5)
+                # Assume que o supervisor reinicia automaticamente
+            else:
+                _sp.run(["sudo", "systemctl", "restart", svc], timeout=30, capture_output=True)
+            await query.edit_message_text(
+                f"✅ *{bot_name}* reiniciado.",
+                parse_mode="Markdown",
+            )
+        except Exception as e:
+            await query.edit_message_text(
+                f"❌ Erro ao reiniciar *{bot_name}*: `{e}`",
+                parse_mode="Markdown",
+            )
 
 
 async def cmd_painel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2657,6 +3309,7 @@ async def post_init(application: Application) -> None:
         BotCommand("restart",         "Reiniciar o bot"),
         BotCommand("criar_agente",    "Criar novo agente (wizard)"),
         BotCommand("criar_subagente", "Criar novo sub-agente (wizard)"),
+        BotCommand("config",           "Configurar agentes"),
         BotCommand("painel",           "Link temporário do painel admin"),
         BotCommand("apagar_agente",   "Apagar um agente existente"),
         BotCommand("cancelar_wizard", "Cancelar wizard em andamento"),
@@ -2837,9 +3490,14 @@ def main() -> None:
     app.add_handler(CommandHandler("criar_agente",    cmd_criar_agente))
     app.add_handler(CommandHandler("criar_subagente", cmd_criar_subagente))
     app.add_handler(CommandHandler("cancelar_wizard", cmd_cancelar_wizard))
+    app.add_handler(CommandHandler("config",            cmd_config))
     app.add_handler(CommandHandler("painel",           cmd_painel))
     app.add_handler(CommandHandler("apagar_agente",   cmd_apagar_agente))
     app.add_handler(CallbackQueryHandler(callback_del_agent, pattern=r"^del_agent_"))
+    app.add_handler(CallbackQueryHandler(
+        lambda u, c: _cfg_handle_callback(u.callback_query, c),
+        pattern=r"^cfg_",
+    ))
     app.add_handler(CallbackQueryHandler(callback_approval, pattern=r"^(approve|deny):\d+$"))
     app.add_handler(CallbackQueryHandler(callback_task,     pattern=r"^(retomar|cancelar):.+$"))
     app.add_handler(CallbackQueryHandler(
