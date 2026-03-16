@@ -10,9 +10,29 @@ Depois de semanas passando raiva com o OpenClaw — que às vezes funciona, às 
 
 Sem precisar lidar com infraestrutura complexa como Kubernetes. Basicamente um script e você já tem um agente rodando — do jeito que deveria ser desde o começo. Funciona tanto em VPS com systemd quanto em containers Docker.
 
+### SMB Claw vs OpenClaw
+
+|  | **SMB Claw** | **OpenClaw** |
+|---|---|---|
+| **RAM por agente** | ~75 MB idle | 8–16 GB recomendado |
+| **Setup** | 1 script (`bash setup.sh`) | Docker Compose ou Kubernetes |
+| **Tempo até primeiro agente** | ~2 minutos | 15–60 min (config, permissões, sandbox) |
+| **Codebase** | ~11.300 linhas | ~350.000+ linhas |
+| **Infraestrutura** | VPS $5/mês ou Docker | VPS $20+/mês ou cluster K8s |
+| **50 agentes simultâneos** | VPS 4 GB (~$20/mês) | Cluster com 32+ GB RAM |
+| **Segurança** | Sandbox por padrão, shell denylist, path traversal bloqueado | Vulnerabilidades documentadas pela Cisco e Kaspersky (porta aberta, plugins maliciosos) |
+| **Memória entre restarts** | SQLite persistente — sobrevive crashes | Volátil — perde contexto ao reiniciar |
+| **Confiabilidade** | Faz o que você pede | Loops de raciocínio desnecessários, reinterpreta objetivos |
+| **Provedores** | Claude, OpenAI, OpenRouter (4 modos) | 15+ provedores |
+| **Integrações** | Telegram (foco total) | 50+ plataformas |
+| **Painel admin** | FastAPI com token temporário (HMAC) | Dashboard na porta 18789 (exposta por padrão) |
+| **Criador** | Mantido ativamente | Criador saiu para a OpenAI (2026) |
+
+> **Resumo:** O OpenClaw é poderoso e extensível, mas exige infraestrutura robusta, configuração extensa e tem problemas documentados de segurança e estabilidade. O SMB Claw troca extensibilidade por **simplicidade radical** — setup em 2 minutos, 100x menos RAM, zero configuração de rede, e faz exatamente o que você pede.
+
 ### Ultra leve
 
-Todo o sistema — agent engine, painel admin, ferramentas, scheduler, bugfixer — soma **~11.300 linhas de código** (Python + HTML + Shell). Sem frameworks pesados, sem camadas de abstração desnecessárias, sem Docker.
+Todo o sistema — agent engine, painel admin, ferramentas, scheduler, bugfixer — soma **~11.300 linhas de código** (Python + HTML + Shell). Sem frameworks pesados, sem camadas de abstração desnecessárias.
 
 Cada agente consome **~75 MB de RAM** em idle e **zero portas de rede** — usa long polling do Telegram, não precisa abrir porta nem configurar domínio/SSL. A única porta usada é a do painel admin (8080), e ela é opcional.
 
