@@ -220,18 +220,19 @@ while IFS= read -r line; do
 done <<< "$MISSING"
 
 if [ -n "$MISSING_PKGS" ]; then
-    echo ""
-    echo -ne "  ${C}⠋${N} Instalando${MISSING_PKGS}..."
     # Detecta pip disponível
     if command -v pip3 &>/dev/null; then
         PIP_CMD="pip3"
     elif command -v pip &>/dev/null; then
         PIP_CMD="pip"
     else
-        echo -e "\r  ${FAIL} pip não encontrado                             "
+        echo ""
+        echo -e "  ${FAIL} pip não encontrado"
         echo -e "  ${D}Instale: apt install python3-pip${N}"
         exit 1
     fi
+    echo ""
+    echo -ne "  ${C}⠋${N} Instalando pacotes..."
     $PIP_CMD install --break-system-packages $MISSING_PKGS -q 2>/tmp/smb-pip.log &
     PIP_PID=$!
     spinner $PIP_PID "Instalando pacotes..." && {
