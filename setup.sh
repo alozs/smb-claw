@@ -11,6 +11,8 @@ BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 ADMIN_PORT="${ADMIN_PORT:-8080}"
 IN_DOCKER=false
 [ -f /.dockerenv ] || grep -q 'docker\|containerd' /proc/1/cgroup 2>/dev/null && IN_DOCKER=true
+FORCE_CONFIG=false
+[ "$1" = "--config" ] || [ "$1" = "--reconfig" ] || [ "$1" = "-c" ] && FORCE_CONFIG=true
 
 # ── Cores ────────────────────────────────────────────────────────────────────
 B='\033[1m'      # bold
@@ -527,7 +529,9 @@ with open('$token_file', 'w') as f:
 # ══════════════════════════════════════════════════════════════════════════════
 
 NEEDS_SETUP=false
-if [ ! -f "$BASE_DIR/config.global" ]; then
+if [ "$FORCE_CONFIG" = true ]; then
+    NEEDS_SETUP=true
+elif [ ! -f "$BASE_DIR/config.global" ]; then
     NEEDS_SETUP=true
 elif ! grep -q "^PROVIDER=.\+" "$BASE_DIR/config.global" 2>/dev/null; then
     NEEDS_SETUP=true
@@ -535,21 +539,57 @@ elif ! grep -q "^ADMIN_ID=[0-9]\+" "$BASE_DIR/config.global" 2>/dev/null; then
     NEEDS_SETUP=true
 fi
 
+# Carregar valores atuais (se existem) como defaults
+CUR_PROVIDER=""
+CUR_MODEL=""
+CUR_ADMIN_ID=""
+CUR_ACCESS=""
+CUR_ANTHROPIC_KEY=""
+CUR_OPENAI_KEY=""
+CUR_OPENROUTER_KEY=""
+if [ -f "$BASE_DIR/config.global" ]; then
+    CUR_PROVIDER=$(grep "^PROVIDER=" "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2-)
+    CUR_MODEL=$(grep "^MODEL=" "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2-)
+    CUR_ADMIN_ID=$(grep "^ADMIN_ID=" "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2-)
+    CUR_ACCESS=$(grep "^ACCESS_MODE=" "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2-)
+fi
+if [ -f "$BASE_DIR/secrets.global" ]; then
+    CUR_ANTHROPIC_KEY=$(grep "^ANTHROPIC_API_KEY=" "$BASE_DIR/secrets.global" 2>/dev/null | cut -d= -f2-)
+    CUR_OPENAI_KEY=$(grep "^OPENAI_API_KEY=" "$BASE_DIR/secrets.global" 2>/dev/null | cut -d= -f2-)
+    CUR_OPENROUTER_KEY=$(grep "^OPENROUTER_API_KEY=" "$BASE_DIR/secrets.global" 2>/dev/null | cut -d= -f2-)
+fi
+
 if [ "$NEEDS_SETUP" = true ]; then
-    step_header "Configuração inicial"
-    echo ""
-    echo -e "  ${D}Nenhuma configuração encontrada. Vamos configurar${N}"
-    echo -e "  ${D}o básico para começar.${N}"
+    if [ "$FORCE_CONFIG" = true ] && [ -f "$BASE_DIR/config.global" ]; then
+        step_header "Editar configuração"
+        echo ""
+        echo -e "  ${D}Valores atuais mostrados entre parênteses.${N}"
+        echo -e "  ${D}Pressione Enter para manter o valor atual.${N}"
+    else
+        step_header "Configuração inicial"
+        echo ""
+        echo -e "  ${D}Nenhuma configuração encontrada. Vamos configurar${N}"
+        echo -e "  ${D}o básico para começar.${N}"
+    fi
 
     # ── Provedor ────────────────────────────────────────────────────────────
+    # Mapear provider atual para número
+    CUR_PROV_NUM="1"
+    case "$CUR_PROVIDER" in
+        openrouter) CUR_PROV_NUM="2" ;;
+        codex)      CUR_PROV_NUM="3" ;;
+    esac
+    CUR_PROV_LABEL=""
+    [ -n "$CUR_PROVIDER" ] && CUR_PROV_LABEL=" ${D}(atual: ${CUR_PROVIDER})${N}"
+
     echo ""
-    echo -e "  ${B}Provedor de IA:${N}"
+    echo -e "  ${B}Provedor de IA:${N}${CUR_PROV_LABEL}"
     echo -e "  ${D}  1) Anthropic   — Claude (OAuth + API key)${N}"
     echo -e "  ${D}  2) OpenRouter  — Qualquer modelo via OpenRouter${N}"
     echo -e "  ${D}  3) OpenAI      — GPT / Codex (OAuth + API key)${N}"
     echo ""
-    read -rp "  Escolha [1-3] (padrão: 1): " PROV_CHOICE
-    PROV_CHOICE="${PROV_CHOICE:-1}"
+    read -rp "  Escolha [1-3] (padrão: ${CUR_PROV_NUM}): " PROV_CHOICE
+    PROV_CHOICE="${PROV_CHOICE:-$CUR_PROV_NUM}"
     case "$PROV_CHOICE" in
         2) WIZ_PROVIDER="openrouter" ;;
         3) WIZ_PROVIDER="codex" ;;
@@ -756,17 +796,28 @@ print('ok' if c.get('tokens',{}).get('access_token','') else '')
     echo -e "  ${OK} Modelo: ${B}${WIZ_MODEL}${N}"
 
     # ── Admin ID ────────────────────────────────────────────────────────────
+    CUR_ADMIN_LABEL=""
+    [ -n "$CUR_ADMIN_ID" ] && [ "$CUR_ADMIN_ID" != "auto" ] && [ "$CUR_ADMIN_ID" != "0" ] \
+        && CUR_ADMIN_LABEL=" ${D}(atual: ${CUR_ADMIN_ID})${N}"
+
     echo ""
-    echo -e "  ${B}Telegram Admin ID:${N}"
+    echo -e "  ${B}Telegram Admin ID:${N}${CUR_ADMIN_LABEL}"
     echo -e "  ${D}  Quem será o administrador dos bots.${N}"
     echo -e "  ${D}  Se já sabe seu ID, digite abaixo.${N}"
     echo -e "  ${D}  Se não sabe, deixe vazio — a primeira pessoa${N}"
     echo -e "  ${D}  a enviar /start no bot será definida como admin.${N}"
     echo ""
-    read -rp "  Admin ID (Enter = auto-detectar): " WIZ_ADMIN_ID
+    if [ -n "$CUR_ADMIN_ID" ] && [ "$CUR_ADMIN_ID" != "auto" ] && [ "$CUR_ADMIN_ID" != "0" ]; then
+        read -rp "  Admin ID (Enter = manter ${CUR_ADMIN_ID}): " WIZ_ADMIN_ID
+        WIZ_ADMIN_ID="${WIZ_ADMIN_ID:-$CUR_ADMIN_ID}"
+    else
+        read -rp "  Admin ID (Enter = auto-detectar): " WIZ_ADMIN_ID
+    fi
     if [ -z "$WIZ_ADMIN_ID" ]; then
         WIZ_ADMIN_ID="auto"
         echo -e "  ${OK} Admin será definido automaticamente no primeiro /start"
+    elif [[ "$WIZ_ADMIN_ID" =~ ^[0-9]+$ ]]; then
+        echo -e "  ${OK} Admin ID: ${B}${WIZ_ADMIN_ID}${N}"
     else
         while ! [[ "$WIZ_ADMIN_ID" =~ ^[0-9]+$ ]]; do
             echo -e "  ${WARN} ID deve conter apenas números"
@@ -776,13 +827,22 @@ print('ok' if c.get('tokens',{}).get('access_token','') else '')
     fi
 
     # ── Modo de acesso ──────────────────────────────────────────────────────
+    CUR_ACCESS_NUM="1"
+    case "$CUR_ACCESS" in
+        open)   CUR_ACCESS_NUM="2" ;;
+        closed) CUR_ACCESS_NUM="3" ;;
+    esac
+    CUR_ACCESS_LABEL=""
+    [ -n "$CUR_ACCESS" ] && CUR_ACCESS_LABEL=" ${D}(atual: ${CUR_ACCESS})${N}"
+
     echo ""
-    echo -e "  ${B}Modo de acesso:${N}"
+    echo -e "  ${B}Modo de acesso:${N}${CUR_ACCESS_LABEL}"
     echo -e "  ${D}  1) approval — novos usuários precisam de aprovação (recomendado)${N}"
     echo -e "  ${D}  2) open     — qualquer pessoa pode usar o bot${N}"
     echo -e "  ${D}  3) closed   — somente o admin pode usar${N}"
     echo ""
-    read -rp "  Escolha [1-3] (padrão: 1): " ACCESS_CHOICE
+    read -rp "  Escolha [1-3] (padrão: ${CUR_ACCESS_NUM}): " ACCESS_CHOICE
+    ACCESS_CHOICE="${ACCESS_CHOICE:-$CUR_ACCESS_NUM}"
     case "$ACCESS_CHOICE" in
         2) WIZ_ACCESS="open" ;;
         3) WIZ_ACCESS="closed" ;;
@@ -791,35 +851,47 @@ print('ok' if c.get('tokens',{}).get('access_token','') else '')
     echo -e "  ${OK} Modo de acesso: ${B}${WIZ_ACCESS}${N}"
 
     # ── Salvar config.global ────────────────────────────────────────────────
+    # Preservar valores do bugfixer se existem
+    CUR_BF_ENABLED=$(grep "^BUGFIXER_ENABLED=" "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2- || echo "false")
+    CUR_BF_TIMES=$(grep "^BUGFIXER_TIMES_PER_DAY=" "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2- || echo "1")
+    CUR_BF_TOKEN=$(grep "^BUGFIXER_TELEGRAM_TOKEN=" "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2- || echo "")
+    CUR_PANEL_URL=$(grep "^ADMIN_PANEL_URL=" "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2- || echo "")
+
     cat > "$BASE_DIR/config.global" << GCEOF
 PROVIDER=$WIZ_PROVIDER
 ADMIN_ID=$WIZ_ADMIN_ID
 MODEL=$WIZ_MODEL
 ACCESS_MODE=$WIZ_ACCESS
-BUGFIXER_ENABLED=false
-BUGFIXER_TIMES_PER_DAY=1
-BUGFIXER_TELEGRAM_TOKEN=
+BUGFIXER_ENABLED=${CUR_BF_ENABLED:-false}
+BUGFIXER_TIMES_PER_DAY=${CUR_BF_TIMES:-1}
+BUGFIXER_TELEGRAM_TOKEN=${CUR_BF_TOKEN}
+ADMIN_PANEL_URL=${CUR_PANEL_URL}
 GCEOF
     echo ""
     echo -e "  ${OK} config.global salvo"
 
     # ── Salvar secrets.global ───────────────────────────────────────────────
-    # Preserva secrets existentes se houver
-    EXISTING_SECRETS=""
-    [ -f "$BASE_DIR/secrets.global" ] && EXISTING_SECRETS=$(cat "$BASE_DIR/secrets.global")
+    # Usa valor novo se informado, senão mantém o existente
+    SAVE_ANTHROPIC="${WIZ_ANTHROPIC_KEY:-$CUR_ANTHROPIC_KEY}"
+    SAVE_OPENAI="${WIZ_OPENAI_KEY:-$CUR_OPENAI_KEY}"
+    SAVE_OPENROUTER="${WIZ_OPENROUTER_KEY:-$CUR_OPENROUTER_KEY}"
 
     {
-        echo "ANTHROPIC_API_KEY=${WIZ_ANTHROPIC_KEY}"
-        echo "OPENAI_API_KEY=${WIZ_OPENAI_KEY}"
-        echo "OPENROUTER_API_KEY=${WIZ_OPENROUTER_KEY}"
+        echo "ANTHROPIC_API_KEY=${SAVE_ANTHROPIC}"
+        echo "OPENAI_API_KEY=${SAVE_OPENAI}"
+        echo "OPENROUTER_API_KEY=${SAVE_OPENROUTER}"
     } > "$BASE_DIR/secrets.global"
     chmod 600 "$BASE_DIR/secrets.global"
     echo -e "  ${OK} secrets.global salvo ${D}(chmod 600)${N}"
 
-    # ── Criar primeiro bot? ─────────────────────────────────────────────────
-    echo ""
-    read -rp "  Deseja criar o primeiro bot agora? [S/n] " CREATE_BOT
-    CREATE_BOT="${CREATE_BOT:-S}"
+    # ── Criar primeiro bot? (só se não tem bots ainda) ──────────────────────
+    EXISTING_BOTS=$(find "$BASE_DIR/bots" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+    CREATE_BOT="n"
+    if [ "$EXISTING_BOTS" -eq 0 ]; then
+        echo ""
+        read -rp "  Deseja criar o primeiro bot agora? [S/n] " CREATE_BOT
+        CREATE_BOT="${CREATE_BOT:-S}"
+    fi
 
     if [[ "$CREATE_BOT" =~ ^[SsYy]$ ]]; then
         echo ""
