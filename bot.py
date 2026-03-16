@@ -315,7 +315,8 @@ _CODEX_AUTH_PATH = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")
 
 def _make_codex_client():
     """Cria cliente OpenAI usando OAuth do Codex CLI (ChatGPT OAuth) ou OPENAI_API_KEY.
-    Lê access_token de ~/.codex/auth.json a cada chamada (token refresh automático)."""
+    Lê access_token de ~/.codex/auth.json a cada chamada (token refresh automático).
+    OAuth usa endpoint WHAM (chatgpt.com/backend-api/wham) que aceita ChatGPT Plus."""
     from openai import AsyncOpenAI
     if OPENAI_API_KEY:
         return AsyncOpenAI(api_key=OPENAI_API_KEY)
@@ -324,8 +325,16 @@ def _make_codex_client():
             with open(_CODEX_AUTH_PATH) as f:
                 auth = json.load(f)
             token = auth.get("tokens", {}).get("access_token", "")
+            account_id = auth.get("account_id", "")
             if token:
-                return AsyncOpenAI(api_key=token)
+                headers = {}
+                if account_id:
+                    headers["ChatGPT-Account-Id"] = account_id
+                return AsyncOpenAI(
+                    api_key=token,
+                    base_url="https://chatgpt.com/backend-api/wham",
+                    default_headers=headers,
+                )
         except Exception as e:
             logger.warning(f"Falha ao ler credenciais do Codex: {e}")
     raise RuntimeError(
@@ -438,13 +447,13 @@ async def _describe_image_for_cli(image_path: str) -> str:
             else:
                 oai_client = _make_codex_client()
                 vision_model = "gpt-5.1-codex-mini"
-            vision_content = [
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}},
-                {"type": "text", "text": "Descreva esta imagem em detalhes em português."},
-            ]
             if _is_codex_oauth() and not OPENROUTER_API_KEY:
+                vision_content = [
+                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{img_data}"},
+                    {"type": "input_text", "text": "Descreva esta imagem em detalhes em português."},
+                ]
                 response = await oai_client.responses.create(
-                    model=vision_model,
+                    model=vision_model, store=False,
                     input=[{"role": "user", "content": vision_content}],
                 )
                 for item in response.output:
@@ -454,6 +463,10 @@ async def _describe_image_for_cli(image_path: str) -> str:
                                 return c.text
                 return "[imagem]"
             else:
+                vision_content = [
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}},
+                    {"type": "text", "text": "Descreva esta imagem em detalhes em português."},
+                ]
                 response = await oai_client.chat.completions.create(
                     model=vision_model,
                     max_tokens=512,
@@ -703,13 +716,24 @@ async def _ask_openrouter(messages: list, user_id: int = 0) -> str:
 async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
     """Loop agêntico OpenAI via Responses API — funciona com ChatGPT Plus OAuth."""
     system = get_system_prompt()
-    # Converte mensagens para formato Responses API
+    # Converte mensagens para formato Responses API (WHAM)
+    # WHAM exige content type "input_text" ao invés de "text"
     resp_input = []
     for m in messages:
         if not (isinstance(m.get("content"), str) or _has_media_content(m.get("content"))):
             continue
         content = _convert_content_for_openai(m["content"])
-        resp_input.append({"role": m["role"], "content": content})
+        if isinstance(content, list):
+            # Converter type "text" → "input_text" para WHAM
+            wham_content = []
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    wham_content.append({"type": "input_text", "text": item.get("text", "")})
+                else:
+                    wham_content.append(item)
+            resp_input.append({"role": m["role"], "content": wham_content})
+        else:
+            resp_input.append({"role": m["role"], "content": content})
 
     resp_tools = _anthropic_tools_to_responses(TOOL_DEFINITIONS) if TOOL_DEFINITIONS else None
     client = _make_codex_client()
@@ -718,7 +742,7 @@ async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
     error_str = ""
     try:
         for _ in range(20):
-            kwargs = dict(model=MODEL, instructions=system, input=resp_input)
+            kwargs = dict(model=MODEL, instructions=system, input=resp_input, store=False)
             if resp_tools:
                 kwargs["tools"] = resp_tools
             response = await client.responses.create(**kwargs)
