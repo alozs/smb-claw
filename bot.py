@@ -745,10 +745,10 @@ async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
             if resp_tools:
                 kwargs["tools"] = resp_tools
             stream = await client.responses.create(**kwargs)
-            # Consumir stream e acumular texto / tool calls
+            # Consumir stream — extrair resposta final do evento completed
             text_parts = []
-            tool_calls = []  # list of dicts {name, arguments, call_id}
             _cur_text = {}
+            _final_output = []
             async for event in stream:
                 ev_type = getattr(event, "type", "")
                 if ev_type == "response.output_text.delta":
@@ -757,42 +757,56 @@ async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
                 elif ev_type == "response.output_text.done":
                     idx = getattr(event, "content_index", 0)
                     text_parts.append(_cur_text.pop(idx, getattr(event, "text", "")))
-                elif ev_type == "response.function_call_arguments.done":
-                    tool_calls.append({
-                        "name": getattr(event, "name", ""),
-                        "arguments": getattr(event, "arguments", "{}"),
-                        "call_id": getattr(event, "call_id", ""),
-                    })
                 elif ev_type == "response.completed":
                     resp_obj = getattr(event, "response", None)
                     if resp_obj and hasattr(resp_obj, "usage"):
                         total_input += getattr(resp_obj.usage, "input_tokens", 0)
                         total_output += getattr(resp_obj.usage, "output_tokens", 0)
+                    if resp_obj:
+                        _final_output = getattr(resp_obj, "output", [])
+
+            # Extrair tool calls do output final (tem todos os campos corretos)
+            tool_calls = []
+            for item in _final_output:
+                if getattr(item, "type", "") == "function_call":
+                    tool_calls.append(item)
 
             if not tool_calls:
                 return "\n".join(text_parts) or ""
 
-            # Adicionar function_calls como dicts ao input para o próximo turno
+            # Adicionar output items e tool results ao input para próximo turno
+            for item in _final_output:
+                item_type = getattr(item, "type", "")
+                if item_type == "function_call":
+                    resp_input.append({
+                        "type": "function_call",
+                        "name": item.name,
+                        "arguments": item.arguments,
+                        "call_id": item.call_id,
+                    })
+                elif item_type == "message":
+                    # Inclui mensagens de texto do assistente no contexto
+                    msg_content = []
+                    for c in getattr(item, "content", []):
+                        if getattr(c, "type", "") == "output_text":
+                            msg_content.append({"type": "output_text", "text": c.text})
+                    if msg_content:
+                        resp_input.append({"type": "message", "role": "assistant", "content": msg_content})
+
             for tc in tool_calls:
                 total_tool_calls += 1
-                resp_input.append({
-                    "type": "function_call",
-                    "name": tc["name"],
-                    "arguments": tc["arguments"],
-                    "call_id": tc["call_id"],
-                })
                 try:
-                    tool_input = json.loads(tc["arguments"])
+                    tool_input = json.loads(tc.arguments)
                 except Exception:
                     tool_input = {}
-                logger.info(f"[tool/codex-resp] {tc['name']} {json.dumps(tool_input)[:120]}")
+                logger.info(f"[tool/codex-resp] {tc.name} {json.dumps(tool_input)[:120]}")
                 result = await tool_registry.execute(
-                    tc["name"], tool_input,
+                    tc.name, tool_input,
                     user_id=user_id, db=db, config=TOOL_CONFIG,
                 )
                 resp_input.append({
                     "type": "function_call_output",
-                    "call_id": tc["call_id"],
+                    "call_id": tc.call_id,
                     "output": result,
                 })
             continue
