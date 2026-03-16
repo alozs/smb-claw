@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.6 (2026-03-15)
+
+
 ## 0.1.5 (2026-03-15)
 - remove card de suporte a mídia da seção de recursos
 - design: melhora seção origem, bento grid recursos, favicon e ajustes tabela
