@@ -925,6 +925,36 @@ BEOF
         echo -e "  ${OK} Bot ${B}${WIZ_BOT_NAME}${N} criado em ${D}bots/${WIZ_BOT_NAME}/${N}"
         if [ "$WIZ_BOT_TOKEN" = "SEU_TOKEN_AQUI" ]; then
             echo -e "  ${WARN} Token não configurado — edite ${D}bots/${WIZ_BOT_NAME}/.env${N}"
+        else
+            # Iniciar o bot automaticamente
+            echo ""
+            read -rp "  Iniciar o bot agora? [S/n] " START_BOT
+            START_BOT="${START_BOT:-S}"
+            if [[ "$START_BOT" =~ ^[SsYy]$ ]]; then
+                if command -v systemctl &>/dev/null && [ -f "/etc/systemd/system/claude-bot-$WIZ_BOT_NAME.service" ]; then
+                    sudo systemctl enable --now "claude-bot-$WIZ_BOT_NAME" 2>/dev/null
+                    sleep 2
+                    if systemctl is-active --quiet "claude-bot-$WIZ_BOT_NAME" 2>/dev/null; then
+                        echo -e "  ${OK} Bot ${B}${WIZ_BOT_NAME}${N} iniciado via systemd"
+                    else
+                        echo -e "  ${FAIL} Falha ao iniciar — verifique: journalctl -u claude-bot-$WIZ_BOT_NAME -n 20"
+                    fi
+                else
+                    # Sem systemd (Docker) — inicia direto em background
+                    cd "$BASE_DIR"
+                    nohup python3 "$BASE_DIR/bot.py" --bot-dir "$WIZ_BOT_DIR" \
+                        > "$BASE_DIR/logs/${WIZ_BOT_NAME}.log" 2>&1 &
+                    BOT_PID=$!
+                    sleep 3
+                    if kill -0 "$BOT_PID" 2>/dev/null; then
+                        echo -e "  ${OK} Bot ${B}${WIZ_BOT_NAME}${N} iniciado ${D}(PID: ${BOT_PID})${N}"
+                        echo -e "  ${D}Log: tail -f $BASE_DIR/logs/${WIZ_BOT_NAME}.log${N}"
+                    else
+                        echo -e "  ${FAIL} Falha ao iniciar o bot"
+                        echo -e "  ${D}Verifique: cat $BASE_DIR/logs/${WIZ_BOT_NAME}.log${N}"
+                    fi
+                fi
+            fi
         fi
     fi
 
