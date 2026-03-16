@@ -747,10 +747,8 @@ async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
             stream = await client.responses.create(**kwargs)
             # Consumir stream e acumular texto / tool calls
             text_parts = []
-            tool_calls = []
-            # Buffers para acumular eventos de stream
-            _cur_text = {}       # content_index -> text acumulado
-            _cur_fc = {}         # item_id -> {name, arguments, call_id}
+            tool_calls = []  # list of dicts {name, arguments, call_id}
+            _cur_text = {}
             async for event in stream:
                 ev_type = getattr(event, "type", "")
                 if ev_type == "response.output_text.delta":
@@ -760,40 +758,41 @@ async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
                     idx = getattr(event, "content_index", 0)
                     text_parts.append(_cur_text.pop(idx, getattr(event, "text", "")))
                 elif ev_type == "response.function_call_arguments.done":
-                    tool_calls.append(event)
+                    tool_calls.append({
+                        "name": getattr(event, "name", ""),
+                        "arguments": getattr(event, "arguments", "{}"),
+                        "call_id": getattr(event, "call_id", ""),
+                    })
                 elif ev_type == "response.completed":
                     resp_obj = getattr(event, "response", None)
                     if resp_obj and hasattr(resp_obj, "usage"):
                         total_input += getattr(resp_obj.usage, "input_tokens", 0)
                         total_output += getattr(resp_obj.usage, "output_tokens", 0)
-                    # Extrair output completo para usar no próximo turno
-                    if resp_obj:
-                        _completed_output = getattr(resp_obj, "output", [])
 
             if not tool_calls:
                 return "\n".join(text_parts) or ""
 
-            # Processar tool calls e adicionar output completo ao input
-            if _completed_output:
-                for item in _completed_output:
-                    resp_input.append(item)
+            # Adicionar function_calls como dicts ao input para o próximo turno
             for tc in tool_calls:
                 total_tool_calls += 1
-                tc_name = getattr(tc, "name", "")
-                tc_args = getattr(tc, "arguments", "{}")
-                tc_call_id = getattr(tc, "call_id", "")
+                resp_input.append({
+                    "type": "function_call",
+                    "name": tc["name"],
+                    "arguments": tc["arguments"],
+                    "call_id": tc["call_id"],
+                })
                 try:
-                    tool_input = json.loads(tc_args)
+                    tool_input = json.loads(tc["arguments"])
                 except Exception:
                     tool_input = {}
-                logger.info(f"[tool/codex-resp] {tc_name} {json.dumps(tool_input)[:120]}")
+                logger.info(f"[tool/codex-resp] {tc['name']} {json.dumps(tool_input)[:120]}")
                 result = await tool_registry.execute(
-                    tc_name, tool_input,
+                    tc["name"], tool_input,
                     user_id=user_id, db=db, config=TOOL_CONFIG,
                 )
                 resp_input.append({
                     "type": "function_call_output",
-                    "call_id": tc_call_id,
+                    "call_id": tc["call_id"],
                     "output": result,
                 })
             continue
