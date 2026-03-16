@@ -333,6 +333,22 @@ def _make_codex_client():
         "(`codex` no terminal → OAuth flow)."
     )
 
+def _is_codex_oauth() -> bool:
+    """Retorna True se usando OAuth do Codex (ChatGPT Plus) ao invés de API key."""
+    return not OPENAI_API_KEY and _CODEX_AUTH_PATH.exists()
+
+def _anthropic_tools_to_responses(tools: list) -> list:
+    """Converte definições de ferramentas do formato Anthropic para OpenAI Responses API."""
+    result = []
+    for t in tools:
+        result.append({
+            "type": "function",
+            "name": t["name"],
+            "description": t.get("description", ""),
+            "parameters": t.get("input_schema", {"type": "object", "properties": {}}),
+        })
+    return result
+
 def _extract_reply_context(message) -> str:
     """Extrai contexto de uma mensagem citada (reply) e retorna prefixo para injetar no texto."""
     reply = getattr(message, "reply_to_message", None)
@@ -422,15 +438,28 @@ async def _describe_image_for_cli(image_path: str) -> str:
             else:
                 oai_client = _make_codex_client()
                 vision_model = "gpt-5.1-codex-mini"
-            response = await oai_client.chat.completions.create(
-                model=vision_model,
-                max_tokens=512,
-                messages=[{"role": "user", "content": [
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}},
-                    {"type": "text", "text": "Descreva esta imagem em detalhes em português."},
-                ]}],
-            )
-            return response.choices[0].message.content or "[imagem]"
+            vision_content = [
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}},
+                {"type": "text", "text": "Descreva esta imagem em detalhes em português."},
+            ]
+            if _is_codex_oauth() and not OPENROUTER_API_KEY:
+                response = await oai_client.responses.create(
+                    model=vision_model,
+                    input=[{"role": "user", "content": vision_content}],
+                )
+                for item in response.output:
+                    if getattr(item, "type", "") == "message":
+                        for c in getattr(item, "content", []):
+                            if getattr(c, "type", "") == "output_text":
+                                return c.text
+                return "[imagem]"
+            else:
+                response = await oai_client.chat.completions.create(
+                    model=vision_model,
+                    max_tokens=512,
+                    messages=[{"role": "user", "content": vision_content}],
+                )
+                return response.choices[0].message.content or "[imagem]"
     except Exception as e:
         logger.warning(f"[vision/cli] Erro ao descrever imagem: {e}")
     return "[imagem não pôde ser descrita]"
@@ -671,8 +700,83 @@ async def _ask_openrouter(messages: list, user_id: int = 0) -> str:
             pass
 
 
+async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
+    """Loop agêntico OpenAI via Responses API — funciona com ChatGPT Plus OAuth."""
+    system = get_system_prompt()
+    # Converte mensagens para formato Responses API
+    resp_input = []
+    for m in messages:
+        if not (isinstance(m.get("content"), str) or _has_media_content(m.get("content"))):
+            continue
+        content = _convert_content_for_openai(m["content"])
+        resp_input.append({"role": m["role"], "content": content})
+
+    resp_tools = _anthropic_tools_to_responses(TOOL_DEFINITIONS) if TOOL_DEFINITIONS else None
+    client = _make_codex_client()
+    t0 = time.monotonic()
+    total_input = total_output = total_tool_calls = 0
+    error_str = ""
+    try:
+        for _ in range(20):
+            kwargs = dict(model=MODEL, instructions=system, input=resp_input)
+            if resp_tools:
+                kwargs["tools"] = resp_tools
+            response = await client.responses.create(**kwargs)
+            total_input += getattr(response.usage, "input_tokens", 0)
+            total_output += getattr(response.usage, "output_tokens", 0)
+
+            # Extrair texto e tool calls do output
+            text_parts = []
+            tool_calls = []
+            for item in response.output:
+                if getattr(item, "type", "") == "message":
+                    for c in getattr(item, "content", []):
+                        if getattr(c, "type", "") == "output_text":
+                            text_parts.append(c.text)
+                elif getattr(item, "type", "") == "function_call":
+                    tool_calls.append(item)
+
+            if not tool_calls:
+                return "\n".join(text_parts) or ""
+
+            # Processar tool calls e adicionar resultados ao input
+            for item in response.output:
+                resp_input.append(item)
+            for tc in tool_calls:
+                total_tool_calls += 1
+                try:
+                    tool_input = json.loads(tc.arguments)
+                except Exception:
+                    tool_input = {}
+                logger.info(f"[tool/codex-resp] {tc.name} {json.dumps(tool_input)[:120]}")
+                result = await tool_registry.execute(
+                    tc.name, tool_input,
+                    user_id=user_id, db=db, config=TOOL_CONFIG,
+                )
+                resp_input.append({
+                    "type": "function_call_output",
+                    "call_id": tc.call_id,
+                    "output": result,
+                })
+            continue
+        return "\n".join(text_parts) or ""
+    except Exception as e:
+        error_str = f"{type(e).__name__}: {e}"
+        raise
+    finally:
+        latency = int((time.monotonic() - t0) * 1000)
+        try:
+            db.log_event(BOT_NAME, user_id, total_input, total_output,
+                         total_tool_calls, latency, error_str)
+        except Exception:
+            pass
+
+
 async def _ask_codex(messages: list, user_id: int = 0) -> str:
-    """Loop agêntico OpenAI via Codex OAuth (ChatGPT OAuth) — mesma lógica do OpenRouter."""
+    """Roteador Codex: usa Responses API (ChatGPT Plus OAuth) ou Chat Completions (API key)."""
+    if _is_codex_oauth():
+        return await _ask_codex_responses(messages, user_id)
+    # Fallback: Chat Completions API (requer OPENAI_API_KEY com créditos)
     system = get_system_prompt()
     oai_messages = [{"role": "system", "content": system}] + [
         {"role": m["role"], "content": _convert_content_for_openai(m["content"])}
@@ -2644,7 +2748,10 @@ def main() -> None:
         if not OPENAI_API_KEY and not _CODEX_AUTH_PATH.exists():
             logger.error("PROVIDER=codex mas OPENAI_API_KEY não definida e OAuth do Codex não encontrado em "
                          f"{_CODEX_AUTH_PATH}! Faça login com `codex` ou defina OPENAI_API_KEY."); sys.exit(1)
-        logger.info(f"Usando OpenAI via {'API key' if OPENAI_API_KEY else 'Codex OAuth'} ({_CODEX_AUTH_PATH})")
+        if OPENAI_API_KEY:
+            logger.info(f"Usando OpenAI via API key (Chat Completions)")
+        else:
+            logger.info(f"Usando OpenAI via Codex OAuth — Responses API ({_CODEX_AUTH_PATH})")
     elif PROVIDER == "claude-cli":
         import shutil
         if not shutil.which("claude"):
