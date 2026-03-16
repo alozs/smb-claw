@@ -1103,13 +1103,19 @@ if [ "$BOT_COUNT" -gt 0 ]; then
                     cd "$BASE_DIR"
                     nohup python3 "$BASE_DIR/bot.py" --bot-dir "$bot_dir" \
                         > "$BASE_DIR/logs/${bot_name}.log" 2>&1 &
-                    sleep 3
-                    if pgrep -f "bot.py --bot-dir.*bots/$bot_name" >/dev/null 2>&1; then
-                        echo -e "  ${G}●${N} ${B}${bot_name}${N} ${D}— iniciado${N}"
+                    BOT_PID=$!
+                    sleep 4
+                    if kill -0 "$BOT_PID" 2>/dev/null; then
+                        echo -e "  ${G}●${N} ${B}${bot_name}${N} ${D}— iniciado (PID $BOT_PID)${N}"
                         ACTIVE_COUNT=$((ACTIVE_COUNT + 1))
                     else
                         echo -e "  ${R}●${N} ${bot_name} ${D}— falha ao iniciar${N}"
-                        echo -e "  ${D}    Log: cat $BASE_DIR/logs/${bot_name}.log${N}"
+                        if [ -f "$BASE_DIR/logs/${bot_name}.log" ]; then
+                            echo -e "  ${D}    Últimas linhas do log:${N}"
+                            tail -3 "$BASE_DIR/logs/${bot_name}.log" 2>/dev/null | while read -r line; do
+                                echo -e "  ${D}    $line${N}"
+                            done
+                        fi
                     fi
                 fi
             else
@@ -1174,8 +1180,6 @@ if [ "$IN_DOCKER" = true ]; then
     echo -e "  ${D}$(printf '%.0s─' $(seq 1 50))${N}"
     echo -e "  ${D}O painel está rodando dentro do container, mas a${N}"
     echo -e "  ${D}porta ${B}${ADMIN_PORT}${N}${D} pode não estar exposta no host.${N}"
-    echo ""
-    echo -e "  ${D}Se não conseguir acessar, rode no ${B}host${N}${D}:${N}"
     echo ""
     echo -e "  ${D}No host, rode:${N}"
     echo ""
