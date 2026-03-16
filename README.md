@@ -27,6 +27,8 @@ Rode **10, 20, 50 agentes** na mesma VPS de $5/mês. Eles só processam quando r
 - **Ferramentas modulares** — shell, HTTP, Git, GitHub, banco de dados, arquivos, cron
 - **Subagentes** — delegue tarefas para agentes especializados (geração de imagens, análises etc.)
 - **Painel web** — dashboard FastAPI com setup wizard, editor de configuração e logs em tempo real
+- **Wizard via Telegram** — crie e apague agentes e sub-agentes direto pelo chat, passo a passo, com geração de personalidade assistida por IA
+- **Menu de comandos** — botão nativo do Telegram com todos os comandos disponíveis (diferente por usuário comum vs admin)
 - **Bug Fixer autônomo** — agente que monitora erros e tenta corrigir sozinho
 - **Segurança por padrão** — tokens isolados, sandbox de comandos, controle de acesso por aprovação
 
@@ -91,9 +93,25 @@ chmod 600 secrets.global
 
 ## Criando um agente
 
+### Via Telegram (wizard — recomendado)
+
+Envie `/criar_agente` para qualquer bot como admin. O wizard guia passo a passo:
+
+1. **Nome** — slug do agente (ex: `assistente-vendas`)
+2. **Descrição** — o que ele faz em uma frase
+3. **Token** — cole o token do @BotFather
+4. **Provedor de IA** — escolha via botões (Claude OAuth, Anthropic API, OpenRouter, Codex)
+5. **Ferramentas** — selecione com toggle (terminal, arquivos, HTTP, Git, GitHub, banco de dados)
+6. **Personalidade** — gere automaticamente com Claude ou cole o texto manualmente
+7. **Confirmação** — resumo completo antes de criar
+
+Ao confirmar, o agente é criado, o serviço systemd é habilitado e iniciado automaticamente.
+
+Para remover um agente: `/apagar_agente` → selecione → confirme. Para e deleta tudo (serviço, diretório, banco).
+
 ### Via painel web
 
-Acesse o dashboard → botão **"Novo Bot"** → preencha nome, token e personalidade.
+Acesse o dashboard → botão **"Novo Agente"** → preencha nome, token e personalidade.
 
 ### Via terminal
 
@@ -502,6 +520,12 @@ Todas as operações são expostas como API REST em `/api/`:
 | `/status` | Status do sistema |
 | `/version` | Versão atual e atualizações pendentes |
 | `/update` | Puxa atualizações do remote e reinicia serviços |
+| `/criar_agente` | Wizard passo a passo para criar novo agente Telegram |
+| `/criar_subagente` | Wizard passo a passo para criar novo sub-agente |
+| `/apagar_agente` | Remove um agente (para serviço + apaga diretório) |
+| `/cancelar_wizard` | Cancela wizard em andamento |
+
+> O Telegram exibe automaticamente um **menu de comandos** (botão `/` ao lado do campo de texto) com os comandos disponíveis — comandos admin só aparecem para o admin.
 
 ### Modos de acesso
 
