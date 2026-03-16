@@ -758,15 +758,22 @@ print('ok' if c.get('tokens',{}).get('access_token','') else '')
     # ── Admin ID ────────────────────────────────────────────────────────────
     echo ""
     echo -e "  ${B}Telegram Admin ID:${N}"
-    echo -e "  ${D}  Seu ID numérico do Telegram. Para descobrir,${N}"
-    echo -e "  ${D}  envie /id para @userinfobot no Telegram.${N}"
+    echo -e "  ${D}  Quem será o administrador dos bots.${N}"
+    echo -e "  ${D}  Se já sabe seu ID, digite abaixo.${N}"
+    echo -e "  ${D}  Se não sabe, deixe vazio — a primeira pessoa${N}"
+    echo -e "  ${D}  a enviar /start no bot será definida como admin.${N}"
     echo ""
-    read -rp "  Admin ID: " WIZ_ADMIN_ID
-    while ! [[ "$WIZ_ADMIN_ID" =~ ^[0-9]+$ ]]; do
-        echo -e "  ${WARN} ID deve conter apenas números"
-        read -rp "  Admin ID: " WIZ_ADMIN_ID
-    done
-    echo -e "  ${OK} Admin ID: ${B}${WIZ_ADMIN_ID}${N}"
+    read -rp "  Admin ID (Enter = auto-detectar): " WIZ_ADMIN_ID
+    if [ -z "$WIZ_ADMIN_ID" ]; then
+        WIZ_ADMIN_ID="auto"
+        echo -e "  ${OK} Admin será definido automaticamente no primeiro /start"
+    else
+        while ! [[ "$WIZ_ADMIN_ID" =~ ^[0-9]+$ ]]; do
+            echo -e "  ${WARN} ID deve conter apenas números"
+            read -rp "  Admin ID: " WIZ_ADMIN_ID
+        done
+        echo -e "  ${OK} Admin ID: ${B}${WIZ_ADMIN_ID}${N}"
+    fi
 
     # ── Modo de acesso ──────────────────────────────────────────────────────
     echo ""

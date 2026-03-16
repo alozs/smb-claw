@@ -90,7 +90,7 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 BOT_NAME           = os.environ.get("BOT_NAME", BOT_DIR.name)
 MODEL              = os.environ.get("MODEL", "claude-opus-4-6")
 MAX_HISTORY        = int(os.environ.get("MAX_HISTORY", "20"))
-ADMIN_ID           = int(os.environ.get("ADMIN_ID") or "0")
+ADMIN_ID           = 0 if os.environ.get("ADMIN_ID", "").strip() in ("", "0", "auto") else int(os.environ.get("ADMIN_ID"))
 ACCESS_MODE        = os.environ.get("ACCESS_MODE", "approval").lower()
 OPENAI_API_KEY     = os.environ.get("OPENAI_API_KEY", "")
 PROVIDER           = os.environ.get("PROVIDER", "anthropic").lower()  # anthropic | openrouter | codex
@@ -978,7 +978,27 @@ async def send_long(update_or_bot, text: str, chat_id: int = None) -> None:
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    global ADMIN_ID
     user = update.effective_user
+    # Auto-detect admin: primeiro /start quando ADMIN_ID não está configurado
+    if ADMIN_ID == 0:
+        ADMIN_ID = user.id
+        # Persiste no config.global
+        _cfg_path = BASE_DIR / "config.global"
+        if _cfg_path.exists():
+            _cfg = _cfg_path.read_text()
+            if "ADMIN_ID=auto" in _cfg or "ADMIN_ID=0" in _cfg or "ADMIN_ID=" in _cfg:
+                import re
+                _cfg = re.sub(r"ADMIN_ID=\S*", f"ADMIN_ID={user.id}", _cfg)
+                _cfg_path.write_text(_cfg)
+        approved_users.add(user.id)
+        db.add_approved_user(user.id, user.full_name, f"@{user.username}" if user.username else "")
+        logger.info(f"Admin auto-detectado: {user.id} ({user.full_name})")
+        await update.message.reply_text(
+            f"🔐 Você foi definido como *admin* deste bot.\n"
+            f"Seu ID: `{user.id}`",
+            parse_mode="Markdown"
+        )
     if not has_access(user.id):
         await request_access(update, context); return
     user_lock = await _get_user_lock(user.id)
