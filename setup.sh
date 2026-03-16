@@ -89,7 +89,7 @@ echo -e "  ${C}${B}╚════██║██║╚██╔╝██║█�
 echo -e "  ${C}${B}███████║██║ ╚═╝ ██║██████╔╝   ╚██████╗███████╗██║  ██║╚███╔███╔╝${N}"
 echo -e "  ${C}${B}╚══════╝╚═╝     ╚═╝╚═════╝    ╚═════╝╚══════╝╚═╝  ╚═╝ ╚══╝╚══╝${N}"
 echo ""
-echo -e "  ${D}Multi-Bot AI Framework — Setup${N}"
+echo -e "  ${D}Multi-Agent AI Framework — Setup${N}"
 echo ""
 echo -e "  ${Y}${B}AVISO DE SEGURANCA${N}"
 echo -e "  ${D}$(printf '%.0s─' $(seq 1 50))${N}"
@@ -631,7 +631,7 @@ print('ok' if c.get('claudeAiOauth',{}).get('accessToken','') else '')
                     echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
                 fi
             elif [ "$ANTH_AUTH_CHOICE" = "3" ]; then
-                echo -e "  ${D}OK — certifique-se de rodar ${B}claude login${N}${D} antes de iniciar os bots${N}"
+                echo -e "  ${D}OK — certifique-se de rodar ${B}claude login${N}${D} antes de iniciar os agentes${N}"
             else
                 do_oauth "Claude" \
                     "https://auth.anthropic.com/oauth/authorize" \
@@ -686,7 +686,7 @@ print('ok' if c.get('tokens',{}).get('access_token','') else '')
                     echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
                 fi
             elif [ "$OPENAI_AUTH_CHOICE" = "3" ]; then
-                echo -e "  ${D}OK — certifique-se de rodar ${B}codex login${N}${D} antes de iniciar os bots${N}"
+                echo -e "  ${D}OK — certifique-se de rodar ${B}codex login${N}${D} antes de iniciar os agentes${N}"
             else
                 do_oauth "ChatGPT" \
                     "https://auth.openai.com/oauth/authorize" \
@@ -802,10 +802,10 @@ print('ok' if c.get('tokens',{}).get('access_token','') else '')
 
     echo ""
     echo -e "  ${B}Telegram Admin ID:${N}${CUR_ADMIN_LABEL}"
-    echo -e "  ${D}  Quem será o administrador dos bots.${N}"
+    echo -e "  ${D}  Quem será o administrador dos agentes.${N}"
     echo -e "  ${D}  Se já sabe seu ID, digite abaixo.${N}"
     echo -e "  ${D}  Se não sabe, deixe vazio — a primeira pessoa${N}"
-    echo -e "  ${D}  a enviar /start no bot será definida como admin.${N}"
+    echo -e "  ${D}  a enviar /start no agente será definida como admin.${N}"
     echo ""
     if [ -n "$CUR_ADMIN_ID" ] && [ "$CUR_ADMIN_ID" != "auto" ] && [ "$CUR_ADMIN_ID" != "0" ]; then
         read -rp "  Admin ID (Enter = manter ${CUR_ADMIN_ID}): " WIZ_ADMIN_ID
@@ -838,7 +838,7 @@ print('ok' if c.get('tokens',{}).get('access_token','') else '')
     echo ""
     echo -e "  ${B}Modo de acesso:${N}${CUR_ACCESS_LABEL}"
     echo -e "  ${D}  1) approval — novos usuários precisam de aprovação (recomendado)${N}"
-    echo -e "  ${D}  2) open     — qualquer pessoa pode usar o bot${N}"
+    echo -e "  ${D}  2) open     — qualquer pessoa pode usar o agente${N}"
     echo -e "  ${D}  3) closed   — somente o admin pode usar${N}"
     echo ""
     read -rp "  Escolha [1-3] (padrão: ${CUR_ACCESS_NUM}): " ACCESS_CHOICE
@@ -889,13 +889,13 @@ GCEOF
     CREATE_BOT="n"
     if [ "$EXISTING_BOTS" -eq 0 ]; then
         echo ""
-        read -rp "  Deseja criar o primeiro bot agora? [S/n] " CREATE_BOT
+        read -rp "  Deseja criar o primeiro agente agora? [S/n] " CREATE_BOT
         CREATE_BOT="${CREATE_BOT:-S}"
     fi
 
     if [[ "$CREATE_BOT" =~ ^[SsYy]$ ]]; then
         echo ""
-        echo -e "  ${B}Nome do bot:${N}"
+        echo -e "  ${B}Nome do agente:${N}"
         echo -e "  ${D}  Use letras minúsculas, sem espaços (ex: assistente)${N}"
         read -rp "  Nome: " WIZ_BOT_NAME
         WIZ_BOT_NAME=$(echo "$WIZ_BOT_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-')
@@ -1001,7 +1001,7 @@ BEOF
         fi
 
         echo ""
-        echo -e "  ${OK} Bot ${B}${WIZ_BOT_NAME}${N} criado em ${D}bots/${WIZ_BOT_NAME}/${N}"
+        echo -e "  ${OK} Agente ${B}${WIZ_BOT_NAME}${N} criado em ${D}bots/${WIZ_BOT_NAME}/${N}"
         if [ "$WIZ_BOT_TOKEN" = "SEU_TOKEN_AQUI" ]; then
             echo -e "  ${WARN} Token não configurado — edite ${D}bots/${WIZ_BOT_NAME}/.env${N}"
         else
@@ -1011,7 +1011,7 @@ BEOF
                 sudo systemctl enable --now "claude-bot-$WIZ_BOT_NAME" 2>/dev/null
                 sleep 2
                 if systemctl is-active --quiet "claude-bot-$WIZ_BOT_NAME" 2>/dev/null; then
-                    echo -e "  ${OK} Bot ${B}${WIZ_BOT_NAME}${N} iniciado via systemd"
+                    echo -e "  ${OK} Agente ${B}${WIZ_BOT_NAME}${N} iniciado via systemd"
                 else
                     echo -e "  ${FAIL} Falha ao iniciar — verifique: journalctl -u claude-bot-$WIZ_BOT_NAME -n 20"
                 fi
@@ -1023,10 +1023,10 @@ BEOF
                 BOT_PID=$!
                 sleep 3
                 if kill -0 "$BOT_PID" 2>/dev/null; then
-                    echo -e "  ${OK} Bot ${B}${WIZ_BOT_NAME}${N} iniciado ${D}(PID: ${BOT_PID})${N}"
+                    echo -e "  ${OK} Agente ${B}${WIZ_BOT_NAME}${N} iniciado ${D}(PID: ${BOT_PID})${N}"
                     echo -e "  ${D}Log: tail -f $BASE_DIR/logs/${WIZ_BOT_NAME}.log${N}"
                 else
-                    echo -e "  ${FAIL} Falha ao iniciar o bot"
+                    echo -e "  ${FAIL} Falha ao iniciar o agente"
                     echo -e "  ${D}Verifique: cat $BASE_DIR/logs/${WIZ_BOT_NAME}.log${N}"
                 fi
             fi
@@ -1050,7 +1050,7 @@ ACTIVE_COUNT=0
 set +e
 
 if [ "$BOT_COUNT" -gt 0 ]; then
-    step_header "Bots"
+    step_header "Agentes"
     for bot_dir in "$BASE_DIR/bots"/*/; do
         [ ! -d "$bot_dir" ] && continue
         bot_name=$(basename "$bot_dir")
@@ -1128,7 +1128,7 @@ if [ "$BOT_COUNT" -gt 0 ]; then
                                 echo -e "  ${D}    $line${N}"
                             done
                         else
-                            echo -e "  ${D}    Log vazio — bot não iniciou${N}"
+                            echo -e "  ${D}    Log vazio — agente não iniciou${N}"
                         fi
                     fi
                 fi
@@ -1175,7 +1175,7 @@ if [ "$BOT_COUNT" -eq 0 ]; then
     WIZ_TEXT="O setup wizard abrirá automaticamente."
     echo -e "  ${G}${B}│${N}   ${Y}${WIZ_TEXT}${N}$(pad "$WIZ_TEXT")${G}${B}│${N}"
 else
-    BOT_TEXT="${BOT_COUNT} bot(s) configurado(s), ${ACTIVE_COUNT} online"
+    BOT_TEXT="${BOT_COUNT} agente(s) configurado(s), ${ACTIVE_COUNT} online"
     echo -e "  ${G}${B}│${N}   ${D}${BOT_TEXT}${N}$(pad "$BOT_TEXT")${G}${B}│${N}"
 fi
 
