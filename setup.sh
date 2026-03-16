@@ -972,18 +972,62 @@ fi
 # ══════════════════════════════════════════════════════════════════════════════
 
 BOT_COUNT=$(find "$BASE_DIR/bots" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
-ACTIVE_COUNT=$(systemctl list-units --type=service --state=running 2>/dev/null | grep -c "claude-bot-" || echo "0")
+ACTIVE_COUNT=0
 
 if [ "$BOT_COUNT" -gt 0 ]; then
     step_header "Bots"
     for bot_dir in "$BASE_DIR/bots"/*/; do
         [ ! -d "$bot_dir" ] && continue
         bot_name=$(basename "$bot_dir")
-        service="claude-bot-$bot_name"
-        if systemctl is-active --quiet "$service" 2>/dev/null; then
+        bot_env="$bot_dir/.env"
+
+        # Verifica se o bot está rodando (systemd ou processo direto)
+        BOT_RUNNING=false
+        if command -v systemctl &>/dev/null && systemctl is-active --quiet "claude-bot-$bot_name" 2>/dev/null; then
+            BOT_RUNNING=true
+        elif pgrep -f "bot.py --bot-dir.*bots/$bot_name" >/dev/null 2>&1; then
+            BOT_RUNNING=true
+        fi
+
+        if [ "$BOT_RUNNING" = true ]; then
             echo -e "  ${G}●${N} ${B}${bot_name}${N} ${D}— online${N}"
+            ACTIVE_COUNT=$((ACTIVE_COUNT + 1))
         else
-            echo -e "  ${D}○${N} ${bot_name} ${D}— offline${N}"
+            # Tenta iniciar automaticamente se tem token configurado
+            HAS_TOKEN=false
+            if [ -f "$bot_env" ] && grep -q "^TELEGRAM_TOKEN=.\+" "$bot_env" 2>/dev/null; then
+                TOKEN_VAL=$(grep "^TELEGRAM_TOKEN=" "$bot_env" 2>/dev/null | cut -d= -f2-)
+                [ "$TOKEN_VAL" != "SEU_TOKEN_AQUI" ] && HAS_TOKEN=true
+            fi
+
+            if [ "$HAS_TOKEN" = true ]; then
+                if command -v systemctl &>/dev/null && [ -f "/etc/systemd/system/claude-bot-$bot_name.service" ]; then
+                    sudo systemctl start "claude-bot-$bot_name" 2>/dev/null
+                    sleep 2
+                    if systemctl is-active --quiet "claude-bot-$bot_name" 2>/dev/null; then
+                        echo -e "  ${G}●${N} ${B}${bot_name}${N} ${D}— iniciado${N}"
+                        ACTIVE_COUNT=$((ACTIVE_COUNT + 1))
+                    else
+                        echo -e "  ${R}●${N} ${bot_name} ${D}— falha ao iniciar${N}"
+                    fi
+                else
+                    # Sem systemd (Docker) — inicia direto
+                    mkdir -p "$BASE_DIR/logs"
+                    cd "$BASE_DIR"
+                    nohup python3 "$BASE_DIR/bot.py" --bot-dir "$bot_dir" \
+                        > "$BASE_DIR/logs/${bot_name}.log" 2>&1 &
+                    sleep 3
+                    if pgrep -f "bot.py --bot-dir.*bots/$bot_name" >/dev/null 2>&1; then
+                        echo -e "  ${G}●${N} ${B}${bot_name}${N} ${D}— iniciado${N}"
+                        ACTIVE_COUNT=$((ACTIVE_COUNT + 1))
+                    else
+                        echo -e "  ${R}●${N} ${bot_name} ${D}— falha ao iniciar${N}"
+                        echo -e "  ${D}    Log: cat $BASE_DIR/logs/${bot_name}.log${N}"
+                    fi
+                fi
+            else
+                echo -e "  ${D}○${N} ${bot_name} ${D}— sem token configurado${N}"
+            fi
         fi
     done
 fi
@@ -1001,7 +1045,7 @@ BOX_W=50
 pad() {
     local text="$1"
     local len=${#text}
-    local spaces=$((BOX_W - 2 - len))  # -2 para margem esquerda "   "
+    local spaces=$((BOX_W - 3 - len))  # -3 para margem esquerda "   "
     [ "$spaces" -lt 0 ] && spaces=0
     printf '%*s' "$spaces" ''
 }
@@ -1031,9 +1075,11 @@ echo -e "  ${G}${B}╰$(printf '%.0s─' $(seq 1 $BOX_W))╯${N}"
 
 # Aviso de Docker: porta pode não estar exposta no host
 if [ "$IN_DOCKER" = true ]; then
+    # Detectar container ID (cgroups v1 e v2, hostname como fallback)
     CONTAINER_ID=$(cat /proc/self/cgroup 2>/dev/null | grep -oP '[a-f0-9]{64}' | head -1)
+    [ -z "$CONTAINER_ID" ] && CONTAINER_ID=$(cat /proc/self/mountinfo 2>/dev/null | grep -oP '[a-f0-9]{64}' | head -1)
+    [ -z "$CONTAINER_ID" ] && CONTAINER_ID=$(hostname 2>/dev/null)
     SHORT_ID="${CONTAINER_ID:0:12}"
-    CONTAINER_NAME=$(hostname 2>/dev/null)
     echo ""
     echo -e "  ${Y}${B}Docker detectado${N}"
     echo -e "  ${D}$(printf '%.0s─' $(seq 1 50))${N}"
