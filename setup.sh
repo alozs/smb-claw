@@ -394,6 +394,134 @@ else
     fi
 fi
 
+# ── OAuth PKCE helper ──────────────────────────────────────────────────────
+# Uso: do_oauth <provider_label> <authorize_url> <token_url> <client_id> <redirect_uri> <scopes> <extra_params> <token_file> <token_format>
+# token_format: "codex" ou "claude"
+do_oauth() {
+    local label="$1" auth_url="$2" token_url="$3" client_id="$4" redirect_uri="$5" scopes="$6" extra_params="$7" token_file="$8" token_format="$9"
+
+    echo ""
+    echo -e "  ${C}${B}◇ OAuth — Autenticação via ${label}${N}"
+    echo ""
+
+    # Gerar PKCE code_verifier e code_challenge
+    CODE_VERIFIER=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))" 2>/dev/null)
+    CODE_CHALLENGE=$(python3 -c "
+import hashlib, base64
+v = '$CODE_VERIFIER'
+digest = hashlib.sha256(v.encode()).digest()
+print(base64.urlsafe_b64encode(digest).rstrip(b'=').decode())
+" 2>/dev/null)
+    STATE=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/dev/null)
+
+    # Encode redirect_uri
+    ENCODED_REDIRECT=$(python3 -c "from urllib.parse import quote; print(quote('$redirect_uri', safe=''))" 2>/dev/null)
+    ENCODED_SCOPES=$(echo "$scopes" | tr ' ' '+')
+
+    OAUTH_URL="${auth_url}?response_type=code&client_id=${client_id}&redirect_uri=${ENCODED_REDIRECT}&scope=${ENCODED_SCOPES}&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256&state=${STATE}"
+    [ -n "$extra_params" ] && OAUTH_URL="${OAUTH_URL}&${extra_params}"
+
+    echo -e "  ${D}Abra esta URL no seu navegador LOCAL:${N}"
+    echo ""
+    echo -e "  ${C}${OAUTH_URL}${N}"
+    echo ""
+    echo -e "  ${D}Após autorizar, o navegador vai redirecionar para${N}"
+    echo -e "  ${D}um endereço localhost que vai falhar — isso é normal.${N}"
+    echo -e "  ${D}Copie a URL completa da barra de endereços e cole aqui.${N}"
+    echo ""
+    read -rp "  Cole a URL de redirect: " REDIRECT_URL
+
+    if [ -z "$REDIRECT_URL" ]; then
+        echo -e "  ${WARN} OAuth ignorado — configure depois"
+        return 1
+    fi
+
+    # Extrair code da URL
+    AUTH_CODE=$(python3 -c "
+from urllib.parse import urlparse, parse_qs
+import sys
+url = sys.stdin.read().strip()
+qs = parse_qs(urlparse(url).query)
+print(qs.get('code', [''])[0])
+" <<< "$REDIRECT_URL" 2>/dev/null)
+
+    if [ -z "$AUTH_CODE" ]; then
+        echo -e "  ${FAIL} Não foi possível extrair o código da URL"
+        echo -e "  ${WARN} Continue sem OAuth — configure depois"
+        return 1
+    fi
+
+    echo -ne "  ${C}⠋${N} Trocando código por token..."
+
+    TOKEN_RESPONSE=$(python3 -c "
+import urllib.request, urllib.parse, json, sys
+data = urllib.parse.urlencode({
+    'grant_type': 'authorization_code',
+    'code': '$AUTH_CODE',
+    'redirect_uri': '$redirect_uri',
+    'client_id': '$client_id',
+    'code_verifier': '$CODE_VERIFIER'
+}).encode()
+req = urllib.request.Request('$token_url', data=data,
+    headers={'Content-Type': 'application/x-www-form-urlencoded'})
+try:
+    resp = urllib.request.urlopen(req, timeout=15)
+    print(resp.read().decode())
+except Exception as e:
+    print(f'ERROR:{e}')
+" 2>/dev/null)
+
+    if echo "$TOKEN_RESPONSE" | grep -q "ERROR:"; then
+        echo -e "\r  ${FAIL} Erro na troca do token OAuth              "
+        echo -e "  ${D}${TOKEN_RESPONSE}${N}"
+        echo -e "  ${WARN} Continue sem OAuth — configure depois"
+        return 1
+    fi
+
+    # Salvar token no formato correto
+    local token_dir
+    token_dir=$(dirname "$token_file")
+    mkdir -p "$token_dir"
+
+    if [ "$token_format" = "claude" ]; then
+        python3 -c "
+import json, sys
+tokens = json.loads(sys.stdin.read())
+auth = {
+    'claudeAiOauth': {
+        'accessToken': tokens.get('access_token', ''),
+        'refreshToken': tokens.get('refresh_token', ''),
+        'expiresAt': tokens.get('expires_in', 0)
+    }
+}
+with open('$token_file', 'w') as f:
+    json.dump(auth, f, indent=2)
+" <<< "$TOKEN_RESPONSE" 2>/dev/null
+    else
+        python3 -c "
+import json, sys
+from datetime import datetime
+tokens = json.loads(sys.stdin.read())
+auth = {
+    'auth_mode': 'chatgpt',
+    'tokens': {
+        'access_token': tokens.get('access_token', ''),
+        'id_token': tokens.get('id_token', ''),
+        'refresh_token': tokens.get('refresh_token', '')
+    },
+    'last_refresh': datetime.now().isoformat()
+}
+with open('$token_file', 'w') as f:
+    json.dump(auth, f, indent=2)
+" <<< "$TOKEN_RESPONSE" 2>/dev/null
+    fi
+
+    chmod 600 "$token_file"
+    echo -e "\r  ${OK} OAuth configurado com sucesso!              "
+    echo -e "  ${D}Token salvo em ${token_file}${N}"
+    return 0
+}
+
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 6: Setup Wizard (CLI) — se config.global não existe
 # ══════════════════════════════════════════════════════════════════════════════
@@ -436,18 +564,75 @@ if [ "$NEEDS_SETUP" = true ]; then
     WIZ_OPENROUTER_KEY=""
     WIZ_OPENAI_KEY=""
 
-    if [ "$WIZ_PROVIDER" = "anthropic" ]; then
-        echo ""
-        read -rp "  Anthropic API Key (sk-ant-...): " WIZ_ANTHROPIC_KEY
-        if [ -z "$WIZ_ANTHROPIC_KEY" ]; then
-            echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
+    if [ "$WIZ_PROVIDER" = "claude-cli" ]; then
+        # Verifica se já tem OAuth do Claude configurado
+        if [ -f "$HOME/.claude/.credentials.json" ]; then
+            CLAUDE_HAS_TOKEN=$(python3 -c "
+import json
+with open('$HOME/.claude/.credentials.json') as f:
+    c = json.load(f)
+print('ok' if c.get('claudeAiOauth',{}).get('accessToken','') else '')
+" 2>/dev/null)
         fi
+        if [ "$CLAUDE_HAS_TOKEN" = "ok" ]; then
+            echo -e "  ${OK} Claude OAuth já configurado"
+        else
+            echo ""
+            echo -e "  ${B}Autenticação Claude:${N}"
+            echo -e "  ${D}  1) Claude OAuth (abrir URL no navegador — sem API key)${N}"
+            echo -e "  ${D}  2) Já tenho o Claude Code CLI instalado e logado${N}"
+            echo ""
+            read -rp "  Escolha [1-2] (padrão: 1): " CLAUDE_AUTH_CHOICE
+            CLAUDE_AUTH_CHOICE="${CLAUDE_AUTH_CHOICE:-1}"
+
+            if [ "$CLAUDE_AUTH_CHOICE" = "1" ]; then
+                do_oauth "Claude" \
+                    "https://auth.anthropic.com/oauth/authorize" \
+                    "https://auth.anthropic.com/oauth/token" \
+                    "d912a2d4-0544-4661-8498-7638e8196c55" \
+                    "http://localhost:18217/oauth/callback" \
+                    "user:inference" \
+                    "" \
+                    "$HOME/.claude/.credentials.json" \
+                    "claude"
+            else
+                echo -e "  ${D}OK — certifique-se de rodar ${B}claude login${N}${D} antes de iniciar os bots${N}"
+            fi
+        fi
+
+    elif [ "$WIZ_PROVIDER" = "anthropic" ]; then
+        echo ""
+        echo -e "  ${B}Autenticação Anthropic:${N}"
+        echo -e "  ${D}  1) Claude OAuth (sem API key — usa assinatura Claude)${N}"
+        echo -e "  ${D}  2) Anthropic API Key${N}"
+        echo ""
+        read -rp "  Escolha [1-2] (padrão: 1): " ANTH_AUTH_CHOICE
+        ANTH_AUTH_CHOICE="${ANTH_AUTH_CHOICE:-1}"
+
+        if [ "$ANTH_AUTH_CHOICE" = "2" ]; then
+            read -rp "  Anthropic API Key (sk-ant-...): " WIZ_ANTHROPIC_KEY
+            if [ -z "$WIZ_ANTHROPIC_KEY" ]; then
+                echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
+            fi
+        else
+            do_oauth "Claude" \
+                "https://auth.anthropic.com/oauth/authorize" \
+                "https://auth.anthropic.com/oauth/token" \
+                "d912a2d4-0544-4661-8498-7638e8196c55" \
+                "http://localhost:18217/oauth/callback" \
+                "user:inference" \
+                "" \
+                "$HOME/.claude/.credentials.json" \
+                "claude"
+        fi
+
     elif [ "$WIZ_PROVIDER" = "openrouter" ]; then
         echo ""
         read -rp "  OpenRouter API Key (sk-or-...): " WIZ_OPENROUTER_KEY
         if [ -z "$WIZ_OPENROUTER_KEY" ]; then
             echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
         fi
+
     elif [ "$WIZ_PROVIDER" = "codex" ]; then
         echo ""
         echo -e "  ${B}Autenticação OpenAI:${N}"
@@ -463,103 +648,15 @@ if [ "$NEEDS_SETUP" = true ]; then
                 echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
             fi
         else
-            # ── Codex OAuth (PKCE flow) ─────────────────────────────────────
-            echo ""
-            echo -e "  ${C}${B}◇ OAuth — Autenticação via ChatGPT${N}"
-            echo ""
-
-            # Gerar PKCE code_verifier e code_challenge
-            CODE_VERIFIER=$(python3 -c "
-import secrets, hashlib, base64
-v = secrets.token_urlsafe(32)
-print(v)
-" 2>/dev/null)
-            CODE_CHALLENGE=$(python3 -c "
-import hashlib, base64
-v = '$CODE_VERIFIER'
-digest = hashlib.sha256(v.encode()).digest()
-challenge = base64.urlsafe_b64encode(digest).rstrip(b'=').decode()
-print(challenge)
-" 2>/dev/null)
-            STATE=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/dev/null)
-
-            OAUTH_URL="https://auth.openai.com/oauth/authorize?response_type=code&client_id=app_EMoamEEZ73f0CkXaXp7hrann&redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback&scope=openid+profile+email+offline_access&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256&state=${STATE}&id_token_add_organizations=true&codex_cli_simplified_flow=true&originator=pi"
-
-            echo -e "  ${D}Abra esta URL no seu navegador LOCAL:${N}"
-            echo ""
-            echo -e "  ${C}${OAUTH_URL}${N}"
-            echo ""
-            echo -e "  ${D}Após autorizar, o navegador vai redirecionar para${N}"
-            echo -e "  ${D}um endereço localhost que vai falhar — isso é normal.${N}"
-            echo -e "  ${D}Copie a URL completa da barra de endereços e cole aqui.${N}"
-            echo ""
-            read -rp "  Cole a URL de redirect: " REDIRECT_URL
-
-            if [ -n "$REDIRECT_URL" ]; then
-                # Extrair code da URL
-                AUTH_CODE=$(python3 -c "
-from urllib.parse import urlparse, parse_qs
-url = '$REDIRECT_URL'
-qs = parse_qs(urlparse(url).query)
-print(qs.get('code', [''])[0])
-" 2>/dev/null)
-
-                if [ -n "$AUTH_CODE" ]; then
-                    echo -ne "  ${C}⠋${N} Trocando código por token..."
-
-                    # Trocar code por tokens
-                    TOKEN_RESPONSE=$(python3 -c "
-import urllib.request, urllib.parse, json
-data = urllib.parse.urlencode({
-    'grant_type': 'authorization_code',
-    'code': '$AUTH_CODE',
-    'redirect_uri': 'http://localhost:1455/auth/callback',
-    'client_id': 'app_EMoamEEZ73f0CkXaXp7hrann',
-    'code_verifier': '$CODE_VERIFIER'
-}).encode()
-req = urllib.request.Request('https://auth.openai.com/oauth/token', data=data,
-    headers={'Content-Type': 'application/x-www-form-urlencoded'})
-try:
-    resp = urllib.request.urlopen(req, timeout=15)
-    print(resp.read().decode())
-except Exception as e:
-    print(f'ERROR:{e}')
-" 2>/dev/null)
-
-                    if echo "$TOKEN_RESPONSE" | grep -q "ERROR:"; then
-                        echo -e "\r  ${FAIL} Erro na troca do token OAuth              "
-                        echo -e "  ${D}${TOKEN_RESPONSE}${N}"
-                        echo -e "  ${WARN} Continue sem OAuth — configure depois"
-                    else
-                        # Salvar em ~/.codex/auth.json
-                        mkdir -p "$HOME/.codex"
-                        python3 -c "
-import json
-from datetime import datetime
-tokens = json.loads('''$TOKEN_RESPONSE''')
-auth = {
-    'auth_mode': 'chatgpt',
-    'tokens': {
-        'access_token': tokens.get('access_token', ''),
-        'id_token': tokens.get('id_token', ''),
-        'refresh_token': tokens.get('refresh_token', '')
-    },
-    'last_refresh': datetime.now().isoformat()
-}
-with open('$HOME/.codex/auth.json', 'w') as f:
-    json.dump(auth, f, indent=2)
-" 2>/dev/null
-                        chmod 600 "$HOME/.codex/auth.json"
-                        echo -e "\r  ${OK} OAuth configurado com sucesso!              "
-                        echo -e "  ${D}Token salvo em ~/.codex/auth.json${N}"
-                    fi
-                else
-                    echo -e "  ${FAIL} Não foi possível extrair o código da URL"
-                    echo -e "  ${WARN} Continue sem OAuth — configure depois"
-                fi
-            else
-                echo -e "  ${WARN} OAuth ignorado — configure depois"
-            fi
+            do_oauth "ChatGPT" \
+                "https://auth.openai.com/oauth/authorize" \
+                "https://auth.openai.com/oauth/token" \
+                "app_EMoamEEZ73f0CkXaXp7hrann" \
+                "http://localhost:1455/auth/callback" \
+                "openid profile email offline_access" \
+                "id_token_add_organizations=true&codex_cli_simplified_flow=true&originator=pi" \
+                "$HOME/.codex/auth.json" \
+                "codex"
         fi
     fi
 
