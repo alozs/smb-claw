@@ -419,7 +419,7 @@ if [ "$NEEDS_SETUP" = true ]; then
     echo -e "  ${D}  1) claude-cli  — Claude via OAuth (sem API key, usa assinatura)${N}"
     echo -e "  ${D}  2) anthropic   — Claude via API key${N}"
     echo -e "  ${D}  3) openrouter  — Qualquer modelo via OpenRouter${N}"
-    echo -e "  ${D}  4) codex       — OpenAI via Codex CLI / API key${N}"
+    echo -e "  ${D}  4) codex       — OpenAI (Codex OAuth + API key)${N}"
     echo ""
     read -rp "  Escolha [1-4] (padrão: 1): " PROV_CHOICE
     PROV_CHOICE="${PROV_CHOICE:-1}"
@@ -431,7 +431,7 @@ if [ "$NEEDS_SETUP" = true ]; then
     esac
     echo -e "  ${OK} Provedor: ${B}${WIZ_PROVIDER}${N}"
 
-    # ── API Key (se necessário) ─────────────────────────────────────────────
+    # ── API Key / OAuth (se necessário) ─────────────────────────────────────
     WIZ_ANTHROPIC_KEY=""
     WIZ_OPENROUTER_KEY=""
     WIZ_OPENAI_KEY=""
@@ -450,7 +450,117 @@ if [ "$NEEDS_SETUP" = true ]; then
         fi
     elif [ "$WIZ_PROVIDER" = "codex" ]; then
         echo ""
-        read -rp "  OpenAI API Key (sk-..., Enter para usar OAuth): " WIZ_OPENAI_KEY
+        echo -e "  ${B}Autenticação OpenAI:${N}"
+        echo -e "  ${D}  1) OpenAI Codex OAuth (ChatGPT OAuth — sem API key)${N}"
+        echo -e "  ${D}  2) OpenAI API Key${N}"
+        echo ""
+        read -rp "  Escolha [1-2] (padrão: 1): " OPENAI_AUTH_CHOICE
+        OPENAI_AUTH_CHOICE="${OPENAI_AUTH_CHOICE:-1}"
+
+        if [ "$OPENAI_AUTH_CHOICE" = "2" ]; then
+            read -rp "  OpenAI API Key (sk-...): " WIZ_OPENAI_KEY
+            if [ -z "$WIZ_OPENAI_KEY" ]; then
+                echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
+            fi
+        else
+            # ── Codex OAuth (PKCE flow) ─────────────────────────────────────
+            echo ""
+            echo -e "  ${C}${B}◇ OAuth — Autenticação via ChatGPT${N}"
+            echo ""
+
+            # Gerar PKCE code_verifier e code_challenge
+            CODE_VERIFIER=$(python3 -c "
+import secrets, hashlib, base64
+v = secrets.token_urlsafe(32)
+print(v)
+" 2>/dev/null)
+            CODE_CHALLENGE=$(python3 -c "
+import hashlib, base64
+v = '$CODE_VERIFIER'
+digest = hashlib.sha256(v.encode()).digest()
+challenge = base64.urlsafe_b64encode(digest).rstrip(b'=').decode()
+print(challenge)
+" 2>/dev/null)
+            STATE=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/dev/null)
+
+            OAUTH_URL="https://auth.openai.com/oauth/authorize?response_type=code&client_id=app_EMoamEEZ73f0CkXaXp7hrann&redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback&scope=openid+profile+email+offline_access&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256&state=${STATE}&id_token_add_organizations=true&codex_cli_simplified_flow=true&originator=pi"
+
+            echo -e "  ${D}Abra esta URL no seu navegador LOCAL:${N}"
+            echo ""
+            echo -e "  ${C}${OAUTH_URL}${N}"
+            echo ""
+            echo -e "  ${D}Após autorizar, o navegador vai redirecionar para${N}"
+            echo -e "  ${D}um endereço localhost que vai falhar — isso é normal.${N}"
+            echo -e "  ${D}Copie a URL completa da barra de endereços e cole aqui.${N}"
+            echo ""
+            read -rp "  Cole a URL de redirect: " REDIRECT_URL
+
+            if [ -n "$REDIRECT_URL" ]; then
+                # Extrair code da URL
+                AUTH_CODE=$(python3 -c "
+from urllib.parse import urlparse, parse_qs
+url = '$REDIRECT_URL'
+qs = parse_qs(urlparse(url).query)
+print(qs.get('code', [''])[0])
+" 2>/dev/null)
+
+                if [ -n "$AUTH_CODE" ]; then
+                    echo -ne "  ${C}⠋${N} Trocando código por token..."
+
+                    # Trocar code por tokens
+                    TOKEN_RESPONSE=$(python3 -c "
+import urllib.request, urllib.parse, json
+data = urllib.parse.urlencode({
+    'grant_type': 'authorization_code',
+    'code': '$AUTH_CODE',
+    'redirect_uri': 'http://localhost:1455/auth/callback',
+    'client_id': 'app_EMoamEEZ73f0CkXaXp7hrann',
+    'code_verifier': '$CODE_VERIFIER'
+}).encode()
+req = urllib.request.Request('https://auth.openai.com/oauth/token', data=data,
+    headers={'Content-Type': 'application/x-www-form-urlencoded'})
+try:
+    resp = urllib.request.urlopen(req, timeout=15)
+    print(resp.read().decode())
+except Exception as e:
+    print(f'ERROR:{e}')
+" 2>/dev/null)
+
+                    if echo "$TOKEN_RESPONSE" | grep -q "ERROR:"; then
+                        echo -e "\r  ${FAIL} Erro na troca do token OAuth              "
+                        echo -e "  ${D}${TOKEN_RESPONSE}${N}"
+                        echo -e "  ${WARN} Continue sem OAuth — configure depois"
+                    else
+                        # Salvar em ~/.codex/auth.json
+                        mkdir -p "$HOME/.codex"
+                        python3 -c "
+import json
+from datetime import datetime
+tokens = json.loads('''$TOKEN_RESPONSE''')
+auth = {
+    'auth_mode': 'chatgpt',
+    'tokens': {
+        'access_token': tokens.get('access_token', ''),
+        'id_token': tokens.get('id_token', ''),
+        'refresh_token': tokens.get('refresh_token', '')
+    },
+    'last_refresh': datetime.now().isoformat()
+}
+with open('$HOME/.codex/auth.json', 'w') as f:
+    json.dump(auth, f, indent=2)
+" 2>/dev/null
+                        chmod 600 "$HOME/.codex/auth.json"
+                        echo -e "\r  ${OK} OAuth configurado com sucesso!              "
+                        echo -e "  ${D}Token salvo em ~/.codex/auth.json${N}"
+                    fi
+                else
+                    echo -e "  ${FAIL} Não foi possível extrair o código da URL"
+                    echo -e "  ${WARN} Continue sem OAuth — configure depois"
+                fi
+            else
+                echo -e "  ${WARN} OAuth ignorado — configure depois"
+            fi
+        fi
     fi
 
     # ── Modelo ──────────────────────────────────────────────────────────────
@@ -588,15 +698,15 @@ GCEOF
 
         echo ""
         echo -e "  ${B}Ferramentas:${N}"
-        echo -e "  ${D}  1) Básico     — shell, files, http (recomendado)${N}"
-        echo -e "  ${D}  2) Completo   — shell, cron, files, http, git, github, database${N}"
+        echo -e "  ${D}  1) Completo   — shell, cron, files, http, git, github, database (recomendado)${N}"
+        echo -e "  ${D}  2) Básico     — shell, files, http${N}"
         echo -e "  ${D}  3) Nenhuma    — apenas conversa${N}"
         echo ""
         read -rp "  Escolha [1-3] (padrão: 1): " TOOLS_CHOICE
         case "$TOOLS_CHOICE" in
-            2) WIZ_TOOLS="shell,cron,files,http,git,github,database" ;;
+            2) WIZ_TOOLS="shell,files,http" ;;
             3) WIZ_TOOLS="none" ;;
-            *) WIZ_TOOLS="shell,files,http" ;;
+            *) WIZ_TOOLS="shell,cron,files,http,git,github,database" ;;
         esac
 
         # Cria estrutura do bot
