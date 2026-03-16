@@ -833,6 +833,19 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.3.0</span>
+            <span class="cl-date">2026-03-16</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>Novas funcionalidades</li>
+              <li>Acesso temporário ao painel admin via token: agora é possível gerar links de acesso ao painel administrativo com validade configurável diretamente pelo comando /painel no Telegram. Os tokens são temporários, expiram automaticamente e não sobrevivem a reinicializações, garantindo segurança sem necessidade de senhas fixas.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.2.2</span>
             <span class="cl-date">2026-03-15</span>
           </div>
@@ -872,28 +885,6 @@
               <li>Melhorias</li>
               <li>memory-autosave.sh reescrito com detecção automática de provedor e registro de estado persistente em .memory_autosave_state.</li>
               <li>Scheduler resiliente a flood control do Telegram: mensagens longas são divididas em chunks e reenvios aguardam o tempo indicado pelo Telegram antes de tentar novamente.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.2.0</span>
-            <span class="cl-date">2026-03-15</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Novas funcionalidades</strong></p>
-            <ul>
-              <li>Wizard de criação de agentes e sub-agentes direto pelo Telegram, passo a passo com geração de personalidade assistida por IA</li>
-              <li>Menu de comandos nativo do Telegram — botão / ao lado do campo de texto com comandos diferentes para usuários e admin</li>
-              <li>Comando /apagar_agente com confirmação — para serviço, desabilita e remove o diretório completo</li>
-            </ul>
-            <p><strong>Melhorias de estabilidade e segurança</strong></p>
-            <ul>
-              <li>Variáveis de sistema protegidas no painel admin (readonly — sem editar, sem excluir)</li>
-              <li>Crons do sistema protegidos contra exclusão acidental pelo painel</li>
-              <li>context.global com fluxo Editar / Salvar / Restaurar Padrão</li>
-              <li>Correção de parsing de Markdown no Telegram (underscores em comandos)</li>
-              <li>Start e enable automático do serviço systemd ao concluir o wizard</li>
             </ul>
           </div>
         </div>

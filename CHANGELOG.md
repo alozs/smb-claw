@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 (2026-03-16)
+
+Novas funcionalidades
+
+• Acesso temporário ao painel admin via token: agora é possível gerar links de acesso ao painel administrativo com validade configurável diretamente pelo comando /painel no Telegram. Os tokens são temporários, expiram automaticamente e não sobrevivem a reinicializações, garantindo segurança sem necessidade de senhas fixas.
+
 ## 0.2.2 (2026-03-15)
 
 Novas funcionalidades
