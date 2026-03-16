@@ -456,13 +456,11 @@ async def _describe_image_for_cli(image_path: str) -> str:
                     model=vision_model, store=False, stream=True,
                     input=[{"role": "user", "content": vision_content}],
                 )
-                response = await stream.get_final_response()
-                for item in response.output:
-                    if getattr(item, "type", "") == "message":
-                        for c in getattr(item, "content", []):
-                            if getattr(c, "type", "") == "output_text":
-                                return c.text
-                return "[imagem]"
+                vis_text = ""
+                async for event in stream:
+                    if getattr(event, "type", "") == "response.output_text.delta":
+                        vis_text += getattr(event, "delta", "")
+                return vis_text or "[imagem]"
             else:
                 vision_content = [
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}},
@@ -747,42 +745,55 @@ async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
             if resp_tools:
                 kwargs["tools"] = resp_tools
             stream = await client.responses.create(**kwargs)
-            # Consumir stream e montar resposta completa
-            response = await stream.get_final_response()
-            total_input += getattr(response.usage, "input_tokens", 0)
-            total_output += getattr(response.usage, "output_tokens", 0)
-
-            # Extrair texto e tool calls do output
+            # Consumir stream e acumular texto / tool calls
             text_parts = []
             tool_calls = []
-            for item in response.output:
-                if getattr(item, "type", "") == "message":
-                    for c in getattr(item, "content", []):
-                        if getattr(c, "type", "") == "output_text":
-                            text_parts.append(c.text)
-                elif getattr(item, "type", "") == "function_call":
-                    tool_calls.append(item)
+            # Buffers para acumular eventos de stream
+            _cur_text = {}       # content_index -> text acumulado
+            _cur_fc = {}         # item_id -> {name, arguments, call_id}
+            async for event in stream:
+                ev_type = getattr(event, "type", "")
+                if ev_type == "response.output_text.delta":
+                    idx = getattr(event, "content_index", 0)
+                    _cur_text[idx] = _cur_text.get(idx, "") + getattr(event, "delta", "")
+                elif ev_type == "response.output_text.done":
+                    idx = getattr(event, "content_index", 0)
+                    text_parts.append(_cur_text.pop(idx, getattr(event, "text", "")))
+                elif ev_type == "response.function_call_arguments.done":
+                    tool_calls.append(event)
+                elif ev_type == "response.completed":
+                    resp_obj = getattr(event, "response", None)
+                    if resp_obj and hasattr(resp_obj, "usage"):
+                        total_input += getattr(resp_obj.usage, "input_tokens", 0)
+                        total_output += getattr(resp_obj.usage, "output_tokens", 0)
+                    # Extrair output completo para usar no próximo turno
+                    if resp_obj:
+                        _completed_output = getattr(resp_obj, "output", [])
 
             if not tool_calls:
                 return "\n".join(text_parts) or ""
 
-            # Processar tool calls e adicionar resultados ao input
-            for item in response.output:
-                resp_input.append(item)
+            # Processar tool calls e adicionar output completo ao input
+            if _completed_output:
+                for item in _completed_output:
+                    resp_input.append(item)
             for tc in tool_calls:
                 total_tool_calls += 1
+                tc_name = getattr(tc, "name", "")
+                tc_args = getattr(tc, "arguments", "{}")
+                tc_call_id = getattr(tc, "call_id", "")
                 try:
-                    tool_input = json.loads(tc.arguments)
+                    tool_input = json.loads(tc_args)
                 except Exception:
                     tool_input = {}
-                logger.info(f"[tool/codex-resp] {tc.name} {json.dumps(tool_input)[:120]}")
+                logger.info(f"[tool/codex-resp] {tc_name} {json.dumps(tool_input)[:120]}")
                 result = await tool_registry.execute(
-                    tc.name, tool_input,
+                    tc_name, tool_input,
                     user_id=user_id, db=db, config=TOOL_CONFIG,
                 )
                 resp_input.append({
                     "type": "function_call_output",
-                    "call_id": tc.call_id,
+                    "call_id": tc_call_id,
                     "output": result,
                 })
             continue
