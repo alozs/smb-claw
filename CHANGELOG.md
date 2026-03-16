@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.4.0 (2026-03-16)
+
+Novas funcionalidades
+
+• Wizard CLI interativo no setup.sh — cria e configura bots direto no terminal, sem editar arquivos manualmente
+• Suporte a OAuth do Claude e OpenAI no wizard, permitindo usar ChatGPT Plus ou Claude Pro sem chave de API
+• Três provedores disponíveis no wizard com submenus unificados: Anthropic, OpenRouter e OpenAI/Codex
+• Auto-detecção de admin no primeiro /start — dispensa configuração manual do ADMIN_ID
+• Auto-start do bot após criação pelo wizard, inclusive em ambientes Docker
+• Suporte ao endpoint WHAM (Responses API da OpenAI) para autenticação via ChatGPT Plus OAuth
+• Instalação automática de dependências do sistema (python3, pip, git, lsof)
+• Detecção de ambiente Docker com aviso sobre portas não expostas
+• Modo --config no setup.sh para editar configuração existente sem reinstalar
+• Aviso de segurança durante o setup e seleção automática de porta alternativa quando a padrão está ocupada
+
+Melhorias
+
+• Diagnóstico aprimorado de falhas na inicialização de bots, com limpeza automática de locks órfãos e processos antigos
+• Bots offline são reiniciados automaticamente
+
+Correções
+
+• Compatibilidade com SDK Anthropic 2.26 — streaming e extração de tool calls corrigidos
+• Setup.sh não aborta mais inesperadamente durante a inicialização de bots
+• Escape codes ANSI não vazam mais na saída do setup em ambientes Docker
+• Detecção de pip3 como fallback quando pip não está disponível
+• Inicialização de bots em Docker usa nohup em vez de systemd
+
 ## 0.3.0 (2026-03-16)
 
 Novas funcionalidades

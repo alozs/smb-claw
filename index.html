@@ -833,6 +833,37 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.4.0</span>
+            <span class="cl-date">2026-03-16</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>Novas funcionalidades</li>
+              <li>Wizard CLI interativo no setup.sh — cria e configura bots direto no terminal, sem editar arquivos manualmente</li>
+              <li>Suporte a OAuth do Claude e OpenAI no wizard, permitindo usar ChatGPT Plus ou Claude Pro sem chave de API</li>
+              <li>Três provedores disponíveis no wizard com submenus unificados: Anthropic, OpenRouter e OpenAI/Codex</li>
+              <li>Auto-detecção de admin no primeiro /start — dispensa configuração manual do ADMIN_ID</li>
+              <li>Auto-start do bot após criação pelo wizard, inclusive em ambientes Docker</li>
+              <li>Suporte ao endpoint WHAM (Responses API da OpenAI) para autenticação via ChatGPT Plus OAuth</li>
+              <li>Instalação automática de dependências do sistema (python3, pip, git, lsof)</li>
+              <li>Detecção de ambiente Docker com aviso sobre portas não expostas</li>
+              <li>Modo --config no setup.sh para editar configuração existente sem reinstalar</li>
+              <li>Aviso de segurança durante o setup e seleção automática de porta alternativa quando a padrão está ocupada</li>
+              <li>Melhorias</li>
+              <li>Diagnóstico aprimorado de falhas na inicialização de bots, com limpeza automática de locks órfãos e processos antigos</li>
+              <li>Bots offline são reiniciados automaticamente</li>
+              <li>Correções</li>
+              <li>Compatibilidade com SDK Anthropic 2.26 — streaming e extração de tool calls corrigidos</li>
+              <li>Setup.sh não aborta mais inesperadamente durante a inicialização de bots</li>
+              <li>Escape codes ANSI não vazam mais na saída do setup em ambientes Docker</li>
+              <li>Detecção de pip3 como fallback quando pip não está disponível</li>
+              <li>Inicialização de bots em Docker usa nohup em vez de systemd</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.3.0</span>
             <span class="cl-date">2026-03-16</span>
           </div>
@@ -861,30 +892,6 @@
               <li>Proteção aprimorada contra uso indevido do sistema: bloqueio de tentativas de sobrescrever instruções de segurança via mensagens e comandos.</li>
               <li>Boas-vindas do /start revisadas para refletir todos os comandos disponíveis, incluindo os novos wizards de criação.</li>
               <li>Experiência do administrador mais fluida ao provisionar novos agentes — o processo agora guia passo a passo sem exigir acesso ao servidor.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.2.1</span>
-            <span class="cl-date">2026-03-15</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Com base nas mudanças reais do repositório, aqui estão as notas de release</strong></p>
-            <ul>
-              <li>--</li>
-              <li>Novas funcionalidades</li>
-              <li>Wizard interativo no Telegram para criar agentes e sub-agentes diretamente pelo chat, sem precisar acessar o servidor — basta usar /criar_agente ou /criar_subagente e responder as perguntas passo a passo.</li>
-              <li>O wizard gera o soul.md automaticamente com ajuda do Claude a partir da descrição do agente, ou aceita um texto personalizado.</li>
-              <li>Comando /apagar_agente para remover agentes existentes diretamente pelo Telegram.</li>
-              <li>Seção de changelog público na landing page, exibindo o histórico de versões gerado automaticamente a cada release.</li>
-              <li>Painel admin com editor visual do context.global — instruções globais compartilhadas entre todos os agentes, editáveis sem acessar o servidor.</li>
-              <li>Variáveis de sistema protegidas no painel admin: chaves reservadas aparecem como somente leitura, evitando exclusão acidental.</li>
-              <li>Notas de release geradas automaticamente com IA no release.sh, com fallback entre Claude OAuth, OpenRouter e OpenAI.</li>
-              <li>Aba de status do memory-autosave no painel admin, com log das últimas execuções e botão para rodar manualmente.</li>
-              <li>Melhorias</li>
-              <li>memory-autosave.sh reescrito com detecção automática de provedor e registro de estado persistente em .memory_autosave_state.</li>
-              <li>Scheduler resiliente a flood control do Telegram: mensagens longas são divididas em chunks e reenvios aguardam o tempo indicado pelo Telegram antes de tentar novamente.</li>
             </ul>
           </div>
         </div>
