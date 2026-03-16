@@ -44,6 +44,34 @@ spinner() {
     return $?
 }
 
+# Checa se uma porta está em uso (fallback se lsof não existir)
+port_in_use() {
+    local port=$1
+    if command -v lsof &>/dev/null; then
+        lsof -ti:"$port" >/dev/null 2>&1
+    elif command -v ss &>/dev/null; then
+        ss -tlnp 2>/dev/null | grep -q ":${port} "
+    elif [ -e /proc/net/tcp ]; then
+        local hex_port=$(printf '%04X' "$port")
+        grep -qi ":${hex_port} " /proc/net/tcp 2>/dev/null
+    else
+        # Tenta conectar na porta
+        (echo >/dev/tcp/127.0.0.1/"$port") 2>/dev/null
+    fi
+}
+
+# Retorna PID do processo na porta (se disponível)
+port_pid() {
+    local port=$1
+    if command -v lsof &>/dev/null; then
+        lsof -ti:"$port" 2>/dev/null | head -1
+    elif command -v ss &>/dev/null; then
+        ss -tlnp 2>/dev/null | grep ":${port} " | grep -oP 'pid=\K[0-9]+' | head -1
+    else
+        echo ""
+    fi
+}
+
 # ══════════════════════════════════════════════════════════════════════════════
 # HEADER
 # ══════════════════════════════════════════════════════════════════════════════
@@ -233,7 +261,12 @@ if [ -n "$MISSING_PKGS" ]; then
     fi
     echo ""
     echo -ne "  ${C}⠋${N} Instalando pacotes..."
-    $PIP_CMD install --break-system-packages $MISSING_PKGS -q 2>/tmp/smb-pip.log &
+    # Detecta se pip suporta --break-system-packages
+    BSP_FLAG=""
+    if $PIP_CMD install --break-system-packages --help &>/dev/null; then
+        BSP_FLAG="--break-system-packages"
+    fi
+    $PIP_CMD install $BSP_FLAG $MISSING_PKGS -q 2>/tmp/smb-pip.log &
     PIP_PID=$!
     spinner $PIP_PID "Instalando pacotes..." && {
         echo -e "\r  ${OK} Pacotes instalados com sucesso              "
@@ -249,13 +282,23 @@ fi
 # STEP 4: Directories
 # ══════════════════════════════════════════════════════════════════════════════
 
-mkdir -p "$BASE_DIR/bots" "$BASE_DIR/logs" 2>/dev/null
+mkdir -p "$BASE_DIR/bots" "$BASE_DIR/logs" 2>/dev/null || {
+    echo -e "  ${FAIL} Sem permissão para criar diretórios em ${B}${BASE_DIR}${N}"
+    exit 1
+}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 5: Admin panel
 # ══════════════════════════════════════════════════════════════════════════════
 
 step_header "Painel Admin"
+
+# Verifica se o módulo admin existe
+if [ ! -f "$BASE_DIR/admin/app.py" ]; then
+    echo -e "  ${FAIL} Módulo admin não encontrado ${D}(admin/app.py)${N}"
+    echo -e "  ${D}Verifique se o repositório está completo.${N}"
+    exit 1
+fi
 
 # Detect how to run uvicorn (venv vs system)
 if [ -f "$BASE_DIR/admin/venv/bin/uvicorn" ]; then
@@ -267,10 +310,10 @@ else
 fi
 
 # Checa se o próprio painel admin já está rodando na porta
-if lsof -ti:$ADMIN_PORT >/dev/null 2>&1; then
+if port_in_use $ADMIN_PORT; then
     # Verifica se é o nosso processo (uvicorn admin.app)
-    EXISTING_PID=$(lsof -ti:$ADMIN_PORT 2>/dev/null | head -1)
-    if ps -p "$EXISTING_PID" -o args= 2>/dev/null | grep -q "admin.app"; then
+    EXISTING_PID=$(port_pid $ADMIN_PORT)
+    if [ -n "$EXISTING_PID" ] && ps -p "$EXISTING_PID" -o args= 2>/dev/null | grep -q "admin.app"; then
         echo -e "  ${OK} Painel admin já está rodando na porta ${B}${ADMIN_PORT}${N}"
     else
         # Porta ocupada por outro processo — busca alternativa
@@ -278,7 +321,7 @@ if lsof -ti:$ADMIN_PORT >/dev/null 2>&1; then
         MAX_ATTEMPTS=10
         for i in $(seq 1 $MAX_ATTEMPTS); do
             ADMIN_PORT=$((ADMIN_PORT + 1))
-            if ! lsof -ti:$ADMIN_PORT >/dev/null 2>&1; then
+            if ! port_in_use $ADMIN_PORT; then
                 break
             fi
             if [ "$i" -eq "$MAX_ATTEMPTS" ]; then
@@ -291,7 +334,7 @@ if lsof -ti:$ADMIN_PORT >/dev/null 2>&1; then
         nohup $UVICORN admin.app:app --host 0.0.0.0 --port "$ADMIN_PORT" \
             > /tmp/smb-admin.log 2>&1 &
         sleep 2
-        if lsof -ti:$ADMIN_PORT >/dev/null 2>&1; then
+        if port_in_use $ADMIN_PORT; then
             echo -e "  ${OK} Painel admin iniciado na porta ${B}${ADMIN_PORT}${N}"
         else
             echo -e "  ${FAIL} Falha ao iniciar o painel admin na porta ${B}${ADMIN_PORT}${N}"
@@ -307,7 +350,7 @@ else
         > /tmp/smb-admin.log 2>&1 &
     sleep 2
 
-    if lsof -ti:$ADMIN_PORT >/dev/null 2>&1; then
+    if port_in_use $ADMIN_PORT; then
         echo -e "\r  ${OK} Painel admin iniciado na porta ${B}${ADMIN_PORT}${N}        "
     else
         echo -e "\r  ${FAIL} Falha ao iniciar o painel admin                "
@@ -345,22 +388,37 @@ fi
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 URL="http://${IP:-localhost}:${ADMIN_PORT}"
 
+# Largura interna do box (entre as bordas)
+BOX_W=50
+# Padding helper: preenche até a borda direita
+pad() {
+    local text="$1"
+    local len=${#text}
+    local spaces=$((BOX_W - 2 - len))  # -2 para margem esquerda "   "
+    [ "$spaces" -lt 0 ] && spaces=0
+    printf '%*s' "$spaces" ''
+}
+
 echo ""
 echo ""
-echo -e "  ${G}${B}╭──────────────────────────────────────────────────╮${N}"
-echo -e "  ${G}${B}│${N}                                                  ${G}${B}│${N}"
-echo -e "  ${G}${B}│${N}   ${OK} ${B}${W}Setup concluído!${N}                              ${G}${B}│${N}"
-echo -e "  ${G}${B}│${N}                                                  ${G}${B}│${N}"
-echo -e "  ${G}${B}│${N}   Abra no navegador:                            ${G}${B}│${N}"
-echo -e "  ${G}${B}│${N}   ${C}${B}${URL}$(printf '%*s' $((36 - ${#URL})) '')${N}${G}${B}│${N}"
-echo -e "  ${G}${B}│${N}                                                  ${G}${B}│${N}"
+echo -e "  ${G}${B}╭$(printf '%.0s─' $(seq 1 $BOX_W))╮${N}"
+echo -e "  ${G}${B}│${N}$(printf '%*s' $BOX_W '')${G}${B}│${N}"
+echo -e "  ${G}${B}│${N}   ${OK} ${B}${W}Setup concluído!${N}$(pad "✔ Setup concluído!")${G}${B}│${N}"
+echo -e "  ${G}${B}│${N}$(printf '%*s' $BOX_W '')${G}${B}│${N}"
+
+URL_LABEL="Abra no navegador:"
+echo -e "  ${G}${B}│${N}   ${D}${URL_LABEL}${N}$(pad "$URL_LABEL")${G}${B}│${N}"
+echo -e "  ${G}${B}│${N}   ${C}${B}${URL}${N}$(pad "$URL")${G}${B}│${N}"
+echo -e "  ${G}${B}│${N}$(printf '%*s' $BOX_W '')${G}${B}│${N}"
 
 if [ "$BOT_COUNT" -eq 0 ]; then
-    echo -e "  ${G}${B}│${N}   ${Y}O setup wizard abrirá automaticamente.${N}       ${G}${B}│${N}"
+    WIZ_TEXT="O setup wizard abrirá automaticamente."
+    echo -e "  ${G}${B}│${N}   ${Y}${WIZ_TEXT}${N}$(pad "$WIZ_TEXT")${G}${B}│${N}"
 else
-    echo -e "  ${G}${B}│${N}   ${D}${BOT_COUNT} bot(s) configurado(s), ${ACTIVE_COUNT} online${N}$(printf '%*s' $((14 - ${#BOT_COUNT} - ${#ACTIVE_COUNT})) '')${G}${B}│${N}"
+    BOT_TEXT="${BOT_COUNT} bot(s) configurado(s), ${ACTIVE_COUNT} online"
+    echo -e "  ${G}${B}│${N}   ${D}${BOT_TEXT}${N}$(pad "$BOT_TEXT")${G}${B}│${N}"
 fi
 
-echo -e "  ${G}${B}│${N}                                                  ${G}${B}│${N}"
-echo -e "  ${G}${B}╰──────────────────────────────────────────────────╯${N}"
+echo -e "  ${G}${B}│${N}$(printf '%*s' $BOX_W '')${G}${B}│${N}"
+echo -e "  ${G}${B}╰$(printf '%.0s─' $(seq 1 $BOX_W))╯${N}"
 echo ""
