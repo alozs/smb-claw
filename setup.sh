@@ -1046,6 +1046,9 @@ fi
 BOT_COUNT=$(find "$BASE_DIR/bots" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
 ACTIVE_COUNT=0
 
+# Desabilita set -e nesta seção — pgrep/grep retornam 1 quando não há match
+set +e
+
 if [ "$BOT_COUNT" -gt 0 ]; then
     step_header "Bots"
     for bot_dir in "$BASE_DIR/bots"/*/; do
@@ -1067,9 +1070,11 @@ if [ "$BOT_COUNT" -gt 0 ]; then
         else
             # Tenta iniciar automaticamente se tem token configurado
             HAS_TOKEN=false
-            if [ -f "$bot_env" ] && grep -q "^TELEGRAM_TOKEN=.\+" "$bot_env" 2>/dev/null; then
+            if [ -f "$bot_env" ]; then
                 TOKEN_VAL=$(grep "^TELEGRAM_TOKEN=" "$bot_env" 2>/dev/null | cut -d= -f2-)
-                [ "$TOKEN_VAL" != "SEU_TOKEN_AQUI" ] && HAS_TOKEN=true
+                if [ -n "$TOKEN_VAL" ] && [ "$TOKEN_VAL" != "SEU_TOKEN_AQUI" ]; then
+                    HAS_TOKEN=true
+                fi
             fi
 
             if [ "$HAS_TOKEN" = true ]; then
@@ -1103,6 +1108,8 @@ if [ "$BOT_COUNT" -gt 0 ]; then
         fi
     done
 fi
+
+set -e
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DONE
