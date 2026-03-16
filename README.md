@@ -1,4 +1,4 @@
-# SMB Claw — Multi-Bot AI Framework
+# SMB Claw — Multi-Agent AI Framework
 
 Sistema de gestão de agentes de IA para Telegram, focado em **simplicidade**, **facilidade de uso** e **segurança**. Rode múltiplos bots independentes numa única VPS, cada um com personalidade própria, memória persistente, ferramentas modulares e subagentes especializados.
 
