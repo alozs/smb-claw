@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.5 (2026-03-15)
+- remove card de suporte a mídia da seção de recursos
+- design: melhora seção origem, bento grid recursos, favicon e ajustes tabela
+- fix: corrige descrição de suporte a mídia na landing page
+- design: redesign completo da landing page
+- docs: adiciona landing page GitHub Pages e história de origem do projeto
+
 ## 0.1.4 (2026-03-15)
 - fix: remove todos os paths hardcoded /home/ubuntu — agora usa paths dinâmicos
 
