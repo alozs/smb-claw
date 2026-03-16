@@ -977,8 +977,8 @@ BEOF
 BEOF
         chmod 600 "$WIZ_BOT_DIR/MEMORY.md"
 
-        # Serviço systemd (só se systemctl existir)
-        if command -v systemctl &>/dev/null; then
+        # Serviço systemd (só fora do Docker)
+        if [ "$IN_DOCKER" != true ] && command -v systemctl &>/dev/null; then
             WIZ_SERVICE="claude-bot-$WIZ_BOT_NAME"
             sudo tee "/etc/systemd/system/$WIZ_SERVICE.service" > /dev/null << BEOF
 [Unit]
@@ -1007,7 +1007,7 @@ BEOF
         else
             # Iniciar o bot automaticamente
             echo ""
-            if command -v systemctl &>/dev/null && [ -f "/etc/systemd/system/claude-bot-$WIZ_BOT_NAME.service" ]; then
+            if [ "$IN_DOCKER" != true ] && command -v systemctl &>/dev/null && [ -f "/etc/systemd/system/claude-bot-$WIZ_BOT_NAME.service" ]; then
                 sudo systemctl enable --now "claude-bot-$WIZ_BOT_NAME" 2>/dev/null
                 sleep 2
                 if systemctl is-active --quiet "claude-bot-$WIZ_BOT_NAME" 2>/dev/null; then
@@ -1058,7 +1058,7 @@ if [ "$BOT_COUNT" -gt 0 ]; then
 
         # Verifica se o bot está rodando (systemd ou processo direto)
         BOT_RUNNING=false
-        if command -v systemctl &>/dev/null && systemctl is-active --quiet "claude-bot-$bot_name" 2>/dev/null; then
+        if [ "$IN_DOCKER" != true ] && command -v systemctl &>/dev/null && systemctl is-active --quiet "claude-bot-$bot_name" 2>/dev/null; then
             BOT_RUNNING=true
         elif pgrep -f "bot.py --bot-dir.*bots/$bot_name" >/dev/null 2>&1; then
             BOT_RUNNING=true
@@ -1098,7 +1098,7 @@ if [ "$BOT_COUNT" -gt 0 ]; then
                 TOKEN_ID=$(echo "$TOKEN_VAL" | cut -d: -f1)
                 rm -f "$BASE_DIR/.locks/bot_${TOKEN_ID}.lock" 2>/dev/null
 
-                if command -v systemctl &>/dev/null && [ -f "/etc/systemd/system/claude-bot-$bot_name.service" ]; then
+                if [ "$IN_DOCKER" != true ] && command -v systemctl &>/dev/null && [ -f "/etc/systemd/system/claude-bot-$bot_name.service" ]; then
                     sudo systemctl restart "claude-bot-$bot_name" 2>/dev/null
                     sleep 2
                     if systemctl is-active --quiet "claude-bot-$bot_name" 2>/dev/null; then
