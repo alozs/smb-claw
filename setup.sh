@@ -116,6 +116,38 @@ fi
 echo ""
 
 # ══════════════════════════════════════════════════════════════════════════════
+# STEP 0: Dependências do sistema (auto-install)
+# ══════════════════════════════════════════════════════════════════════════════
+
+SYS_PKGS=""
+command -v python3 &>/dev/null || SYS_PKGS="$SYS_PKGS python3"
+command -v pip3 &>/dev/null || command -v pip &>/dev/null || SYS_PKGS="$SYS_PKGS python3-pip"
+command -v git &>/dev/null || SYS_PKGS="$SYS_PKGS git"
+command -v curl &>/dev/null || SYS_PKGS="$SYS_PKGS curl"
+command -v lsof &>/dev/null || SYS_PKGS="$SYS_PKGS lsof"
+
+if [ -n "$SYS_PKGS" ]; then
+    step_header "Instalando dependências do sistema"
+    echo -ne "  ${C}⠋${N} apt install${SYS_PKGS}..."
+    if command -v apt-get &>/dev/null; then
+        apt-get update -qq >/dev/null 2>&1
+        apt-get install -y -qq $SYS_PKGS >/dev/null 2>&1 &
+        SYS_PID=$!
+        spinner $SYS_PID "Instalando${SYS_PKGS}..." && {
+            echo -e "\r  ${OK} Dependências do sistema instaladas             "
+        } || {
+            echo -e "\r  ${FAIL} Erro ao instalar dependências do sistema      "
+            echo -e "  ${D}Tente manualmente: apt install${SYS_PKGS}${N}"
+            exit 1
+        }
+    else
+        echo -e "\r  ${FAIL} Gerenciador de pacotes não suportado (apt não encontrado)"
+        echo -e "  ${D}Instale manualmente:${SYS_PKGS}${N}"
+        exit 1
+    fi
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
 # STEP 1: System check
 # ══════════════════════════════════════════════════════════════════════════════
 
