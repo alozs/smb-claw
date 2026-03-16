@@ -485,6 +485,9 @@ _user_locks: dict[int, asyncio.Lock] = {}
 _locks_lock = asyncio.Lock()  # protege criação de novos user locks
 _bot_start_time = time.monotonic()
 
+# ── Wizard de criação de agentes/sub-agentes ──────────────────────────────────
+_wizard_state: dict[int, dict] = {}  # uid → {"type", "step", "data": {...}}
+
 
 async def _get_user_lock(user_id: int) -> asyncio.Lock:
     """Retorna lock dedicado para um user. Cria se não existir."""
@@ -999,7 +1002,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         tools_info = f"\n🔧 `{', '.join(sorted(ENABLED_TOOLS))}`" if ENABLED_TOOLS else ""
         admin_extra = (
             "\n\n*Admin:*\n/users — aprovados\n/pending — pendentes\n"
-            "/revoke <id> — revogar\n/memory — ver memória\n/stats — analytics"
+            "/revoke <id> — revogar\n/memory — ver memória\n/stats — analytics\n"
+            "/criar\\_agente — novo agente via wizard\n/criar\\_subagente — novo sub-agente\n/apagar\\_agente — remover agente"
             if is_admin(user.id) else ""
         )
         welcome_msg = (
@@ -1315,6 +1319,613 @@ async def callback_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             )
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# WIZARD: CRIAR AGENTE / SUB-AGENTE VIA TELEGRAM
+# ═══════════════════════════════════════════════════════════════════════════════
+
+WIZARD_PROVIDERS = {
+    "claude-cli": "Claude (gratuito, OAuth)",
+    "anthropic":  "Anthropic API",
+    "openrouter": "OpenRouter",
+    "codex":      "Codex / ChatGPT",
+}
+WIZARD_TOOLS = {
+    "shell":    "🖥️ Terminal (executa comandos)",
+    "cron":     "⏰ Agendamentos (cron jobs)",
+    "files":    "📁 Arquivos (leitura/escrita)",
+    "http":     "🌐 HTTP (chama APIs externas)",
+    "git":      "📦 Git (clone, push, pull)",
+    "github":   "🐙 GitHub (PRs, issues)",
+    "database": "🗄️ Banco de dados (SQL)",
+}
+
+
+def _wizard_provider_keyboard() -> InlineKeyboardMarkup:
+    rows = []
+    for key, label in WIZARD_PROVIDERS.items():
+        rows.append([InlineKeyboardButton(label, callback_data=f"wiz_provider_{key}")])
+    rows.append([InlineKeyboardButton("❌ Cancelar wizard", callback_data="wiz_cancel")])
+    return InlineKeyboardMarkup(rows)
+
+
+def _wizard_tools_keyboard(selected: list) -> InlineKeyboardMarkup:
+    rows = []
+    for key, label in WIZARD_TOOLS.items():
+        mark = "✅" if key in selected else "○"
+        rows.append([InlineKeyboardButton(f"{mark} {label}", callback_data=f"wiz_tool_{key}")])
+    rows.append([
+        InlineKeyboardButton("✅ Confirmar ferramentas", callback_data="wiz_tools_done"),
+        InlineKeyboardButton("❌ Cancelar", callback_data="wiz_cancel"),
+    ])
+    return InlineKeyboardMarkup(rows)
+
+
+def _wizard_summary(wizard: dict) -> str:
+    data = wizard["data"]
+    wtype = wizard["type"]
+    tools_str = ", ".join(data.get("tools", [])) or "nenhuma"
+    provider_str = WIZARD_PROVIDERS.get(data.get("provider", ""), data.get("provider", ""))
+    lines = [f"📋 *Resumo do {'agente' if wtype == 'agent' else 'sub-agente'}*\n"]
+    lines.append(f"*Nome:* `{data.get('name', '')}`")
+    lines.append(f"*Descrição:* {data.get('description', '')}")
+    if wtype == "agent":
+        token = data.get("token", "")
+        lines.append(f"*Token:* `{token[:10]}...`" if token else "*Token:* (não informado)")
+    else:
+        parent = data.get("parent", "all")
+        lines.append(f"*Agente pai:* {'Todos' if parent == 'all' else parent}")
+    lines.append(f"*Provedor:* {provider_str}")
+    lines.append(f"*Ferramentas:* {tools_str}")
+    lines.append(f"\n*Personalidade (soul.md):*\n```\n{data.get('soul_md', '')[:300]}{'...' if len(data.get('soul_md','')) > 300 else ''}\n```")
+    return "\n".join(lines)
+
+
+def _write_bot_env(path: Path, patches: dict) -> None:
+    """Atualiza variáveis no .env sem perder as demais."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    updated = set()
+    result = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+            if key in patches:
+                result.append(f'{key}="{patches[key]}"')
+                updated.add(key)
+                continue
+        result.append(line)
+    for k, v in patches.items():
+        if k not in updated:
+            result.append(f'{k}="{v}"')
+    path.write_text("\n".join(result) + "\n", encoding="utf-8")
+
+
+async def _wizard_ask_provider(update_or_query, wtype: str) -> None:
+    label = "agente" if wtype == "agent" else "sub-agente"
+    txt = (
+        f"🤖 *Qual IA vai alimentar o {label}?*\n\n"
+        "Escolha o provedor de inteligência artificial:"
+    )
+    kb = _wizard_provider_keyboard()
+    if hasattr(update_or_query, "message"):
+        await update_or_query.message.reply_text(txt, parse_mode="Markdown", reply_markup=kb)
+    else:
+        await update_or_query.edit_message_text(txt, parse_mode="Markdown", reply_markup=kb)
+
+
+async def _wizard_ask_tools(update_or_query, selected: list) -> None:
+    txt = (
+        "🔧 *Quais ferramentas o agente terá acesso?*\n\n"
+        "Toque para marcar/desmarcar. Quando terminar, clique em *Confirmar*.\n"
+        "_(Memória, tarefas e agendamentos sempre estão disponíveis)_"
+    )
+    kb = _wizard_tools_keyboard(selected)
+    if hasattr(update_or_query, "message"):
+        await update_or_query.message.reply_text(txt, parse_mode="Markdown", reply_markup=kb)
+    else:
+        await update_or_query.edit_message_text(txt, parse_mode="Markdown", reply_markup=kb)
+
+
+async def _wizard_ask_soul_method(update_or_query, wtype: str) -> None:
+    label = "agente" if wtype == "agent" else "sub-agente"
+    txt = (
+        f"✨ *Personalidade do {label}*\n\n"
+        "Como você quer definir a personalidade e comportamento?\n\n"
+        "• *Quero ajuda* — Claude cria automaticamente com base na descrição\n"
+        "• *Já tenho o texto* — você cola o texto diretamente"
+    )
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🤖 Quero ajuda do Claude", callback_data="wiz_soul_auto"),
+        InlineKeyboardButton("✍️ Já tenho o texto", callback_data="wiz_soul_manual"),
+    ], [
+        InlineKeyboardButton("❌ Cancelar", callback_data="wiz_cancel"),
+    ]])
+    if hasattr(update_or_query, "message"):
+        await update_or_query.message.reply_text(txt, parse_mode="Markdown", reply_markup=kb)
+    else:
+        await update_or_query.edit_message_text(txt, parse_mode="Markdown", reply_markup=kb)
+
+
+async def _wizard_ask_confirm(update_or_query, wizard: dict) -> None:
+    wtype = wizard["type"]
+    label = "Criar Agente" if wtype == "agent" else "Criar Sub-agente"
+    txt = _wizard_summary(wizard) + "\n\nTudo certo? Confirme para criar."
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton(f"✅ {label}", callback_data="wiz_do_create"),
+        InlineKeyboardButton("❌ Cancelar", callback_data="wiz_cancel"),
+    ]])
+    if hasattr(update_or_query, "message"):
+        await update_or_query.message.reply_text(txt, parse_mode="Markdown", reply_markup=kb)
+    else:
+        await update_or_query.edit_message_text(txt, parse_mode="Markdown", reply_markup=kb)
+
+
+async def _wizard_generate_soul(name: str, description: str) -> str:
+    """Gera soul.md via ask_claude com um prompt especializado."""
+    prompt = (
+        f'Crie um soul.md (system prompt) para um agente Telegram chamado "{name}".\n\n'
+        f"Descrição do agente: {description}\n\n"
+        "O soul.md deve:\n"
+        "- Definir claramente a identidade e propósito do agente\n"
+        "- Estabelecer tom e estilo de comunicação adequados\n"
+        "- Listar capacidades principais\n"
+        "- Ser escrito em português do Brasil\n"
+        "- Ter entre 150 e 400 palavras\n"
+        "- Ser prático e direto, sem introdução\n\n"
+        "Retorne APENAS o conteúdo do soul.md, sem explicações adicionais."
+    )
+    msgs = [{"role": "user", "content": prompt}]
+    try:
+        result = await ask_claude(msgs)
+        return result.strip()
+    except Exception as e:
+        logger.error(f"[wizard] Erro ao gerar soul.md: {e}")
+        return f"Você é {name}. {description}\n\nResponda de forma clara e amigável em português."
+
+
+async def _wizard_create_agent(update: Update, wizard: dict) -> None:
+    import subprocess as _sp
+    data = wizard["data"]
+    name = data["name"]
+    uid = update.effective_user.id
+
+    await update.message.reply_text(f"⏳ Criando agente *{name}*...", parse_mode="Markdown")
+    try:
+        result = _sp.run(
+            ["bash", str(BASE_DIR / "criar-bot.sh"), name],
+            capture_output=True, text=True, timeout=60, cwd=str(BASE_DIR),
+        )
+        if result.returncode != 0:
+            err = (result.stderr or result.stdout)[:500]
+            await update.message.reply_text(f"❌ Erro ao criar agente:\n```\n{err}\n```", parse_mode="Markdown")
+            return
+
+        env_path = BASE_DIR / "bots" / name / ".env"
+        patches = {
+            "TELEGRAM_TOKEN": data.get("token", ""),
+            "PROVIDER":       data.get("provider", "anthropic"),
+            "TOOLS":          ",".join(data.get("tools", [])) if data.get("tools") else "none",
+            "DESCRIPTION":    data.get("description", ""),
+        }
+        _write_bot_env(env_path, patches)
+
+        soul_path = BASE_DIR / "bots" / name / "soul.md"
+        soul_path.write_text(data.get("soul_md", ""), encoding="utf-8")
+
+        svc = f"claude-bot-{name}.service"
+        _sp.run(["sudo", "systemctl", "enable", svc], timeout=15, capture_output=True)
+        start_result = _sp.run(["sudo", "systemctl", "start", svc], timeout=15, capture_output=True, text=True)
+
+        _append_daily_log(f"Agente criado via wizard: {name} (provider={data.get('provider')})")
+
+        if start_result.returncode != 0:
+            err = (start_result.stderr or start_result.stdout)[:300]
+            await update.message.reply_text(
+                f"⚠️ *Agente {name} criado*, mas falhou ao iniciar:\n```\n{err}\n```\n"
+                f"Verifique o token e use o painel admin para iniciar manualmente.",
+                parse_mode="Markdown",
+            )
+        else:
+            await update.message.reply_text(
+                f"✅ *Agente {name} criado e iniciado com sucesso!*\n\n"
+                f"Já pode conversar com ele no Telegram.",
+                parse_mode="Markdown",
+            )
+    except Exception as e:
+        logger.error(f"[wizard] Erro ao criar agente {name}: {e}", exc_info=True)
+        await update.message.reply_text(f"❌ Erro inesperado: `{type(e).__name__}: {e}`", parse_mode="Markdown")
+    finally:
+        _wizard_state.pop(uid, None)
+
+
+async def _wizard_create_subagent(update: Update, wizard: dict) -> None:
+    data = wizard["data"]
+    name = data["name"]
+    uid = update.effective_user.id
+
+    await update.message.reply_text(f"⏳ Criando sub-agente *{name}*...", parse_mode="Markdown")
+    try:
+        subagent_dir = BASE_DIR / "subagents" / name
+        subagent_dir.mkdir(parents=True, exist_ok=True)
+
+        parent = data.get("parent", "all")
+        allowed = "" if parent == "all" else parent
+        env_lines = [
+            f'NAME="{name}"',
+            f'DESCRIPTION="{data.get("description", "")}"',
+            f'PROVIDER="{data.get("provider", "anthropic")}"',
+            f'TOOLS="{",".join(data.get("tools", [])) if data.get("tools") else "none"}"',
+            f'ALLOWED_PARENTS="{allowed}"',
+        ]
+        env_path = subagent_dir / ".env"
+        env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
+        env_path.chmod(0o600)
+
+        (subagent_dir / "soul.md").write_text(data.get("soul_md", ""), encoding="utf-8")
+
+        _append_daily_log(f"Sub-agente criado via wizard: {name} (parent={parent})")
+        await update.message.reply_text(
+            f"✅ *Sub-agente {name} criado!*\n\n"
+            f"Reinicie os agentes pai para que o sub-agente seja descoberto automaticamente.",
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        logger.error(f"[wizard] Erro ao criar sub-agente {name}: {e}", exc_info=True)
+        await update.message.reply_text(f"❌ Erro inesperado: `{type(e).__name__}: {e}`", parse_mode="Markdown")
+    finally:
+        _wizard_state.pop(uid, None)
+
+
+async def _wizard_handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE, wizard: dict) -> None:
+    """Processa entrada de texto nas etapas que esperam texto livre."""
+    step = wizard["step"]
+    data = wizard["data"]
+    text = (update.message.text or "").strip()
+    uid = update.effective_user.id
+    wtype = wizard["type"]
+
+    if step == "name":
+        if not re.match(r"^[a-zA-Z0-9_-]{2,32}$", text):
+            await update.message.reply_text(
+                "⚠️ Nome inválido. Use apenas letras, números, hífen ou underline (2–32 caracteres).\n"
+                "Tente novamente:"
+            )
+            return
+        exists_agent = (BASE_DIR / "bots" / text).is_dir()
+        exists_sub = (BASE_DIR / "subagents" / text).is_dir()
+        if (wtype == "agent" and exists_agent) or (wtype == "subagent" and exists_sub):
+            await update.message.reply_text(f"⚠️ Já existe um {'agente' if wtype == 'agent' else 'sub-agente'} com o nome `{text}`. Escolha outro:")
+            return
+        data["name"] = text
+        wizard["step"] = "description"
+        label = "agente" if wtype == "agent" else "sub-agente"
+        await update.message.reply_text(
+            f"✏️ *Descrição do {label}*\n\nEm uma frase curta, o que o *{text}* faz?\n"
+            "_Exemplo: Assistente de vendas que responde dúvidas sobre produtos e preços._",
+            parse_mode="Markdown",
+        )
+
+    elif step == "description":
+        data["description"] = text
+        if wtype == "agent":
+            wizard["step"] = "token"
+            await update.message.reply_text(
+                "🔑 *Token do Telegram*\n\n"
+                "Cole o token que você recebeu do @BotFather ao criar o bot.\n"
+                "_Parece com: `123456789:ABCdefGHIjklmNOPqrsTUVwxyz`_\n\n"
+                "Não criou um bot ainda? Abra @BotFather e use /newbot.",
+                parse_mode="Markdown",
+            )
+        else:
+            # Subagente: perguntar agente pai
+            wizard["step"] = "parent"
+            bots = sorted(d.name for d in (BASE_DIR / "bots").iterdir() if d.is_dir()) if (BASE_DIR / "bots").exists() else []
+            rows = [[InlineKeyboardButton("🌐 Todos os agentes", callback_data="wiz_parent_all")]]
+            for b in bots[:8]:
+                rows.append([InlineKeyboardButton(b, callback_data=f"wiz_parent_{b}")])
+            rows.append([InlineKeyboardButton("❌ Cancelar", callback_data="wiz_cancel")])
+            await update.message.reply_text(
+                "🔗 *Qual agente pode usar este sub-agente?*\n\n"
+                "Selecione o agente pai (ou *Todos* para qualquer um):",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup(rows),
+            )
+
+    elif step == "token":
+        if ":" not in text or len(text) < 10:
+            await update.message.reply_text(
+                "⚠️ Token inválido. Deve conter `:` e ser longo.\n"
+                "Exemplo: `123456789:ABCdef...`\nTente novamente:",
+                parse_mode="Markdown",
+            )
+            return
+        data["token"] = text
+        wizard["step"] = "provider"
+        await _wizard_ask_provider(update, wtype)
+
+    elif step == "soul_desc":
+        await update.message.reply_text("⏳ Gerando personalidade com Claude...", parse_mode="Markdown")
+        soul = await _wizard_generate_soul(data.get("name", ""), text)
+        data["soul_md"] = soul
+        wizard["step"] = "soul_review"
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Confirmar", callback_data="wiz_soul_ok"),
+            InlineKeyboardButton("🔄 Regenerar", callback_data=f"wiz_soul_regen_{text[:50]}"),
+            InlineKeyboardButton("✏️ Editar", callback_data="wiz_soul_edit"),
+        ], [InlineKeyboardButton("❌ Cancelar", callback_data="wiz_cancel")]])
+        preview = soul[:800] + ("..." if len(soul) > 800 else "")
+        await update.message.reply_text(
+            f"📝 *Personalidade gerada:*\n\n```\n{preview}\n```\n\nGostou? Confirme ou edite.",
+            parse_mode="Markdown", reply_markup=kb,
+        )
+
+    elif step == "soul_text":
+        data["soul_md"] = text
+        wizard["step"] = "confirm"
+        await _wizard_ask_confirm(update, wizard)
+
+    elif step == "soul_edit":
+        data["soul_md"] = text
+        wizard["step"] = "confirm"
+        await _wizard_ask_confirm(update, wizard)
+
+    else:
+        # Etapa aguarda inline keyboard — ignorar texto
+        await update.message.reply_text("👆 Por favor, use os botões acima para continuar.")
+
+
+async def _wizard_handle_callback(query, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Processa callbacks de inline keyboard do wizard (prefixo wiz_)."""
+    uid = query.from_user.id
+    data_cb = query.data  # e.g. "wiz_provider_anthropic"
+    await query.answer()
+
+    if uid not in _wizard_state:
+        await query.edit_message_text("⚠️ Wizard expirado. Use /criar_agente ou /criar_subagente para recomeçar.")
+        return
+
+    wizard = _wizard_state[uid]
+    wdata = wizard["data"]
+    wtype = wizard["type"]
+
+    if data_cb == "wiz_cancel":
+        _wizard_state.pop(uid, None)
+        await query.edit_message_text("❌ Wizard cancelado.")
+        return
+
+    # Escolha de provedor
+    if data_cb.startswith("wiz_provider_"):
+        provider = data_cb[len("wiz_provider_"):]
+        wdata["provider"] = provider
+        wizard["step"] = "tools"
+        await _wizard_ask_tools(query, wdata.get("tools", []))
+        return
+
+    # Toggle de ferramenta
+    if data_cb.startswith("wiz_tool_"):
+        tool = data_cb[len("wiz_tool_"):]
+        tools = wdata.setdefault("tools", [])
+        if tool in tools:
+            tools.remove(tool)
+        else:
+            tools.append(tool)
+        await query.edit_message_reply_markup(reply_markup=_wizard_tools_keyboard(tools))
+        return
+
+    # Confirmar ferramentas
+    if data_cb == "wiz_tools_done":
+        wizard["step"] = "soul_method"
+        await _wizard_ask_soul_method(query, wtype)
+        return
+
+    # Agente pai (subagent)
+    if data_cb.startswith("wiz_parent_"):
+        parent = data_cb[len("wiz_parent_"):]
+        wdata["parent"] = parent
+        wizard["step"] = "provider"
+        await _wizard_ask_provider(query, wtype)
+        return
+
+    # Método soul.md
+    if data_cb == "wiz_soul_auto":
+        wizard["step"] = "soul_desc"
+        await query.edit_message_text(
+            "💬 *Descreva o agente livremente*\n\n"
+            "Como ele deve se comportar? Que tom deve usar? O que ele sabe fazer bem? O que deve evitar?\n\n"
+            "_Quanto mais detalhes você der, melhor a personalidade gerada._",
+            parse_mode="Markdown",
+        )
+        return
+
+    if data_cb == "wiz_soul_manual":
+        wizard["step"] = "soul_text"
+        await query.edit_message_text(
+            "✍️ *Cole o texto da personalidade (soul.md)*\n\n"
+            "Digite ou cole o system prompt do agente:",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Soul review actions
+    if data_cb == "wiz_soul_ok":
+        wizard["step"] = "confirm"
+        await _wizard_ask_confirm(query, wizard)
+        return
+
+    if data_cb == "wiz_soul_edit":
+        wizard["step"] = "soul_edit"
+        await query.edit_message_text(
+            "✏️ *Editar personalidade*\n\nDigite o texto completo da personalidade:",
+            parse_mode="Markdown",
+        )
+        return
+
+    if data_cb.startswith("wiz_soul_regen_"):
+        desc = data_cb[len("wiz_soul_regen_"):]
+        # Regen using saved description
+        desc_full = wdata.get("description", desc)
+        await query.edit_message_text("⏳ Regenerando personalidade...", parse_mode="Markdown")
+        soul = await _wizard_generate_soul(wdata.get("name", ""), desc_full)
+        wdata["soul_md"] = soul
+        wizard["step"] = "soul_review"
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Confirmar", callback_data="wiz_soul_ok"),
+            InlineKeyboardButton("🔄 Regenerar", callback_data=f"wiz_soul_regen_{desc[:50]}"),
+            InlineKeyboardButton("✏️ Editar", callback_data="wiz_soul_edit"),
+        ], [InlineKeyboardButton("❌ Cancelar", callback_data="wiz_cancel")]])
+        preview = soul[:800] + ("..." if len(soul) > 800 else "")
+        await context.bot.send_message(
+            query.message.chat_id,
+            f"📝 *Nova personalidade gerada:*\n\n```\n{preview}\n```\n\nGostou?",
+            parse_mode="Markdown", reply_markup=kb,
+        )
+        return
+
+    # Confirmação final
+    if data_cb == "wiz_do_create":
+        # Precisamos de um update fake — usar query.message para simular update
+        class _FakeUpdate:
+            effective_user = query.from_user
+            message = query.message
+        fake = _FakeUpdate()
+        await query.edit_message_reply_markup(reply_markup=None)
+        if wtype == "agent":
+            await _wizard_create_agent(fake, wizard)
+        else:
+            await _wizard_create_subagent(fake, wizard)
+        return
+
+
+async def cmd_criar_agente(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    uid = update.effective_user.id
+    if not is_admin(uid):
+        return
+    _wizard_state[uid] = {"type": "agent", "step": "name", "data": {"tools": []}}
+    await update.message.reply_text(
+        "🤖 *Vamos criar um novo agente!*\n\n"
+        "Primeiro, escolha um nome para o agente.\n"
+        "Use apenas letras, números, hífen ou underline.\n\n"
+        "Exemplos: assistente-vendas, suporte-tecnico, maria\n\n"
+        "Digite /cancelar\\_wizard para desistir a qualquer momento.",
+        parse_mode="Markdown",
+    )
+
+
+async def cmd_criar_subagente(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    uid = update.effective_user.id
+    if not is_admin(uid):
+        return
+    _wizard_state[uid] = {"type": "subagent", "step": "name", "data": {"tools": []}}
+    await update.message.reply_text(
+        "🧩 *Vamos criar um novo sub-agente!*\n\n"
+        "Sub-agentes são assistentes especializados que outros agentes podem chamar.\n\n"
+        "Primeiro, escolha um nome para o sub-agente.\n"
+        "Use apenas letras, números, hífen ou underline.\n\n"
+        "Exemplos: pesquisador, redator, analista-dados\n\n"
+        "Digite /cancelar\\_wizard para desistir a qualquer momento.",
+        parse_mode="Markdown",
+    )
+
+
+async def cmd_cancelar_wizard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    uid = update.effective_user.id
+    if uid in _wizard_state:
+        _wizard_state.pop(uid)
+        await update.message.reply_text("❌ Wizard cancelado.")
+    else:
+        await update.message.reply_text("Nenhum wizard em andamento.")
+
+
+async def cmd_apagar_agente(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Lista agentes disponíveis para apagar (admin only)."""
+    if not is_admin(update.effective_user.id):
+        return
+    bots_dir = BASE_DIR / "bots"
+    bots = sorted(d.name for d in bots_dir.iterdir() if d.is_dir()) if bots_dir.exists() else []
+    # Remove o próprio bot da lista para não se auto-deletar
+    bots = [b for b in bots if b != BOT_DIR.name]
+    if not bots:
+        await update.message.reply_text("Nenhum agente disponível para apagar.")
+        return
+    rows = [[InlineKeyboardButton(f"🗑️ {b}", callback_data=f"del_agent_confirm_{b}")] for b in bots]
+    rows.append([InlineKeyboardButton("❌ Cancelar", callback_data="del_agent_cancel")])
+    await update.message.reply_text(
+        "🗑️ *Apagar agente*\n\nQual agente deseja remover?",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(rows),
+    )
+
+
+async def callback_del_agent(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callbacks do fluxo de apagar agente."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        await query.answer("Sem permissão.", show_alert=True)
+        return
+
+    data_cb = query.data
+
+    if data_cb == "del_agent_cancel":
+        await query.edit_message_text("❌ Cancelado.")
+        return
+
+    if data_cb.startswith("del_agent_confirm_"):
+        name = data_cb[len("del_agent_confirm_"):]
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton(f"⚠️ Sim, apagar {name}", callback_data=f"del_agent_do_{name}"),
+            InlineKeyboardButton("❌ Não", callback_data="del_agent_cancel"),
+        ]])
+        await query.edit_message_text(
+            f"⚠️ *Confirmar exclusão*\n\nIsso vai parar o serviço e apagar todos os dados do agente *{name}* (histórico, memória, arquivos).\n\nTem certeza?",
+            parse_mode="Markdown",
+            reply_markup=kb,
+        )
+        return
+
+    if data_cb.startswith("del_agent_do_"):
+        import shutil as _shutil
+        import subprocess as _sp
+        name = data_cb[len("del_agent_do_"):]
+        bot_path = BASE_DIR / "bots" / name
+        svc = f"claude-bot-{name}.service"
+
+        await query.edit_message_text(f"⏳ Removendo agente *{name}*...", parse_mode="Markdown")
+
+        errors = []
+        # Para e desabilita o serviço
+        _sp.run(["sudo", "systemctl", "stop",    svc], capture_output=True, timeout=15)
+        _sp.run(["sudo", "systemctl", "disable", svc], capture_output=True, timeout=15)
+        # Remove o arquivo de serviço
+        svc_file = Path(f"/etc/systemd/system/{svc}")
+        try:
+            _sp.run(["sudo", "rm", "-f", str(svc_file)], capture_output=True, timeout=10)
+            _sp.run(["sudo", "systemctl", "daemon-reload"], capture_output=True, timeout=10)
+        except Exception as e:
+            errors.append(f"systemd: {e}")
+        # Remove o diretório do bot
+        try:
+            if bot_path.exists():
+                _shutil.rmtree(str(bot_path))
+        except Exception as e:
+            errors.append(f"diretório: {e}")
+
+        _append_daily_log(f"Agente apagado via Telegram: {name}")
+
+        if errors:
+            await context.bot.send_message(
+                query.message.chat_id,
+                f"⚠️ *{name}* removido com avisos:\n" + "\n".join(errors),
+                parse_mode="Markdown",
+            )
+        else:
+            await context.bot.send_message(
+                query.message.chat_id,
+                f"✅ Agente *{name}* removido com sucesso.",
+                parse_mode="Markdown",
+            )
+
+
 # ── Throttle de alertas admin ─────────────────────────────────────────────────
 
 _last_admin_alert = 0.0
@@ -1590,6 +2201,10 @@ async def _process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, c
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
+    # Wizard intercepta antes do processamento normal (admin only)
+    if user.id in _wizard_state and is_admin(user.id):
+        await _wizard_handle_text(update, context, _wizard_state[user.id])
+        return
     if not has_access(user.id):
         await request_access(update, context); return
     if not _should_respond_in_group(update, context):
@@ -1799,6 +2414,40 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 async def post_init(application: Application) -> None:
+    # Registra menu de comandos no Telegram (botão ao lado do input)
+    from telegram import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
+    user_commands = [
+        BotCommand("start",  "Iniciar / reiniciar conversa"),
+        BotCommand("clear",  "Limpar histórico"),
+        BotCommand("cancel", "Cancelar operação em andamento"),
+        BotCommand("info",   "Quem sou eu"),
+        BotCommand("id",     "Seu ID Telegram"),
+        BotCommand("tasks",  "Minhas tarefas"),
+    ]
+    admin_commands = user_commands + [
+        BotCommand("users",           "Usuários aprovados"),
+        BotCommand("pending",         "Solicitações pendentes"),
+        BotCommand("revoke",          "Revogar acesso"),
+        BotCommand("memory",          "Status da memória"),
+        BotCommand("stats",           "Analytics de uso"),
+        BotCommand("version",         "Versão atual"),
+        BotCommand("update",          "Atualizar e reiniciar"),
+        BotCommand("restart",         "Reiniciar o bot"),
+        BotCommand("criar_agente",    "Criar novo agente (wizard)"),
+        BotCommand("criar_subagente", "Criar novo sub-agente (wizard)"),
+        BotCommand("apagar_agente",   "Apagar um agente existente"),
+        BotCommand("cancelar_wizard", "Cancelar wizard em andamento"),
+    ]
+    try:
+        await application.bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
+        if ADMIN_ID:
+            await application.bot.set_my_commands(
+                admin_commands, scope=BotCommandScopeChat(chat_id=ADMIN_ID)
+            )
+        logger.info("[startup] Menu de comandos registrado no Telegram")
+    except Exception as e:
+        logger.warning(f"[startup] Falha ao registrar comandos: {e}")
+
     # Carrega conversas do DB
     _load_conversations_from_db()
     logger.info(f"[startup] {len(conversations)} conversa(s) carregada(s) do DB")
@@ -1959,8 +2608,17 @@ def main() -> None:
     app.add_handler(CommandHandler("status",   cmd_status))
     app.add_handler(CommandHandler("version",  cmd_version))
     app.add_handler(CommandHandler("update",   cmd_update))
+    app.add_handler(CommandHandler("criar_agente",    cmd_criar_agente))
+    app.add_handler(CommandHandler("criar_subagente", cmd_criar_subagente))
+    app.add_handler(CommandHandler("cancelar_wizard", cmd_cancelar_wizard))
+    app.add_handler(CommandHandler("apagar_agente",   cmd_apagar_agente))
+    app.add_handler(CallbackQueryHandler(callback_del_agent, pattern=r"^del_agent_"))
     app.add_handler(CallbackQueryHandler(callback_approval, pattern=r"^(approve|deny):\d+$"))
     app.add_handler(CallbackQueryHandler(callback_task,     pattern=r"^(retomar|cancelar):.+$"))
+    app.add_handler(CallbackQueryHandler(
+        lambda u, c: _wizard_handle_callback(u.callback_query, c),
+        pattern=r"^wiz_",
+    ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))

@@ -7,6 +7,8 @@ import asyncio
 import logging
 from datetime import datetime
 
+from telegram.error import RetryAfter
+
 logger = logging.getLogger(__name__)
 
 DAY_MAP = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
@@ -126,10 +128,18 @@ async def scheduler_loop(application, db, ask_claude_fn, conversations: dict,
                             except Exception:
                                 pass
 
-                    for i in range(0, max(len(reply), 1), 4096):
-                        await application.bot.send_message(
-                            chat_id=user_id, text=reply[i:i+4096],
-                        )
+                    chunks = [reply[i:i+4096] for i in range(0, max(len(reply), 1), 4096)]
+                    for chunk in chunks:
+                        for attempt in range(5):
+                            try:
+                                await application.bot.send_message(chat_id=user_id, text=chunk)
+                                break
+                            except RetryAfter as e:
+                                wait = int(e.retry_after) + 1
+                                logger.warning(f"[scheduler] Flood control — aguardando {wait}s antes de reenviar")
+                                await asyncio.sleep(wait)
+                        else:
+                            logger.error(f"[scheduler] Falhou após 5 tentativas ao enviar chunk para {user_id}")
                 except Exception as e:
                     logger.error(f"[scheduler] Erro no agendamento {s['id']}: {e}")
                     try:

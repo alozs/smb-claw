@@ -97,69 +97,83 @@
 
 <!-- ── New Bot Modal ──────────────────────────────────────────────────────── -->
 <div x-show="showNewBotModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,0.55); backdrop-filter:blur(4px)" @keydown.escape.window="showNewBotModal=false">
-  <div x-show="showNewBotModal" x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="bg-white rounded-2xl w-full max-w-md overflow-hidden" style="box-shadow:0 20px 60px -10px rgba(0,0,0,0.35)" @click.outside="showNewBotModal=false">
-    <div class="px-6 pt-6 pb-4 border-b border-surface-border">
-      <h2 class="text-lg font-700 text-slate-900">Novo Agente de IA</h2>
-      <p class="text-sm text-slate-500 mt-0.5">Configure seu novo agente</p>
+  <div x-show="showNewBotModal" x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="bg-white rounded-2xl w-full max-w-2xl overflow-hidden" style="box-shadow:0 20px 60px -10px rgba(0,0,0,0.35)" @click.outside="showNewBotModal=false">
+    <!-- Header -->
+    <div class="px-6 pt-6 pb-4 border-b border-surface-border flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center flex-shrink-0">
+        <i data-lucide="bot" class="w-5 h-5 text-white"></i>
+      </div>
+      <div>
+        <h2 class="text-lg font-700 text-slate-900">Novo Agente de IA</h2>
+        <p class="text-sm text-slate-500 mt-0.5">Configure seu novo agente</p>
+      </div>
     </div>
-    <div class="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
-      <div>
-        <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Nome de exibição <span class="text-danger normal-case tracking-normal">*</span></label>
-        <input x-model="newBot.display_name" @input="newBot.name = slugify(newBot.display_name)" type="text" placeholder="Assistente Pessoal"
-          class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
-        <p class="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1">
-          <span class="text-slate-300">Pasta:</span>
-          <code class="font-mono text-slate-500" x-text="newBot.name || 'derivado-do-nome'"></code>
-        </p>
-      </div>
-      <div>
-        <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Descrição</label>
-        <input x-model="newBot.description" type="text" placeholder="Ex: Assistente especializado em suporte ao cliente"
-          class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
-      </div>
-      <div>
-        <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Telegram Token</label>
-        <input x-model="newBot.telegram_token" type="text" placeholder="Cole o token do @BotFather"
-          class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
-        <p class="text-[10px] text-slate-400 mt-1">Obtenha o token via <strong>@BotFather</strong> no Telegram → /newbot</p>
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Provedor</label>
-          <select x-model="newBot.provider" @change="newBot.model = modelsByProvider[newBot.provider][0]"
-            class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
-            <option value="claude-cli">Claude Code (OAuth)</option>
-            <option value="anthropic">Anthropic (API Key)</option>
-            <option value="codex">OpenAI Codex (OAuth/API)</option>
-            <option value="openrouter">OpenRouter (Multi-modelo)</option>
-          </select>
+    <!-- Body: 2 colunas -->
+    <div class="px-6 py-5">
+      <div class="grid grid-cols-2 gap-x-6 gap-y-4">
+        <!-- Coluna esquerda -->
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Nome de exibição <span class="text-danger normal-case tracking-normal">*</span></label>
+            <input x-model="newBot.display_name" @input="newBot.name = slugify(newBot.display_name)" type="text" placeholder="Assistente Pessoal"
+              class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
+            <p class="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1">
+              <span class="text-slate-300">Pasta:</span>
+              <code class="font-mono text-slate-500" x-text="newBot.name || 'derivado-do-nome'"></code>
+            </p>
+          </div>
+          <div>
+            <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Descrição</label>
+            <input x-model="newBot.description" type="text" placeholder="Ex: Assistente especializado em suporte ao cliente"
+              class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
+          </div>
+          <div>
+            <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Telegram Token</label>
+            <input x-model="newBot.telegram_token" type="text" placeholder="Cole o token do @BotFather"
+              class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
+            <p class="text-[10px] text-slate-400 mt-1">Obtenha via <strong>@BotFather</strong> no Telegram → /newbot</p>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Provedor</label>
+              <select x-model="newBot.provider" @change="newBot.model = modelsByProvider[newBot.provider][0]"
+                class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
+                <option value="claude-cli">Claude Code (OAuth)</option>
+                <option value="anthropic">Anthropic (API Key)</option>
+                <option value="codex">OpenAI Codex (OAuth/API)</option>
+                <option value="openrouter">OpenRouter (Multi-modelo)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Modelo</label>
+              <select x-model="newBot.model"
+                class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
+                <template x-for="m in modelsByProvider[newBot.provider]" :key="m">
+                  <option :value="m" x-text="m"></option>
+                </template>
+              </select>
+            </div>
+          </div>
         </div>
+        <!-- Coluna direita: Ferramentas -->
         <div>
-          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Modelo</label>
-          <select x-model="newBot.model"
-            class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
-            <template x-for="m in modelsByProvider[newBot.provider]" :key="m">
-              <option :value="m" x-text="m"></option>
+          <label class="block text-xs font-600 text-slate-600 mb-2 uppercase tracking-wide">Ferramentas</label>
+          <div class="grid grid-cols-2 gap-2">
+            <template x-for="tool in toolOptions" :key="tool.key">
+              <label class="flex items-start gap-2.5 cursor-pointer p-2.5 rounded-lg border transition-colors"
+                :class="newBot.tools.includes(tool.key) ? 'bg-brand/5 border-brand/25' : 'border-surface-border hover:bg-slate-50'">
+                <input type="checkbox" :value="tool.key" x-model="newBot.tools" class="rounded text-brand w-4 h-4 cursor-pointer mt-0.5" />
+                <div>
+                  <span class="text-slate-700 font-600 text-sm" x-text="tool.label"></span>
+                  <span class="text-slate-400 font-400 text-[10px] block mt-0.5" x-text="tool.desc"></span>
+                </div>
+              </label>
             </template>
-          </select>
-        </div>
-      </div>
-      <div>
-        <label class="block text-xs font-600 text-slate-600 mb-2 uppercase tracking-wide">Ferramentas</label>
-        <div class="grid grid-cols-2 gap-2">
-          <template x-for="tool in toolOptions" :key="tool.key">
-            <label class="flex items-start gap-2.5 cursor-pointer p-2.5 rounded-lg border transition-colors"
-              :class="newBot.tools.includes(tool.key) ? 'bg-brand/5 border-brand/25' : 'border-surface-border hover:bg-slate-50'">
-              <input type="checkbox" :value="tool.key" x-model="newBot.tools" class="rounded text-brand w-4 h-4 cursor-pointer mt-0.5" />
-              <div>
-                <span class="text-slate-700 font-600 text-sm" x-text="tool.label"></span>
-                <span class="text-slate-400 font-400 text-[10px] block mt-0.5" x-text="tool.desc"></span>
-              </div>
-            </label>
-          </template>
+          </div>
         </div>
       </div>
     </div>
+    <!-- Footer -->
     <div class="px-6 pb-6 pt-4 border-t border-surface-border flex gap-3">
       <button @click="showNewBotModal=false" class="flex-1 py-2.5 rounded-xl border border-surface-border text-sm font-600 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">Cancelar</button>
       <button @click="createBot()" :disabled="creatingBot"
@@ -515,7 +529,7 @@
                 </li>
                 <li class="flex items-start gap-2">
                   <span class="text-brand mt-0.5 flex-shrink-0">-</span>
-                  <span>Você pode configurar <strong>mais de um</strong> e escolher por bot</span>
+                  <span>Você pode configurar <strong>mais de um</strong> e escolher por agente</span>
                 </li>
               </ul>
             </div>
@@ -531,7 +545,7 @@
       <!-- STEP 3: Preferences -->
       <div x-show="setupStep===3" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-x-4" x-transition:enter-end="opacity-100 translate-x-0">
         <h2 class="text-xl font-700 text-slate-900 mb-1">Preferências</h2>
-        <p class="text-slate-500 text-sm mb-5">Configurações padrão para todos os bots. Cada bot pode sobrescrever individualmente.</p>
+        <p class="text-slate-500 text-sm mb-5">Configurações padrão para todos os agentes. Cada agente pode sobrescrever individualmente.</p>
 
         <div class="grid grid-cols-2 gap-8">
           <!-- Left: Provider + Model + Test -->
@@ -580,7 +594,7 @@
               <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Admin Telegram ID</label>
               <input x-model="setupForm.admin_id" type="text" placeholder="Seu ID numérico"
                 class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
-              <p class="text-[10px] text-slate-400 mt-1">Para descobrir: envie /id para qualquer bot no Telegram</p>
+              <p class="text-[10px] text-slate-400 mt-1">Para descobrir: envie /id para qualquer agente no Telegram</p>
             </div>
 
             <div>
@@ -1006,14 +1020,13 @@
         <!-- Header -->
         <div class="flex items-end justify-between mb-8">
           <div>
-            <div class="flex items-center gap-2 mb-1">
-              <div class="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center">
-                <i data-lucide="bot" class="w-4 h-4 text-white"></i>
+            <div class="flex items-center gap-3 mb-1">
+              <div class="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="bot" class="w-5 h-5 text-white"></i>
               </div>
-              <span class="text-xs font-700 text-zinc-700 uppercase tracking-widest">Global</span>
+              <h1 class="text-2xl font-800 text-slate-900">Sub-agentes</h1>
             </div>
-            <h1 class="text-2xl font-800 text-slate-900">Sub-agentes</h1>
-            <p class="text-sm text-slate-500 mt-0.5">Agentes especializados delegados por tool call. Disponíveis para todos os bots ou bots específicos.</p>
+            <p class="text-sm text-slate-500 mt-0.5">Agentes especializados delegados por tool call. Disponíveis para todos os agentes ou agentes específicos.</p>
             <p class="text-xs text-slate-400 mt-1">Sub-agentes são descobertos automaticamente e expostos como ferramentas <code class="bg-zinc-100 px-1 rounded font-mono">agent_nome</code> para os agentes com acesso.</p>
           </div>
           <button x-show="!showSubagentForm" @click="openSubagentCreate()"
@@ -1245,6 +1258,9 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
           </button>
+          <div class="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center flex-shrink-0">
+            <i data-lucide="settings" class="w-5 h-5 text-white"></i>
+          </div>
           <div>
             <h1 class="text-2xl font-800 text-slate-900">Configurações</h1>
             <p class="text-sm text-slate-500 mt-0.5">Configurações compartilhadas entre todos os agentes</p>
@@ -1268,7 +1284,7 @@
             class="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-600 transition cursor-pointer">
             <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             Cron</button>
-          <button @click="globalTab='sistema'; loadBugfixer(); checkSetupStatus()"
+          <button @click="globalTab='sistema'; loadBugfixer(); loadMemoryAutosave(); checkSetupStatus()"
             :class="globalTab==='sistema' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
             class="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-600 transition cursor-pointer">
             <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
@@ -1280,14 +1296,34 @@
           <div class="flex items-center justify-between mb-3">
             <div>
               <h3 class="font-700 text-slate-900 text-sm">Contexto Global</h3>
-              <p class="text-xs text-slate-400 mt-0.5">Instruções compartilhadas entre todos os agentes (context.global). Injetadas no system prompt de <strong>todos</strong> os bots antes do soul.md.</p>
+              <p class="text-xs text-slate-400 mt-0.5">Instruções compartilhadas entre todos os agentes (context.global). Injetadas no system prompt de <strong>todos</strong> os agentes antes do soul.md.</p>
             </div>
-            <button @click="saveGlobalFile('context.global')"
-              class="btn-primary text-sm bg-brand text-white px-4 py-2 rounded-xl hover:bg-brand-hover font-600 cursor-pointer flex items-center gap-1.5">
-              <i data-lucide="save" class="w-3.5 h-3.5 flex-shrink-0"></i>Salvar
-            </button>
+            <div class="flex items-center gap-2">
+              <button @click="restoreContextDefault()"
+                class="text-xs font-600 text-slate-500 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 flex-shrink-0"></i>Restaurar Padrão
+              </button>
+              <button x-show="!contextEditing" @click="contextOriginal = globalFiles['context.global']; contextEditing = true"
+                class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5">
+                <i data-lucide="pencil" class="w-3.5 h-3.5 flex-shrink-0"></i>Editar
+              </button>
+              <div x-show="contextEditing" class="flex items-center gap-2">
+                <button @click="cancelContextEdit()"
+                  class="text-xs font-600 text-slate-500 hover:bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5">
+                  <i data-lucide="x" class="w-3.5 h-3.5 flex-shrink-0"></i>Cancelar
+                </button>
+                <button @click="saveContextGlobal()"
+                  class="text-xs font-600 bg-brand text-white hover:bg-brand-hover px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5">
+                  <i data-lucide="save" class="w-3.5 h-3.5 flex-shrink-0"></i>Salvar
+                </button>
+              </div>
+            </div>
           </div>
-          <textarea class="code-editor w-full border border-surface-border rounded-xl p-3.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50/50"
+          <textarea
+            :readonly="!contextEditing"
+            :class="contextEditing
+              ? 'code-editor w-full border border-brand rounded-xl p-3.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring bg-white'
+              : 'code-editor w-full border border-surface-border rounded-xl p-3.5 text-sm resize-none bg-slate-50/50 text-slate-500 cursor-default'"
             rows="22" x-model="globalFiles['context.global']"></textarea>
         </div>
 
@@ -1329,7 +1365,8 @@
                       <td class="px-5 py-2.5">
                         <div class="flex items-center gap-2">
                           <input :type="isSensitiveGlobalKey(v.key) && !v.showVal ? 'password' : 'text'" x-model="v.value"
-                            class="flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white min-w-0"/>
+                            :readonly="isSystemGlobalKey(v.key)"
+                            :class="isSystemGlobalKey(v.key) ? 'flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono bg-slate-50 text-slate-400 cursor-not-allowed min-w-0' : 'flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white min-w-0'"/>
                           <button x-show="isSensitiveGlobalKey(v.key)" @click="v.showVal = !v.showVal"
                             class="text-slate-400 hover:text-slate-600 transition flex-shrink-0 cursor-pointer">
                             <svg x-show="!v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -1339,10 +1376,19 @@
                       </td>
                       <td class="px-5 py-2.5 text-right">
                         <div class="flex items-center justify-end gap-1.5">
-                          <button @click="saveGlobalEnvRow(idx)"
-                            class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Salvar</button>
-                          <button @click="deleteGlobalEnv(idx)"
-                            class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Deletar</button>
+                          <template x-if="!isSystemGlobalKey(v.key)">
+                            <button @click="saveGlobalEnvRow(idx)"
+                              class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Salvar</button>
+                          </template>
+                          <template x-if="!isSystemGlobalKey(v.key)">
+                            <button @click="deleteGlobalEnv(idx)"
+                              class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Deletar</button>
+                          </template>
+                          <template x-if="isSystemGlobalKey(v.key)">
+                            <span class="inline-flex items-center gap-1 text-xs font-600 text-slate-400 border border-slate-200 px-2 py-1 rounded-lg" title="Variável de sistema — somente leitura">
+                              <i data-lucide="lock" class="w-3 h-3 flex-shrink-0"></i>Sistema
+                            </span>
+                          </template>
                         </div>
                       </td>
                     </tr>
@@ -1404,7 +1450,8 @@
                       <td class="px-5 py-2.5">
                         <div class="flex items-center gap-2">
                           <input :type="v.showVal ? 'text' : 'password'" x-model="v.value"
-                            class="flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white min-w-0"/>
+                            :readonly="(systemGlobalKeys['secrets.global']||[]).includes(v.key)"
+                            :class="(systemGlobalKeys['secrets.global']||[]).includes(v.key) ? 'flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono bg-slate-50 text-slate-400 cursor-not-allowed min-w-0' : 'flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white min-w-0'"/>
                           <button @click="v.showVal = !v.showVal" class="text-slate-400 hover:text-slate-600 transition flex-shrink-0 cursor-pointer">
                             <svg x-show="!v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                             <svg x-show="v.showVal" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
@@ -1413,21 +1460,30 @@
                       </td>
                       <td class="px-5 py-2.5 text-right">
                         <div class="flex items-center justify-end gap-1.5">
-                          <button @click="
-                            const lines = globalFiles['secrets.global'].split('\n');
-                            const ci = lines.findIndex(l => l.startsWith(v.key+'='));
-                            if(ci>=0) lines[ci]=v.key+'='+v.value;
-                            globalFiles['secrets.global']=lines.join('\n');
-                            saveGlobalFile('secrets.global');
-                            toast('Salvo!');
-                          " class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Salvar</button>
-                          <button @click="
-                            showConfirm({title:'Deletar',message:'Deletar credencial '+v.key+'?',confirmText:'Deletar',type:'danger'}).then(ok=>{
-                              if(!ok) return;
-                              globalFiles['secrets.global']=globalFiles['secrets.global'].split('\n').filter(l=>!l.startsWith(v.key+'=')).join('\n');
+                          <template x-if="!(systemGlobalKeys['secrets.global']||[]).includes(v.key)">
+                            <button @click="
+                              const lines = globalFiles['secrets.global'].split('\n');
+                              const ci = lines.findIndex(l => l.startsWith(v.key+'='));
+                              if(ci>=0) lines[ci]=v.key+'='+v.value;
+                              globalFiles['secrets.global']=lines.join('\n');
                               saveGlobalFile('secrets.global');
-                            });
-                          " class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Deletar</button>
+                              toast('Salvo!');
+                            " class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Salvar</button>
+                          </template>
+                          <template x-if="!(systemGlobalKeys['secrets.global']||[]).includes(v.key)">
+                            <button @click="
+                              showConfirm({title:'Deletar',message:'Deletar credencial '+v.key+'?',confirmText:'Deletar',type:'danger'}).then(ok=>{
+                                if(!ok) return;
+                                globalFiles['secrets.global']=globalFiles['secrets.global'].split('\n').filter(l=>!l.startsWith(v.key+'=')).join('\n');
+                                saveGlobalFile('secrets.global');
+                              });
+                            " class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Deletar</button>
+                          </template>
+                          <template x-if="(systemGlobalKeys['secrets.global']||[]).includes(v.key)">
+                            <span class="inline-flex items-center gap-1 text-xs font-600 text-slate-400 border border-slate-200 px-2 py-1 rounded-lg" title="Credencial de sistema — somente leitura">
+                              <i data-lucide="lock" class="w-3 h-3 flex-shrink-0"></i>Sistema
+                            </span>
+                          </template>
                         </div>
                       </td>
                     </tr>
@@ -1489,10 +1545,17 @@
                     <td class="px-5 py-3.5 font-mono text-xs text-slate-700" x-text="line.split(/\s+/).slice(0,5).join(' ')"></td>
                     <td class="px-5 py-3.5 font-mono text-xs text-slate-500 break-all" x-text="line.split(/\s+/).slice(5).join(' ')"></td>
                     <td class="px-5 py-3.5 text-right">
-                      <button @click="deleteCronEntry(idx)"
-                        class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
-                        <i data-lucide="trash-2" class="w-3 h-3 flex-shrink-0"></i>Deletar
-                      </button>
+                      <template x-if="isSystemCronLine(line)">
+                        <span class="inline-flex items-center gap-1 text-xs font-600 text-slate-400 border border-slate-200 px-2.5 py-1.5 rounded-lg" title="Entrada de sistema — não pode ser removida">
+                          <i data-lucide="lock" class="w-3 h-3 flex-shrink-0"></i>Sistema
+                        </span>
+                      </template>
+                      <template x-if="!isSystemCronLine(line)">
+                        <button @click="deleteCronEntry(idx)"
+                          class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
+                          <i data-lucide="trash-2" class="w-3 h-3 flex-shrink-0"></i>Deletar
+                        </button>
+                      </template>
                     </td>
                   </tr>
                 </template>
@@ -1650,6 +1713,137 @@
             </div>
           </div>
 
+          <!-- Memory Autosave -->
+          <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
+            <!-- Card header -->
+            <div class="px-6 py-5 border-b border-surface-border flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl bg-zinc-100 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4.5 h-4.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h3 class="text-sm font-700 text-slate-900">Memory Autosave</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Condensa a memória diária de cada agente em memória de longo prazo (MEMORY.md) todo dia às 23:50.</p>
+              </div>
+              <!-- Status badge -->
+              <template x-if="memoryAutosave.last_status === 'ok'">
+                <span class="text-[10px] font-700 text-success bg-success/10 px-2.5 py-1 rounded-full flex-shrink-0">OK</span>
+              </template>
+              <template x-if="memoryAutosave.last_status === 'error'">
+                <span class="text-[10px] font-700 text-red-600 bg-red-50 px-2.5 py-1 rounded-full flex-shrink-0">Erro</span>
+              </template>
+              <template x-if="memoryAutosave.last_status === 'no_provider'">
+                <span class="text-[10px] font-700 text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full flex-shrink-0">Sem provedor</span>
+              </template>
+              <template x-if="!memoryAutosave.last_status">
+                <span class="text-[10px] font-700 text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full flex-shrink-0">Nunca executou</span>
+              </template>
+            </div>
+
+            <div class="px-6 py-5 space-y-4">
+
+              <!-- Fallback chain -->
+              <div>
+                <p class="text-xs font-600 text-slate-500 uppercase tracking-wide mb-2">Provedor ativo (fallback automático)</p>
+                <div class="space-y-1.5">
+                  <template x-for="(p, idx) in (memoryAutosave.providers || [])" :key="p.id">
+                    <div class="flex items-center gap-2.5 text-sm">
+                      <span class="text-xs text-slate-400 w-4 text-right flex-shrink-0" x-text="idx + 1 + '.'"></span>
+                      <template x-if="p.active && p.id === memoryAutosave.selected_provider">
+                        <svg class="w-3.5 h-3.5 text-success flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                      </template>
+                      <template x-if="p.active && p.id !== memoryAutosave.selected_provider">
+                        <svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                      </template>
+                      <template x-if="!p.active">
+                        <svg class="w-3.5 h-3.5 text-slate-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                      </template>
+                      <span :class="p.id === memoryAutosave.selected_provider ? 'text-slate-800 font-600' : 'text-slate-400'" x-text="p.label"></span>
+                      <template x-if="p.id === memoryAutosave.selected_provider">
+                        <span class="text-[10px] font-600 text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full">em uso</span>
+                      </template>
+                      <span class="text-xs text-slate-400 ml-auto" x-text="p.model"></span>
+                    </div>
+                  </template>
+                  <template x-if="!memoryAutosave.selected_provider">
+                    <div class="flex items-center gap-2 mt-1 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                      <svg class="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                      <p class="text-xs text-amber-700">Nenhum provedor configurado. Adicione uma API key ou faça login com Claude/Codex OAuth.</p>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Last run info -->
+              <div class="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm border-t border-surface-border pt-4">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="clock" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+                  <span class="text-slate-500">Última execução:</span>
+                  <span class="font-600 text-slate-700" x-text="memoryAutosave.last_run ? new Date(memoryAutosave.last_run).toLocaleString('pt-BR') : '—'"></span>
+                </div>
+                <template x-if="memoryAutosave.bots_processed !== null">
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="bot" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+                    <span class="text-slate-500">Agentes processados:</span>
+                    <span class="font-600 text-slate-700" x-text="memoryAutosave.bots_processed"></span>
+                  </div>
+                </template>
+                <template x-if="memoryAutosave.last_error">
+                  <div class="flex items-center gap-2 text-red-600">
+                    <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0"></i>
+                    <span class="text-xs" x-text="memoryAutosave.last_error"></span>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Cron entry -->
+              <template x-if="memoryAutosave.cron_entry">
+                <div>
+                  <p class="text-xs font-600 text-slate-500 uppercase tracking-wide mb-1.5">Cron configurado</p>
+                  <div class="font-mono text-xs text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg" x-text="memoryAutosave.cron_entry"></div>
+                </div>
+              </template>
+
+              <!-- Actions -->
+              <div class="flex items-center gap-3 pt-1">
+                <button @click="runMemoryAutosave()" :disabled="memoryAutosave.running"
+                  class="text-sm bg-slate-100 text-slate-700 border border-surface-border px-5 py-2.5 rounded-xl hover:bg-slate-200 font-600 cursor-pointer disabled:opacity-50 flex items-center gap-2 transition">
+                  <i data-lucide="play" class="w-3.5 h-3.5 flex-shrink-0"></i>
+                  <span x-text="memoryAutosave.running ? 'Executando...' : 'Executar Agora'"></span>
+                </button>
+                <button @click="loadMemoryAutosaveLog()" :disabled="memoryAutosave.loadingLog"
+                  class="text-sm bg-slate-100 text-slate-700 border border-surface-border px-5 py-2.5 rounded-xl hover:bg-slate-200 font-600 cursor-pointer flex items-center gap-2 transition">
+                  <i data-lucide="file-text" class="w-3.5 h-3.5 flex-shrink-0"></i>Ver Log
+                </button>
+              </div>
+            </div>
+
+            <!-- Run output terminal -->
+            <template x-if="memoryAutosave.runOutput">
+              <div class="border-t border-surface-border">
+                <div class="px-4 py-2.5 bg-slate-50 flex items-center justify-between">
+                  <span class="text-xs font-600 text-slate-500 uppercase tracking-wide">Output da Execução</span>
+                  <button @click="memoryAutosave.runOutput=''" class="text-xs text-slate-400 hover:text-slate-600 transition cursor-pointer">Fechar</button>
+                </div>
+                <div class="bg-slate-900 px-4 py-4 max-h-64 overflow-y-auto">
+                  <pre class="text-xs text-slate-300 whitespace-pre-wrap font-mono" x-text="memoryAutosave.runOutput"></pre>
+                </div>
+              </div>
+            </template>
+
+            <!-- Log viewer -->
+            <template x-if="memoryAutosave.showLog">
+              <div class="border-t border-surface-border">
+                <div class="px-4 py-2.5 bg-slate-50 flex items-center justify-between">
+                  <span class="text-xs font-600 text-slate-500 uppercase tracking-wide">Últimas 50 Linhas — memory-autosave.log</span>
+                  <button @click="memoryAutosave.showLog=false; memoryAutosave.logContent=''" class="text-xs text-slate-400 hover:text-slate-600 transition cursor-pointer">Fechar</button>
+                </div>
+                <div class="bg-slate-900 px-4 py-4 max-h-64 overflow-y-auto">
+                  <pre class="text-xs text-slate-300 whitespace-pre-wrap font-mono" x-text="memoryAutosave.logContent || '(log vazio)'"></pre>
+                </div>
+              </div>
+            </template>
+          </div>
+
           <!-- Bug Fixer -->
           <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
             <!-- Card header -->
@@ -1659,7 +1853,7 @@
               </div>
               <div>
                 <h3 class="text-sm font-700 text-slate-900">Bug Fixer Agent</h3>
-                <p class="text-xs text-slate-500 mt-0.5">Detecta erros nos bots via analytics e journalctl, e invoca Claude para corrigi-los automaticamente.</p>
+                <p class="text-xs text-slate-500 mt-0.5">Detecta erros nos agentes via analytics e journalctl, e invoca Claude para corrigi-los automaticamente.</p>
               </div>
             </div>
 
@@ -1697,12 +1891,12 @@
 
               <!-- Telegram token -->
               <div>
-                <label class="block text-sm font-600 text-slate-800 mb-1.5">Token do bot Telegram para notificações</label>
-                <p class="text-xs text-slate-500 mb-2">O token do bot que enviará os alertas ao admin. Copie de qualquer <code class="bg-slate-100 px-1 rounded">bots/&lt;nome&gt;/.env</code> → <code class="bg-slate-100 px-1 rounded">TELEGRAM_TOKEN</code>.</p>
+                <label class="block text-sm font-600 text-slate-800 mb-1.5">Token do agente Telegram para notificações</label>
+                <p class="text-xs text-slate-500 mb-2">O token do agente que enviará os alertas ao admin. Copie de qualquer <code class="bg-slate-100 px-1 rounded">bots/&lt;nome&gt;/.env</code> → <code class="bg-slate-100 px-1 rounded">TELEGRAM_TOKEN</code>.</p>
                 <div class="flex items-center gap-2">
                   <input x-model="bugfixer.telegram_token"
                     :type="bugfixer.showToken ? 'text' : 'password'"
-                    placeholder="Token do bot (deixe vazio para usar o primeiro bot disponível)"
+                    placeholder="Token do agente (deixe vazio para usar o primeiro agente disponível)"
                     class="flex-1 border border-surface-border rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
                   <button @click="bugfixer.showToken = !bugfixer.showToken"
                     class="w-10 h-10 flex items-center justify-center rounded-xl border border-surface-border text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition cursor-pointer flex-shrink-0">
@@ -1781,9 +1975,9 @@
           <div class="bg-zinc-50 border border-zinc-200 rounded-2xl px-5 py-4">
             <p class="text-xs font-700 text-zinc-500 uppercase tracking-wide mb-2">Como funciona</p>
             <ul class="text-sm text-slate-600 space-y-1.5 list-disc list-inside">
-              <li>Verifica o banco de analytics de cada bot em busca de erros desde a última execução</li>
+              <li>Verifica o banco de analytics de cada agente em busca de erros desde a última execução</li>
               <li>Se erros forem encontrados, coleta os logs do journalctl e envia para o Claude corrigir</li>
-              <li>Claude lê os arquivos fonte, aplica a correção mínima, reinicia o bot e reporta o resultado</li>
+              <li>Claude lê os arquivos fonte, aplica a correção mínima, reinicia o agente e reporta o resultado</li>
               <li>O admin recebe notificação no Telegram com o diagnóstico e a correção aplicada</li>
               <li>Erros transitórios (timeouts de rede) são identificados e não geram modificações</li>
             </ul>
@@ -1844,7 +2038,7 @@
             <div class="bg-zinc-50 border border-zinc-200 rounded-2xl px-3 py-2.5 flex flex-col gap-1.5">
               <p class="text-[9px] font-700 text-zinc-400 uppercase tracking-widest text-center">Serviço</p>
               <div class="flex items-center gap-1.5">
-                <button @click="doAction('start')" :disabled="actionLoading" title="Inicia o serviço systemd do bot"
+                <button @click="doAction('start')" :disabled="actionLoading" title="Inicia o serviço systemd do agente"
                   class="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-600 bg-success/10 text-success border border-success/20 rounded-lg hover:bg-success/20 transition disabled:opacity-50 cursor-pointer">
                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 3l14 9-14 9V3z"/></svg>
                   Iniciar
@@ -1854,7 +2048,7 @@
                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                   Reiniciar
                 </button>
-                <button @click="doAction('stop')" :disabled="actionLoading" title="Para o serviço — bot deixa de responder"
+                <button @click="doAction('stop')" :disabled="actionLoading" title="Para o serviço — agente deixa de responder"
                   class="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-600 bg-danger/10 text-danger border border-danger/20 rounded-lg hover:bg-danger/20 transition disabled:opacity-50 cursor-pointer">
                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 6h12v12H6z"/></svg>
                   Parar
@@ -2346,11 +2540,11 @@
               <div class="grid grid-cols-2 gap-3 mb-4">
                 <div class="bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3">
                   <p class="text-[11px] font-700 text-zinc-700 mb-0.5">MEMORY.md</p>
-                  <p class="text-[11px] text-zinc-500 leading-relaxed">Memória de longo prazo destilada pelo bot. Registra fatos importantes sobre o usuário, preferências e decisões passadas. É lida a cada mensagem para manter contexto entre sessões.</p>
+                  <p class="text-[11px] text-zinc-500 leading-relaxed">Memória de longo prazo destilada pelo agente. Registra fatos importantes sobre o usuário, preferências e decisões passadas. É lida a cada mensagem para manter contexto entre sessões.</p>
                 </div>
                 <div class="bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3">
                   <p class="text-[11px] font-700 text-zinc-700 mb-0.5">USER.md</p>
-                  <p class="text-[11px] text-zinc-500 leading-relaxed">Perfil manual do usuário: cargo, objetivos, estilo de comunicação e preferências. Editado por você para personalizar como o bot deve tratar e responder ao usuário.</p>
+                  <p class="text-[11px] text-zinc-500 leading-relaxed">Perfil manual do usuário: cargo, objetivos, estilo de comunicação e preferências. Editado por você para personalizar como o agente deve tratar e responder ao usuário.</p>
                 </div>
               </div>
               <div class="flex gap-2 mb-4">
@@ -2410,7 +2604,7 @@
           <!-- Users -->
           <div x-show="activeTab==='users'" x-cloak>
             <div>
-              <p class="text-xs text-zinc-400 mb-4">Usuários aprovados podem conversar com este bot. No modo <strong>approval</strong>, o admin precisa aprovar manualmente cada solicitação.</p>
+              <p class="text-xs text-zinc-400 mb-4">Usuários aprovados podem conversar com este agente. No modo <strong>approval</strong>, o admin precisa aprovar manualmente cada solicitação.</p>
               <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
                 <div class="px-5 py-4 border-b border-surface-border flex items-center justify-between">
                   <div>
@@ -2541,7 +2735,7 @@
           <!-- Schedules -->
           <div x-show="activeTab==='schedules'" x-cloak>
             <div class="space-y-5">
-              <p class="text-xs text-zinc-400">Agendamentos fazem o bot enviar mensagens proativas para usuários em horários específicos (horário de Brasília).</p>
+              <p class="text-xs text-zinc-400">Agendamentos fazem o agente enviar mensagens proativas para usuários em horários específicos (horário de Brasília).</p>
 
               <!-- Tabela -->
               <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
@@ -2699,7 +2893,7 @@
     <svg class="w-5 h-5 text-violet-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
     <div class="flex-1">
       <p class="text-sm font-600 text-violet-800 mb-1">Sub-agentes disponíveis para <span x-text="currentBot" class="font-800"></span></p>
-      <p class="text-xs text-zinc-600">Estes sub-agentes são injetados automaticamente como ferramentas <code class="bg-zinc-200 px-1 rounded font-mono">agent_*</code> no próximo restart do bot. Para gerenciar, acesse <strong>Sub-agentes</strong> na sidebar.</p>
+      <p class="text-xs text-zinc-600">Estes sub-agentes são injetados automaticamente como ferramentas <code class="bg-zinc-200 px-1 rounded font-mono">agent_*</code> no próximo restart do agente. Para gerenciar, acesse <strong>Sub-agentes</strong> na sidebar.</p>
     </div>
     <button @click="openSubagentsGlobal()" class="flex-shrink-0 text-xs font-600 text-violet-600 hover:text-violet-800 bg-violet-100 hover:bg-violet-200 px-3 py-1.5 rounded-lg transition cursor-pointer">
       Gerenciar →
@@ -2736,7 +2930,7 @@
 
   <!-- Subagents WITHOUT access (visible globally but not for this bot) -->
   <div x-show="botSubagents.filter(sa => sa.allowed_parents!=='*' && !sa.allowed_parents.split(',').map(s=>s.trim()).includes(currentBot)).length > 0" class="space-y-2">
-    <p class="text-xs font-700 text-slate-400 uppercase tracking-wide mb-3">Sem acesso a este bot</p>
+    <p class="text-xs font-700 text-slate-400 uppercase tracking-wide mb-3">Sem acesso a este agente</p>
     <template x-for="sa in botSubagents.filter(sa => sa.allowed_parents!=='*' && !sa.allowed_parents.split(',').map(s=>s.trim()).includes(currentBot))" :key="sa.name">
       <div class="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center gap-3 opacity-50">
         <span class="font-600 text-sm text-slate-500" x-text="sa.name"></span>
@@ -2847,8 +3041,10 @@ function adminApp() {
     globalFiles: {'context.global':'','config.global':'','secrets.global':''}, crontabContent: '',
     crontabLines: [], globalTab: 'context.global', globalEnvFile: 'config.global',
     newCronEntry: {schedule:'', command:''},
-    globalEnvVars: [], newGlobalEnv: {key:'', value:''},
+    globalEnvVars: [], newGlobalEnv: {key:'', value:''}, systemGlobalKeys: {},
+    contextEditing: false, contextOriginal: '',
     bugfixer: {enabled:false, times_per_day:3, telegram_token:'', showToken:false, last_run:null, cron_entries:[], saving:false, running:false, runOutput:'', showLog:false, logContent:'', loadingLog:false},
+    memoryAutosave: {providers:[], selected_provider:null, last_run:null, last_status:null, last_error:null, bots_processed:null, cron_entry:null, running:false, runOutput:'', showLog:false, logContent:'', loadingLog:false},
     restartingAll: false, refreshing: false,
     sendMsg: {show:false, user_id:null, message:'', sending:false},
     broadcast: {show:false, message:'', sending:false},
@@ -3163,22 +3359,51 @@ function adminApp() {
     },
 
     async openGlobalConfig() {
-      this.showingGlobalConfig = true; this.showingSubagents = false; this.currentBot = null; this.globalTab = 'context.global'; this.globalEnvFile = 'config.global';
+      this.showingGlobalConfig = true; this.showingSubagents = false; this.currentBot = null; this.globalTab = 'context.global'; this.globalEnvFile = 'config.global'; this.contextEditing = false;
       if (this.evtSource) this.stopLogs();
-      const [gr1, gr2, gr3, cr] = await Promise.all([
+      const [gr1, gr2, gr3, cr, skr] = await Promise.all([
         fetch('/api/global/context.global'), fetch('/api/global/config.global'),
-        fetch('/api/global/secrets.global'), fetch('/api/crontab')
+        fetch('/api/global/secrets.global'), fetch('/api/crontab'),
+        fetch('/api/global/system-keys')
       ]);
       if (gr1.ok) { const d = await gr1.json(); this.globalFiles['context.global'] = d.content; }
       if (gr2.ok) { const d = await gr2.json(); this.globalFiles['config.global'] = d.content; }
       if (gr3.ok) { const d = await gr3.json(); this.globalFiles['secrets.global'] = d.content; }
       if (cr.ok)  { const d = await cr.json(); this.crontabContent = d.content; this.parseCrontab(); }
+      if (skr.ok) { const d = await skr.json(); this.systemGlobalKeys = d; }
       this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
     },
 
     async saveConfigGlobal() {
       await this.saveGlobalFile(this.globalEnvFile);
       this.parseGlobalEnv();
+    },
+
+    async saveContextGlobal() {
+      await this.saveGlobalFile('context.global');
+      this.contextEditing = false;
+    },
+
+    cancelContextEdit() {
+      this.globalFiles['context.global'] = this.contextOriginal;
+      this.contextEditing = false;
+    },
+
+    async restoreContextDefault() {
+      const ok = await this.showConfirm({
+        title: 'Restaurar Padrão',
+        message: 'Substituir o contexto global atual pelo padrão do sistema? Esta ação não pode ser desfeita.',
+        confirmText: 'Restaurar',
+        type: 'danger',
+      });
+      if (!ok) return;
+      const r = await fetch('/api/global/context-default');
+      if (!r.ok) { this.toast('Erro ao carregar padrão.', 'error'); return; }
+      const d = await r.json();
+      this.globalFiles['context.global'] = d.content;
+      await this.saveGlobalFile('context.global');
+      this.contextEditing = false;
+      this.toast('Contexto global restaurado para o padrão.');
     },
 
     async restartAllBots() {
@@ -3203,6 +3428,7 @@ function adminApp() {
     },
 
     async deleteCronEntry(idx) {
+      if (this.isSystemCronLine(this.crontabLines[idx])) return;
       const ok = await this.showConfirm({title:'Deletar Entrada', message:'Deletar esta entrada do crontab?', confirmText:'Deletar', type:'danger'});
       if (!ok) return;
       this.crontabLines.splice(idx, 1);
@@ -3223,6 +3449,14 @@ function adminApp() {
 
     isSensitiveGlobalKey(key) {
       return this.globalEnvFile === 'secrets.global' || /API_KEY|TOKEN|SECRET|PASSWORD/i.test(key);
+    },
+
+    isSystemGlobalKey(key) {
+      return (this.systemGlobalKeys[this.globalEnvFile] || []).includes(key);
+    },
+
+    isSystemCronLine(line) {
+      return line.includes('# [system]') || line.includes('# smb-');
     },
 
     parseGlobalEnv() {
@@ -3395,6 +3629,33 @@ function adminApp() {
           await this.loadBots(); this.selectBot(null);
         } else this.toast('Erro ao deletar agente.', 'error');
       } finally { this.deletingBot = false; }
+    },
+
+    async loadMemoryAutosave() {
+      const r = await fetch('/api/system/memory-autosave');
+      if (r.ok) { const d = await r.json(); Object.assign(this.memoryAutosave, d); }
+      this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
+    },
+
+    async runMemoryAutosave() {
+      this.memoryAutosave.running = true; this.memoryAutosave.runOutput = ''; this.memoryAutosave.showLog = false;
+      try {
+        const r = await fetch('/api/system/memory-autosave/run', {method:'POST'});
+        if (r.ok) {
+          const d = await r.json();
+          this.memoryAutosave.runOutput = d.output || '(sem output)';
+          await this.loadMemoryAutosave();
+        } else this.toast('Erro ao executar Memory Autosave.', 'error');
+      } finally { this.memoryAutosave.running = false; }
+    },
+
+    async loadMemoryAutosaveLog() {
+      this.memoryAutosave.loadingLog = true; this.memoryAutosave.runOutput = '';
+      try {
+        const r = await fetch('/api/system/memory-autosave/log?lines=50');
+        if (r.ok) { const d = await r.json(); this.memoryAutosave.logContent = d.content; this.memoryAutosave.showLog = true; }
+        else this.toast('Erro ao carregar log.', 'error');
+      } finally { this.memoryAutosave.loadingLog = false; }
     },
 
     async loadBugfixer() {

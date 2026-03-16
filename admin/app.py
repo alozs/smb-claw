@@ -26,6 +26,15 @@ GLOBAL_WHITELIST = {"context.global", "config.global", "secrets.global"}
 
 SENSITIVE_KEYS = {"ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY"}
 
+# Variáveis que o editor genérico não pode remover (apenas editar o valor)
+SYSTEM_GLOBAL_KEYS: dict[str, set[str]] = {
+    "config.global": {
+        "PROVIDER", "ADMIN_ID", "MODEL", "ACCESS_MODE",
+        "BUGFIXER_ENABLED", "BUGFIXER_TIMES_PER_DAY", "BUGFIXER_TELEGRAM_TOKEN",
+    },
+    "secrets.global": {"OPENROUTER_API_KEY"},
+}
+
 app = FastAPI(title="Claude Bots Admin")
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -771,6 +780,18 @@ async def clear_user_conversations(name: str, uid: int):
 
 # ── Routes: Global files ──────────────────────────────────────────────────────
 
+@app.get("/api/global/system-keys")
+async def get_system_keys():
+    return {fname: sorted(keys) for fname, keys in SYSTEM_GLOBAL_KEYS.items()}
+
+
+@app.get("/api/global/context-default")
+async def get_context_default():
+    path = BASE_DIR / "context.global.default"
+    content = path.read_text(errors="replace") if path.exists() else ""
+    return {"content": content}
+
+
 @app.get("/api/global/{fname}")
 async def get_global(fname: str):
     if fname not in GLOBAL_WHITELIST:
@@ -784,6 +805,19 @@ async def get_global(fname: str):
 async def update_global(fname: str, body: FileUpdate):
     if fname not in GLOBAL_WHITELIST:
         raise HTTPException(400, detail="File not allowed")
+    sys_keys = SYSTEM_GLOBAL_KEYS.get(fname, set())
+    if sys_keys:
+        new_keys = {
+            l.partition("=")[0].strip()
+            for l in body.content.splitlines()
+            if l.strip() and not l.strip().startswith("#") and "=" in l
+        }
+        missing = sys_keys - new_keys
+        if missing:
+            raise HTTPException(
+                422,
+                detail=f"Variáveis de sistema não podem ser removidas: {', '.join(sorted(missing))}",
+            )
     fpath = BASE_DIR / fname
     fpath.write_text(body.content)
     return {"ok": True}
@@ -807,6 +841,18 @@ class CrontabUpdate(BaseModel):
 @app.put("/api/crontab")
 async def update_crontab(body: CrontabUpdate):
     content = body.content if body.content.endswith("\n") else body.content + "\n"
+    # Protege linhas de sistema (marcadas com # [system] ou # smb-)
+    current = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=10)
+    if current.returncode == 0:
+        sys_lines = [
+            l for l in current.stdout.splitlines()
+            if l.strip() and not l.strip().startswith("#")
+            and ("# [system]" in l or "# smb-" in l)
+        ]
+        new_set = set(body.content.splitlines())
+        missing = [l for l in sys_lines if l not in new_set]
+        if missing:
+            raise HTTPException(422, detail="Entradas de sistema não podem ser removidas do crontab")
     result = subprocess.run(
         ["crontab", "-"],
         input=content,
@@ -1421,6 +1467,110 @@ async def get_bugfixer_log(lines: int = 50):
     if not BUGFIXER_LOG.exists():
         return {"content": "", "lines": 0}
     all_lines = BUGFIXER_LOG.read_text(errors="replace").splitlines()
+    last_n = all_lines[-lines:] if len(all_lines) > lines else all_lines
+    return {"content": "\n".join(last_n), "lines": len(last_n)}
+
+
+# ── Routes: Memory Autosave ───────────────────────────────────────────────────
+
+MEMORY_AUTOSAVE_STATE = BASE_DIR / ".memory_autosave_state"
+MEMORY_AUTOSAVE_LOG = BASE_DIR / "logs" / "memory-autosave.log"
+MEMORY_AUTOSAVE_SCRIPT = BASE_DIR / "memory-autosave.sh"
+
+
+def _detect_autosave_provider() -> dict:
+    """Detect which AI provider is available for memory-autosave, in fallback order."""
+    secrets = load_env(BASE_DIR / "secrets.global")
+    cfg = load_env(BASE_DIR / "config.global")
+
+    providers = []
+
+    # 1. Claude OAuth
+    claude_oauth = _check_oauth(CLAUDE_CREDS_PATH, ["claudeAiOauth", "accessToken"])
+    providers.append({
+        "id": "claude_oauth", "label": "Claude OAuth", "model": "claude-haiku",
+        "active": claude_oauth["status"] == "active",
+    })
+
+    # 2. Codex OAuth
+    codex_oauth = _check_oauth(CODEX_AUTH_PATH, ["tokens", "access_token"])
+    providers.append({
+        "id": "codex_oauth", "label": "Codex OAuth", "model": "gpt-4o-mini",
+        "active": codex_oauth["status"] == "active",
+    })
+
+    # 3. OpenRouter
+    openrouter_key = secrets.get("OPENROUTER_API_KEY") or cfg.get("OPENROUTER_API_KEY", "")
+    if openrouter_key:
+        providers.append({"id": "openrouter", "label": "OpenRouter", "model": "gpt-4o-mini", "active": True})
+    else:
+        providers.append({"id": "openrouter", "label": "OpenRouter", "model": "gpt-4o-mini", "active": False})
+
+    # 4. OpenAI API key
+    openai_key = secrets.get("OPENAI_API_KEY", "")
+    if openai_key:
+        providers.append({"id": "openai_key", "label": "OpenAI API Key", "model": "gpt-4o-mini", "active": True})
+    else:
+        providers.append({"id": "openai_key", "label": "OpenAI API Key", "model": "gpt-4o-mini", "active": False})
+
+    selected = next((p for p in providers if p["active"]), None)
+    return {"providers": providers, "selected": selected["id"] if selected else None}
+
+
+@app.get("/api/system/memory-autosave")
+async def get_memory_autosave():
+    provider_info = _detect_autosave_provider()
+
+    last_run = None
+    last_status = None
+    last_error = None
+    bots_processed = None
+    if MEMORY_AUTOSAVE_STATE.exists():
+        try:
+            data = json.loads(MEMORY_AUTOSAVE_STATE.read_text())
+            last_run = data.get("last_run")
+            last_status = data.get("status")
+            last_error = data.get("error") or None
+            bots_processed = data.get("bots_processed")
+        except Exception:
+            pass
+
+    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=10)
+    cron_content = result.stdout if result.returncode == 0 else ""
+    cron_entry = next(
+        (l for l in cron_content.splitlines() if "memory-autosave.sh" in l and not l.startswith("#")),
+        None,
+    )
+
+    return {
+        "providers": provider_info["providers"],
+        "selected_provider": provider_info["selected"],
+        "last_run": last_run,
+        "last_status": last_status,
+        "last_error": last_error,
+        "bots_processed": bots_processed,
+        "cron_entry": cron_entry,
+    }
+
+
+@app.post("/api/system/memory-autosave/run")
+async def run_memory_autosave():
+    if not MEMORY_AUTOSAVE_SCRIPT.exists():
+        raise HTTPException(500, detail="memory-autosave.sh não encontrado")
+
+    result = subprocess.run(
+        ["bash", str(MEMORY_AUTOSAVE_SCRIPT)],
+        capture_output=True, text=True, timeout=300,
+    )
+    output = (result.stdout + result.stderr).strip()
+    return {"ok": result.returncode == 0, "output": output or "(sem output)"}
+
+
+@app.get("/api/system/memory-autosave/log")
+async def get_memory_autosave_log(lines: int = 50):
+    if not MEMORY_AUTOSAVE_LOG.exists():
+        return {"content": "", "lines": 0}
+    all_lines = MEMORY_AUTOSAVE_LOG.read_text(errors="replace").splitlines()
     last_n = all_lines[-lines:] if len(all_lines) > lines else all_lines
     return {"content": "\n".join(last_n), "lines": len(last_n)}
 

@@ -40,7 +40,7 @@ subagents/      — NOVO: diretório de sub-agentes especializados
 | `configurar-secrets.sh` | Entrada segura de credenciais sensíveis |
 | `gerenciar.sh` | Controle de serviços (start/stop/logs) |
 | `context.global` | Instruções globais injetadas no system prompt de todos os bots |
-| `memory-autosave.sh` | Destila memória diária → MEMORY.md (cron 23:50) |
+| `memory-autosave.sh` | Destila memória diária → MEMORY.md (cron 23:50). Fallback de provedor: Claude OAuth → Codex OAuth → OPENROUTER_API_KEY → OPENAI_API_KEY. Salva estado em `.memory_autosave_state`. |
 | `memory-cleanup.sh` | Remove diários antigos (cron domingo 02:00) |
 | `bugfixer.py` | Bug Fixer Agent — detecta erros via analytics + journalctl, invoca Claude para corrigir, notifica admin via Telegram |
 | `VERSION` | Versão atual do sistema (semver: MAJOR.MINOR.PATCH) |
@@ -205,6 +205,9 @@ Se não estiver instalada, PDFs recebem fallback graceful com nome+tamanho.
 | `/stats [período]` | Analytics: tokens, custo, mensagens (hoje/semana/mes/N) |
 | `/version` | Mostra versão atual e se há atualizações pendentes |
 | `/update` | Puxa atualizações do remote e reinicia todos os serviços |
+| `/criar_agente` | Abre wizard passo a passo para criar novo agente Telegram |
+| `/criar_subagente` | Abre wizard passo a passo para criar novo sub-agente |
+| `/cancelar_wizard` | Cancela wizard em andamento |
 
 ---
 
@@ -297,7 +300,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 
 | Schedule | Script | Descrição |
 |---|---|---|
-| `50 23 * * *` | `memory-autosave.sh` | Destila memória diária → MEMORY.md |
+| `50 23 * * *` | `memory-autosave.sh` | Destila memória diária → MEMORY.md. Usa fallback automático de provedor (Claude OAuth → Codex OAuth → OpenRouter → OpenAI). Status visível no painel admin aba Sistema. |
 | `0 2 * * 0` | `memory-cleanup.sh 30` | Remove diários com mais de 30 dias |
 | dinâmico (`# smb-bugfixer`) | `bugfixer.py` | Bug Fixer Agent — gerado automaticamente pelo painel admin conforme `BUGFIXER_TIMES_PER_DAY` |
 | `0 8 * * *` | `check-update.sh` | Verifica se origin/main tem commits novos e notifica admin |
