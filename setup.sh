@@ -59,6 +59,31 @@ echo -e "  ${C}${B}╚══════╝╚═╝     ╚═╝╚═══�
 echo ""
 echo -e "  ${D}Multi-Bot AI Framework — Setup${N}"
 echo ""
+echo -e "  ${Y}${B}AVISO DE SEGURANCA${N}"
+echo -e "  ${D}$(printf '%.0s─' $(seq 1 50))${N}"
+echo -e "  ${D}Este software e fornecido \"como esta\" (as-is), sem${N}"
+echo -e "  ${D}garantias de qualquer tipo, expressas ou implicitas.${N}"
+echo -e "  ${D}O desenvolvedor nao se responsabiliza por danos,${N}"
+echo -e "  ${D}perdas de dados ou uso indevido.${N}"
+echo ""
+echo -e "  ${D}Ao prosseguir, voce reconhece que:${N}"
+echo -e "  ${D} - API keys e tokens sao armazenados localmente${N}"
+echo -e "  ${D}   nos arquivos secrets.global e secrets.env${N}"
+echo -e "  ${D} - Voce e responsavel por proteger o acesso a esta${N}"
+echo -e "  ${D}   maquina e aos arquivos de credenciais${N}"
+echo -e "  ${D} - Nao exponha portas do painel admin sem firewall${N}"
+echo -e "  ${D} - Mantenha o sistema e dependencias atualizados${N}"
+echo -e "  ${D}$(printf '%.0s─' $(seq 1 50))${N}"
+echo ""
+read -rp "  Deseja continuar? [S/n] " CONFIRM
+CONFIRM="${CONFIRM:-S}"
+if [[ ! "$CONFIRM" =~ ^[SsYy]$ ]]; then
+    echo ""
+    echo -e "  ${D}Setup cancelado.${N}"
+    echo ""
+    exit 0
+fi
+echo ""
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 1: System check
@@ -228,8 +253,40 @@ else
     UVICORN="python3 -m uvicorn"
 fi
 
+# Checa se o próprio painel admin já está rodando na porta
 if lsof -ti:$ADMIN_PORT >/dev/null 2>&1; then
-    echo -e "  ${OK} Painel admin já está rodando na porta ${B}${ADMIN_PORT}${N}"
+    # Verifica se é o nosso processo (uvicorn admin.app)
+    EXISTING_PID=$(lsof -ti:$ADMIN_PORT 2>/dev/null | head -1)
+    if ps -p "$EXISTING_PID" -o args= 2>/dev/null | grep -q "admin.app"; then
+        echo -e "  ${OK} Painel admin já está rodando na porta ${B}${ADMIN_PORT}${N}"
+    else
+        # Porta ocupada por outro processo — busca alternativa
+        ORIGINAL_PORT=$ADMIN_PORT
+        MAX_ATTEMPTS=10
+        for i in $(seq 1 $MAX_ATTEMPTS); do
+            ADMIN_PORT=$((ADMIN_PORT + 1))
+            if ! lsof -ti:$ADMIN_PORT >/dev/null 2>&1; then
+                break
+            fi
+            if [ "$i" -eq "$MAX_ATTEMPTS" ]; then
+                echo -e "  ${FAIL} Porta ${B}${ORIGINAL_PORT}${N} ocupada e nenhuma alternativa livre (${ORIGINAL_PORT}–${ADMIN_PORT})"
+                exit 1
+            fi
+        done
+        echo -e "  ${WARN} Porta ${B}${ORIGINAL_PORT}${N} ocupada — usando ${B}${ADMIN_PORT}${N}"
+        cd "$BASE_DIR"
+        nohup $UVICORN admin.app:app --host 0.0.0.0 --port "$ADMIN_PORT" \
+            > /tmp/smb-admin.log 2>&1 &
+        sleep 2
+        if lsof -ti:$ADMIN_PORT >/dev/null 2>&1; then
+            echo -e "  ${OK} Painel admin iniciado na porta ${B}${ADMIN_PORT}${N}"
+        else
+            echo -e "  ${FAIL} Falha ao iniciar o painel admin na porta ${B}${ADMIN_PORT}${N}"
+            echo ""
+            echo -e "  ${D}Verifique o log: cat /tmp/smb-admin.log${N}"
+            exit 1
+        fi
+    fi
 else
     echo -ne "  ${C}⠋${N} Iniciando painel admin..."
     cd "$BASE_DIR"
