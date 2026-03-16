@@ -544,18 +544,16 @@ if [ "$NEEDS_SETUP" = true ]; then
     # ── Provedor ────────────────────────────────────────────────────────────
     echo ""
     echo -e "  ${B}Provedor de IA:${N}"
-    echo -e "  ${D}  1) claude-cli  — Claude via OAuth (sem API key, usa assinatura)${N}"
-    echo -e "  ${D}  2) anthropic   — Claude via API key${N}"
-    echo -e "  ${D}  3) openrouter  — Qualquer modelo via OpenRouter${N}"
-    echo -e "  ${D}  4) codex       — OpenAI (Codex OAuth + API key)${N}"
+    echo -e "  ${D}  1) Anthropic   — Claude (OAuth + API key)${N}"
+    echo -e "  ${D}  2) OpenRouter  — Qualquer modelo via OpenRouter${N}"
+    echo -e "  ${D}  3) OpenAI      — GPT / Codex (OAuth + API key)${N}"
     echo ""
-    read -rp "  Escolha [1-4] (padrão: 1): " PROV_CHOICE
+    read -rp "  Escolha [1-3] (padrão: 1): " PROV_CHOICE
     PROV_CHOICE="${PROV_CHOICE:-1}"
     case "$PROV_CHOICE" in
-        2) WIZ_PROVIDER="anthropic" ;;
-        3) WIZ_PROVIDER="openrouter" ;;
-        4) WIZ_PROVIDER="codex" ;;
-        *) WIZ_PROVIDER="claude-cli" ;;
+        2) WIZ_PROVIDER="openrouter" ;;
+        3) WIZ_PROVIDER="codex" ;;
+        *) WIZ_PROVIDER="anthropic" ;;
     esac
     echo -e "  ${OK} Provedor: ${B}${WIZ_PROVIDER}${N}"
 
@@ -564,8 +562,9 @@ if [ "$NEEDS_SETUP" = true ]; then
     WIZ_OPENROUTER_KEY=""
     WIZ_OPENAI_KEY=""
 
-    if [ "$WIZ_PROVIDER" = "claude-cli" ]; then
+    if [ "$WIZ_PROVIDER" = "anthropic" ]; then
         # Verifica se já tem OAuth do Claude configurado
+        CLAUDE_HAS_TOKEN=""
         if [ -f "$HOME/.claude/.credentials.json" ]; then
             CLAUDE_HAS_TOKEN=$(python3 -c "
 import json
@@ -578,14 +577,22 @@ print('ok' if c.get('claudeAiOauth',{}).get('accessToken','') else '')
             echo -e "  ${OK} Claude OAuth já configurado"
         else
             echo ""
-            echo -e "  ${B}Autenticação Claude:${N}"
+            echo -e "  ${B}Autenticação Anthropic:${N}"
             echo -e "  ${D}  1) Claude OAuth (abrir URL no navegador — sem API key)${N}"
-            echo -e "  ${D}  2) Já tenho o Claude Code CLI instalado e logado${N}"
+            echo -e "  ${D}  2) Anthropic API Key${N}"
+            echo -e "  ${D}  3) Já tenho o Claude Code CLI instalado e logado${N}"
             echo ""
-            read -rp "  Escolha [1-2] (padrão: 1): " CLAUDE_AUTH_CHOICE
-            CLAUDE_AUTH_CHOICE="${CLAUDE_AUTH_CHOICE:-1}"
+            read -rp "  Escolha [1-3] (padrão: 1): " ANTH_AUTH_CHOICE
+            ANTH_AUTH_CHOICE="${ANTH_AUTH_CHOICE:-1}"
 
-            if [ "$CLAUDE_AUTH_CHOICE" = "1" ]; then
+            if [ "$ANTH_AUTH_CHOICE" = "2" ]; then
+                read -rp "  Anthropic API Key (sk-ant-...): " WIZ_ANTHROPIC_KEY
+                if [ -z "$WIZ_ANTHROPIC_KEY" ]; then
+                    echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
+                fi
+            elif [ "$ANTH_AUTH_CHOICE" = "3" ]; then
+                echo -e "  ${D}OK — certifique-se de rodar ${B}claude login${N}${D} antes de iniciar os bots${N}"
+            else
                 do_oauth "Claude" \
                     "https://auth.anthropic.com/oauth/authorize" \
                     "https://auth.anthropic.com/oauth/token" \
@@ -595,35 +602,12 @@ print('ok' if c.get('claudeAiOauth',{}).get('accessToken','') else '')
                     "" \
                     "$HOME/.claude/.credentials.json" \
                     "claude"
-            else
-                echo -e "  ${D}OK — certifique-se de rodar ${B}claude login${N}${D} antes de iniciar os bots${N}"
             fi
         fi
 
-    elif [ "$WIZ_PROVIDER" = "anthropic" ]; then
-        echo ""
-        echo -e "  ${B}Autenticação Anthropic:${N}"
-        echo -e "  ${D}  1) Claude OAuth (sem API key — usa assinatura Claude)${N}"
-        echo -e "  ${D}  2) Anthropic API Key${N}"
-        echo ""
-        read -rp "  Escolha [1-2] (padrão: 1): " ANTH_AUTH_CHOICE
-        ANTH_AUTH_CHOICE="${ANTH_AUTH_CHOICE:-1}"
-
-        if [ "$ANTH_AUTH_CHOICE" = "2" ]; then
-            read -rp "  Anthropic API Key (sk-ant-...): " WIZ_ANTHROPIC_KEY
-            if [ -z "$WIZ_ANTHROPIC_KEY" ]; then
-                echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
-            fi
-        else
-            do_oauth "Claude" \
-                "https://auth.anthropic.com/oauth/authorize" \
-                "https://auth.anthropic.com/oauth/token" \
-                "d912a2d4-0544-4661-8498-7638e8196c55" \
-                "http://localhost:18217/oauth/callback" \
-                "user:inference" \
-                "" \
-                "$HOME/.claude/.credentials.json" \
-                "claude"
+        # Se usou OAuth (não API key), seta provider como claude-cli
+        if [ -z "$WIZ_ANTHROPIC_KEY" ]; then
+            WIZ_PROVIDER="claude-cli"
         fi
 
     elif [ "$WIZ_PROVIDER" = "openrouter" ]; then
@@ -634,29 +618,46 @@ print('ok' if c.get('claudeAiOauth',{}).get('accessToken','') else '')
         fi
 
     elif [ "$WIZ_PROVIDER" = "codex" ]; then
-        echo ""
-        echo -e "  ${B}Autenticação OpenAI:${N}"
-        echo -e "  ${D}  1) OpenAI Codex OAuth (ChatGPT OAuth — sem API key)${N}"
-        echo -e "  ${D}  2) OpenAI API Key${N}"
-        echo ""
-        read -rp "  Escolha [1-2] (padrão: 1): " OPENAI_AUTH_CHOICE
-        OPENAI_AUTH_CHOICE="${OPENAI_AUTH_CHOICE:-1}"
-
-        if [ "$OPENAI_AUTH_CHOICE" = "2" ]; then
-            read -rp "  OpenAI API Key (sk-...): " WIZ_OPENAI_KEY
-            if [ -z "$WIZ_OPENAI_KEY" ]; then
-                echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
-            fi
+        # Verifica se já tem OAuth do Codex configurado
+        CODEX_HAS_TOKEN=""
+        if [ -f "$HOME/.codex/auth.json" ]; then
+            CODEX_HAS_TOKEN=$(python3 -c "
+import json
+with open('$HOME/.codex/auth.json') as f:
+    c = json.load(f)
+print('ok' if c.get('tokens',{}).get('access_token','') else '')
+" 2>/dev/null)
+        fi
+        if [ "$CODEX_HAS_TOKEN" = "ok" ]; then
+            echo -e "  ${OK} OpenAI Codex OAuth já configurado"
         else
-            do_oauth "ChatGPT" \
-                "https://auth.openai.com/oauth/authorize" \
-                "https://auth.openai.com/oauth/token" \
-                "app_EMoamEEZ73f0CkXaXp7hrann" \
-                "http://localhost:1455/auth/callback" \
-                "openid profile email offline_access" \
-                "id_token_add_organizations=true&codex_cli_simplified_flow=true&originator=pi" \
-                "$HOME/.codex/auth.json" \
-                "codex"
+            echo ""
+            echo -e "  ${B}Autenticação OpenAI:${N}"
+            echo -e "  ${D}  1) OpenAI Codex OAuth (ChatGPT OAuth — sem API key)${N}"
+            echo -e "  ${D}  2) OpenAI API Key${N}"
+            echo -e "  ${D}  3) Já tenho o Codex CLI instalado e logado${N}"
+            echo ""
+            read -rp "  Escolha [1-3] (padrão: 1): " OPENAI_AUTH_CHOICE
+            OPENAI_AUTH_CHOICE="${OPENAI_AUTH_CHOICE:-1}"
+
+            if [ "$OPENAI_AUTH_CHOICE" = "2" ]; then
+                read -rp "  OpenAI API Key (sk-...): " WIZ_OPENAI_KEY
+                if [ -z "$WIZ_OPENAI_KEY" ]; then
+                    echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
+                fi
+            elif [ "$OPENAI_AUTH_CHOICE" = "3" ]; then
+                echo -e "  ${D}OK — certifique-se de rodar ${B}codex login${N}${D} antes de iniciar os bots${N}"
+            else
+                do_oauth "ChatGPT" \
+                    "https://auth.openai.com/oauth/authorize" \
+                    "https://auth.openai.com/oauth/token" \
+                    "app_EMoamEEZ73f0CkXaXp7hrann" \
+                    "http://localhost:1455/auth/callback" \
+                    "openid profile email offline_access" \
+                    "id_token_add_organizations=true&codex_cli_simplified_flow=true&originator=pi" \
+                    "$HOME/.codex/auth.json" \
+                    "codex"
+            fi
         fi
     fi
 
@@ -664,52 +665,91 @@ print('ok' if c.get('claudeAiOauth',{}).get('accessToken','') else '')
     echo ""
     case "$WIZ_PROVIDER" in
         claude-cli|anthropic)
-            echo -e "  ${B}Modelo:${N}"
-            echo -e "  ${D}  1) claude-sonnet-4-6  — rápido e inteligente (recomendado)${N}"
-            echo -e "  ${D}  2) claude-opus-4-6    — mais capaz, mais lento${N}"
-            echo -e "  ${D}  3) claude-haiku-4-5-20251001 — mais rápido e barato${N}"
+            echo -e "  ${B}Modelo (Anthropic):${N}"
+            echo -e "  ${D}   1) anthropic/claude-sonnet-4-6 ${C}(recomendado)${N}"
+            echo -e "  ${D}   2) anthropic/claude-sonnet-4-5${N}"
+            echo -e "  ${D}   3) anthropic/claude-sonnet-4-5-20250929${N}"
+            echo -e "  ${D}   4) anthropic/claude-sonnet-4-0${N}"
+            echo -e "  ${D}   5) anthropic/claude-sonnet-4-20250514${N}"
+            echo -e "  ${D}   6) anthropic/claude-opus-4-6${N}"
+            echo -e "  ${D}   7) anthropic/claude-opus-4-5${N}"
+            echo -e "  ${D}   8) anthropic/claude-opus-4-5-20251101${N}"
+            echo -e "  ${D}   9) anthropic/claude-opus-4-1${N}"
+            echo -e "  ${D}  10) anthropic/claude-opus-4-1-20250805${N}"
+            echo -e "  ${D}  11) anthropic/claude-opus-4-0${N}"
+            echo -e "  ${D}  12) anthropic/claude-opus-4-20250514${N}"
+            echo -e "  ${D}  13) anthropic/claude-haiku-4-5${N}"
+            echo -e "  ${D}  14) anthropic/claude-haiku-4-5-20251001${N}"
+            echo -e "  ${D}  15) Digitar manualmente${N}"
             echo ""
-            read -rp "  Escolha [1-3] (padrão: 1): " MODEL_CHOICE
+            read -rp "  Escolha [1-15] (padrão: 1): " MODEL_CHOICE
             case "$MODEL_CHOICE" in
-                2) WIZ_MODEL="claude-opus-4-6" ;;
-                3) WIZ_MODEL="claude-haiku-4-5-20251001" ;;
+                2)  WIZ_MODEL="claude-sonnet-4-5" ;;
+                3)  WIZ_MODEL="claude-sonnet-4-5-20250929" ;;
+                4)  WIZ_MODEL="claude-sonnet-4-0" ;;
+                5)  WIZ_MODEL="claude-sonnet-4-20250514" ;;
+                6)  WIZ_MODEL="claude-opus-4-6" ;;
+                7)  WIZ_MODEL="claude-opus-4-5" ;;
+                8)  WIZ_MODEL="claude-opus-4-5-20251101" ;;
+                9)  WIZ_MODEL="claude-opus-4-1" ;;
+                10) WIZ_MODEL="claude-opus-4-1-20250805" ;;
+                11) WIZ_MODEL="claude-opus-4-0" ;;
+                12) WIZ_MODEL="claude-opus-4-20250514" ;;
+                13) WIZ_MODEL="claude-haiku-4-5" ;;
+                14) WIZ_MODEL="claude-haiku-4-5-20251001" ;;
+                15)
+                    read -rp "  Modelo: " WIZ_MODEL
+                    WIZ_MODEL="${WIZ_MODEL:-claude-sonnet-4-6}"
+                    ;;
                 *) WIZ_MODEL="claude-sonnet-4-6" ;;
             esac
             ;;
         openrouter)
             echo -e "  ${B}Modelo (OpenRouter):${N}"
-            echo -e "  ${D}  1) x-ai/grok-3${N}"
-            echo -e "  ${D}  2) google/gemini-2.0-flash${N}"
-            echo -e "  ${D}  3) openai/gpt-4o${N}"
-            echo -e "  ${D}  4) anthropic/claude-sonnet-4-6${N}"
-            echo -e "  ${D}  5) outro (digitar manualmente)${N}"
+            echo -e "  ${D}  1) anthropic/claude-sonnet-4-6 ${C}(recomendado)${N}"
+            echo -e "  ${D}  2) x-ai/grok-3${N}"
+            echo -e "  ${D}  3) google/gemini-2.0-flash${N}"
+            echo -e "  ${D}  4) openai/gpt-4o${N}"
+            echo -e "  ${D}  5) Digitar manualmente${N}"
             echo ""
             read -rp "  Escolha [1-5] (padrão: 1): " MODEL_CHOICE
             case "$MODEL_CHOICE" in
-                2) WIZ_MODEL="google/gemini-2.0-flash" ;;
-                3) WIZ_MODEL="openai/gpt-4o" ;;
-                4) WIZ_MODEL="anthropic/claude-sonnet-4-6" ;;
+                2) WIZ_MODEL="x-ai/grok-3" ;;
+                3) WIZ_MODEL="google/gemini-2.0-flash" ;;
+                4) WIZ_MODEL="openai/gpt-4o" ;;
                 5)
                     read -rp "  Modelo (ex: mistralai/mistral-small-3.1): " WIZ_MODEL
-                    WIZ_MODEL="${WIZ_MODEL:-x-ai/grok-3}"
+                    WIZ_MODEL="${WIZ_MODEL:-anthropic/claude-sonnet-4-6}"
                     ;;
-                *) WIZ_MODEL="x-ai/grok-3" ;;
+                *) WIZ_MODEL="anthropic/claude-sonnet-4-6" ;;
             esac
             ;;
         codex)
             echo -e "  ${B}Modelo (OpenAI):${N}"
-            echo -e "  ${D}  1) gpt-4o${N}"
-            echo -e "  ${D}  2) gpt-4o-mini${N}"
-            echo -e "  ${D}  3) outro (digitar manualmente)${N}"
+            echo -e "  ${D}  1) gpt-5.4 ${C}(recomendado)${N}"
+            echo -e "  ${D}  2) gpt-5.3-codex-spark${N}"
+            echo -e "  ${D}  3) gpt-5.3-codex${N}"
+            echo -e "  ${D}  4) gpt-5.2-codex${N}"
+            echo -e "  ${D}  5) gpt-5.2${N}"
+            echo -e "  ${D}  6) gpt-5.1-codex-max${N}"
+            echo -e "  ${D}  7) gpt-5.1-codex-mini${N}"
+            echo -e "  ${D}  8) gpt-5.1${N}"
+            echo -e "  ${D}  9) Digitar manualmente${N}"
             echo ""
-            read -rp "  Escolha [1-3] (padrão: 1): " MODEL_CHOICE
+            read -rp "  Escolha [1-9] (padrão: 1): " MODEL_CHOICE
             case "$MODEL_CHOICE" in
-                2) WIZ_MODEL="gpt-4o-mini" ;;
-                3)
+                2) WIZ_MODEL="gpt-5.3-codex-spark" ;;
+                3) WIZ_MODEL="gpt-5.3-codex" ;;
+                4) WIZ_MODEL="gpt-5.2-codex" ;;
+                5) WIZ_MODEL="gpt-5.2" ;;
+                6) WIZ_MODEL="gpt-5.1-codex-max" ;;
+                7) WIZ_MODEL="gpt-5.1-codex-mini" ;;
+                8) WIZ_MODEL="gpt-5.1" ;;
+                9)
                     read -rp "  Modelo: " WIZ_MODEL
-                    WIZ_MODEL="${WIZ_MODEL:-gpt-4o}"
+                    WIZ_MODEL="${WIZ_MODEL:-gpt-5.4}"
                     ;;
-                *) WIZ_MODEL="gpt-4o" ;;
+                *) WIZ_MODEL="gpt-5.4" ;;
             esac
             ;;
     esac
