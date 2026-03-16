@@ -395,6 +395,299 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
+# STEP 6: Setup Wizard (CLI) — se config.global não existe
+# ══════════════════════════════════════════════════════════════════════════════
+
+NEEDS_SETUP=false
+if [ ! -f "$BASE_DIR/config.global" ]; then
+    NEEDS_SETUP=true
+elif ! grep -q "^PROVIDER=.\+" "$BASE_DIR/config.global" 2>/dev/null; then
+    NEEDS_SETUP=true
+elif ! grep -q "^ADMIN_ID=[0-9]\+" "$BASE_DIR/config.global" 2>/dev/null; then
+    NEEDS_SETUP=true
+fi
+
+if [ "$NEEDS_SETUP" = true ]; then
+    step_header "Configuração inicial"
+    echo ""
+    echo -e "  ${D}Nenhuma configuração encontrada. Vamos configurar${N}"
+    echo -e "  ${D}o básico para começar.${N}"
+
+    # ── Provedor ────────────────────────────────────────────────────────────
+    echo ""
+    echo -e "  ${B}Provedor de IA:${N}"
+    echo -e "  ${D}  1) claude-cli  — Claude via OAuth (sem API key, usa assinatura)${N}"
+    echo -e "  ${D}  2) anthropic   — Claude via API key${N}"
+    echo -e "  ${D}  3) openrouter  — Qualquer modelo via OpenRouter${N}"
+    echo -e "  ${D}  4) codex       — OpenAI via Codex CLI / API key${N}"
+    echo ""
+    read -rp "  Escolha [1-4] (padrão: 1): " PROV_CHOICE
+    PROV_CHOICE="${PROV_CHOICE:-1}"
+    case "$PROV_CHOICE" in
+        2) WIZ_PROVIDER="anthropic" ;;
+        3) WIZ_PROVIDER="openrouter" ;;
+        4) WIZ_PROVIDER="codex" ;;
+        *) WIZ_PROVIDER="claude-cli" ;;
+    esac
+    echo -e "  ${OK} Provedor: ${B}${WIZ_PROVIDER}${N}"
+
+    # ── API Key (se necessário) ─────────────────────────────────────────────
+    WIZ_ANTHROPIC_KEY=""
+    WIZ_OPENROUTER_KEY=""
+    WIZ_OPENAI_KEY=""
+
+    if [ "$WIZ_PROVIDER" = "anthropic" ]; then
+        echo ""
+        read -rp "  Anthropic API Key (sk-ant-...): " WIZ_ANTHROPIC_KEY
+        if [ -z "$WIZ_ANTHROPIC_KEY" ]; then
+            echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
+        fi
+    elif [ "$WIZ_PROVIDER" = "openrouter" ]; then
+        echo ""
+        read -rp "  OpenRouter API Key (sk-or-...): " WIZ_OPENROUTER_KEY
+        if [ -z "$WIZ_OPENROUTER_KEY" ]; then
+            echo -e "  ${WARN} Nenhuma key informada — configure depois em secrets.global"
+        fi
+    elif [ "$WIZ_PROVIDER" = "codex" ]; then
+        echo ""
+        read -rp "  OpenAI API Key (sk-..., Enter para usar OAuth): " WIZ_OPENAI_KEY
+    fi
+
+    # ── Modelo ──────────────────────────────────────────────────────────────
+    echo ""
+    case "$WIZ_PROVIDER" in
+        claude-cli|anthropic)
+            echo -e "  ${B}Modelo:${N}"
+            echo -e "  ${D}  1) claude-sonnet-4-6  — rápido e inteligente (recomendado)${N}"
+            echo -e "  ${D}  2) claude-opus-4-6    — mais capaz, mais lento${N}"
+            echo -e "  ${D}  3) claude-haiku-4-5-20251001 — mais rápido e barato${N}"
+            echo ""
+            read -rp "  Escolha [1-3] (padrão: 1): " MODEL_CHOICE
+            case "$MODEL_CHOICE" in
+                2) WIZ_MODEL="claude-opus-4-6" ;;
+                3) WIZ_MODEL="claude-haiku-4-5-20251001" ;;
+                *) WIZ_MODEL="claude-sonnet-4-6" ;;
+            esac
+            ;;
+        openrouter)
+            echo -e "  ${B}Modelo (OpenRouter):${N}"
+            echo -e "  ${D}  1) x-ai/grok-3${N}"
+            echo -e "  ${D}  2) google/gemini-2.0-flash${N}"
+            echo -e "  ${D}  3) openai/gpt-4o${N}"
+            echo -e "  ${D}  4) anthropic/claude-sonnet-4-6${N}"
+            echo -e "  ${D}  5) outro (digitar manualmente)${N}"
+            echo ""
+            read -rp "  Escolha [1-5] (padrão: 1): " MODEL_CHOICE
+            case "$MODEL_CHOICE" in
+                2) WIZ_MODEL="google/gemini-2.0-flash" ;;
+                3) WIZ_MODEL="openai/gpt-4o" ;;
+                4) WIZ_MODEL="anthropic/claude-sonnet-4-6" ;;
+                5)
+                    read -rp "  Modelo (ex: mistralai/mistral-small-3.1): " WIZ_MODEL
+                    WIZ_MODEL="${WIZ_MODEL:-x-ai/grok-3}"
+                    ;;
+                *) WIZ_MODEL="x-ai/grok-3" ;;
+            esac
+            ;;
+        codex)
+            echo -e "  ${B}Modelo (OpenAI):${N}"
+            echo -e "  ${D}  1) gpt-4o${N}"
+            echo -e "  ${D}  2) gpt-4o-mini${N}"
+            echo -e "  ${D}  3) outro (digitar manualmente)${N}"
+            echo ""
+            read -rp "  Escolha [1-3] (padrão: 1): " MODEL_CHOICE
+            case "$MODEL_CHOICE" in
+                2) WIZ_MODEL="gpt-4o-mini" ;;
+                3)
+                    read -rp "  Modelo: " WIZ_MODEL
+                    WIZ_MODEL="${WIZ_MODEL:-gpt-4o}"
+                    ;;
+                *) WIZ_MODEL="gpt-4o" ;;
+            esac
+            ;;
+    esac
+    echo -e "  ${OK} Modelo: ${B}${WIZ_MODEL}${N}"
+
+    # ── Admin ID ────────────────────────────────────────────────────────────
+    echo ""
+    echo -e "  ${B}Telegram Admin ID:${N}"
+    echo -e "  ${D}  Seu ID numérico do Telegram. Para descobrir,${N}"
+    echo -e "  ${D}  envie /id para @userinfobot no Telegram.${N}"
+    echo ""
+    read -rp "  Admin ID: " WIZ_ADMIN_ID
+    while ! [[ "$WIZ_ADMIN_ID" =~ ^[0-9]+$ ]]; do
+        echo -e "  ${WARN} ID deve conter apenas números"
+        read -rp "  Admin ID: " WIZ_ADMIN_ID
+    done
+    echo -e "  ${OK} Admin ID: ${B}${WIZ_ADMIN_ID}${N}"
+
+    # ── Modo de acesso ──────────────────────────────────────────────────────
+    echo ""
+    echo -e "  ${B}Modo de acesso:${N}"
+    echo -e "  ${D}  1) approval — novos usuários precisam de aprovação (recomendado)${N}"
+    echo -e "  ${D}  2) open     — qualquer pessoa pode usar o bot${N}"
+    echo -e "  ${D}  3) closed   — somente o admin pode usar${N}"
+    echo ""
+    read -rp "  Escolha [1-3] (padrão: 1): " ACCESS_CHOICE
+    case "$ACCESS_CHOICE" in
+        2) WIZ_ACCESS="open" ;;
+        3) WIZ_ACCESS="closed" ;;
+        *) WIZ_ACCESS="approval" ;;
+    esac
+    echo -e "  ${OK} Modo de acesso: ${B}${WIZ_ACCESS}${N}"
+
+    # ── Salvar config.global ────────────────────────────────────────────────
+    cat > "$BASE_DIR/config.global" << GCEOF
+PROVIDER=$WIZ_PROVIDER
+ADMIN_ID=$WIZ_ADMIN_ID
+MODEL=$WIZ_MODEL
+ACCESS_MODE=$WIZ_ACCESS
+BUGFIXER_ENABLED=false
+BUGFIXER_TIMES_PER_DAY=1
+BUGFIXER_TELEGRAM_TOKEN=
+GCEOF
+    echo ""
+    echo -e "  ${OK} config.global salvo"
+
+    # ── Salvar secrets.global ───────────────────────────────────────────────
+    # Preserva secrets existentes se houver
+    EXISTING_SECRETS=""
+    [ -f "$BASE_DIR/secrets.global" ] && EXISTING_SECRETS=$(cat "$BASE_DIR/secrets.global")
+
+    {
+        echo "ANTHROPIC_API_KEY=${WIZ_ANTHROPIC_KEY}"
+        echo "OPENAI_API_KEY=${WIZ_OPENAI_KEY}"
+        echo "OPENROUTER_API_KEY=${WIZ_OPENROUTER_KEY}"
+    } > "$BASE_DIR/secrets.global"
+    chmod 600 "$BASE_DIR/secrets.global"
+    echo -e "  ${OK} secrets.global salvo ${D}(chmod 600)${N}"
+
+    # ── Criar primeiro bot? ─────────────────────────────────────────────────
+    echo ""
+    read -rp "  Deseja criar o primeiro bot agora? [S/n] " CREATE_BOT
+    CREATE_BOT="${CREATE_BOT:-S}"
+
+    if [[ "$CREATE_BOT" =~ ^[SsYy]$ ]]; then
+        echo ""
+        echo -e "  ${B}Nome do bot:${N}"
+        echo -e "  ${D}  Use letras minúsculas, sem espaços (ex: assistente)${N}"
+        read -rp "  Nome: " WIZ_BOT_NAME
+        WIZ_BOT_NAME=$(echo "$WIZ_BOT_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-')
+        while [ -z "$WIZ_BOT_NAME" ]; do
+            echo -e "  ${WARN} Nome inválido"
+            read -rp "  Nome: " WIZ_BOT_NAME
+            WIZ_BOT_NAME=$(echo "$WIZ_BOT_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-')
+        done
+
+        echo ""
+        echo -e "  ${B}Token do Telegram:${N}"
+        echo -e "  ${D}  Obtenha em @BotFather → /newbot${N}"
+        echo -e "  ${D}  (Enter para configurar depois)${N}"
+        read -rp "  Token: " WIZ_BOT_TOKEN
+        WIZ_BOT_TOKEN="${WIZ_BOT_TOKEN:-SEU_TOKEN_AQUI}"
+
+        echo ""
+        echo -e "  ${B}Ferramentas:${N}"
+        echo -e "  ${D}  1) Básico     — shell, files, http (recomendado)${N}"
+        echo -e "  ${D}  2) Completo   — shell, cron, files, http, git, github, database${N}"
+        echo -e "  ${D}  3) Nenhuma    — apenas conversa${N}"
+        echo ""
+        read -rp "  Escolha [1-3] (padrão: 1): " TOOLS_CHOICE
+        case "$TOOLS_CHOICE" in
+            2) WIZ_TOOLS="shell,cron,files,http,git,github,database" ;;
+            3) WIZ_TOOLS="none" ;;
+            *) WIZ_TOOLS="shell,files,http" ;;
+        esac
+
+        # Cria estrutura do bot
+        WIZ_BOT_DIR="$BASE_DIR/bots/$WIZ_BOT_NAME"
+        mkdir -p "$WIZ_BOT_DIR"/{memory,workspace}
+        chmod 700 "$WIZ_BOT_DIR"
+
+        cat > "$WIZ_BOT_DIR/.env" << BEOF
+TELEGRAM_TOKEN=$WIZ_BOT_TOKEN
+BOT_NAME=$WIZ_BOT_NAME
+MAX_HISTORY=20
+TOOLS=$WIZ_TOOLS
+WORK_DIR=$WIZ_BOT_DIR/workspace
+BEOF
+        chmod 600 "$WIZ_BOT_DIR/.env"
+
+        cat > "$WIZ_BOT_DIR/secrets.env" << 'BEOF'
+# Credenciais sensíveis — NÃO versionar
+# DB_URL=postgresql://usuario:senha@host:5432/banco
+# GIT_TOKEN=
+# GIT_USER=
+# GIT_EMAIL=
+# API_KEY_1=
+BEOF
+        chmod 600 "$WIZ_BOT_DIR/secrets.env"
+
+        cat > "$WIZ_BOT_DIR/soul.md" << BEOF
+# $WIZ_BOT_NAME
+
+Você é $WIZ_BOT_NAME, um assistente especializado.
+
+## Personalidade
+- Seja direto e objetivo
+- Responda sempre em português brasileiro
+
+## Regras
+- Registre na memória diária eventos relevantes da conversa
+BEOF
+
+        cat > "$WIZ_BOT_DIR/USER.md" << 'BEOF'
+# Usuário
+
+## Preferências de comunicação
+- Tom: direto e objetivo
+- Idioma: português brasileiro
+BEOF
+        chmod 600 "$WIZ_BOT_DIR/USER.md"
+
+        cat > "$WIZ_BOT_DIR/MEMORY.md" << BEOF
+# Memória de longo prazo — $WIZ_BOT_NAME
+
+BEOF
+        chmod 600 "$WIZ_BOT_DIR/MEMORY.md"
+
+        # Serviço systemd (só se systemctl existir)
+        if command -v systemctl &>/dev/null; then
+            WIZ_SERVICE="claude-bot-$WIZ_BOT_NAME"
+            sudo tee "/etc/systemd/system/$WIZ_SERVICE.service" > /dev/null << BEOF
+[Unit]
+Description=Claude Bot: $WIZ_BOT_NAME
+After=network.target
+
+[Service]
+Type=simple
+User=$(whoami)
+WorkingDirectory=$BASE_DIR
+EnvironmentFile=$WIZ_BOT_DIR/.env
+ExecStart=python3 $BASE_DIR/bot.py --bot-dir $WIZ_BOT_DIR
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+BEOF
+            sudo systemctl daemon-reload 2>/dev/null
+        fi
+
+        echo ""
+        echo -e "  ${OK} Bot ${B}${WIZ_BOT_NAME}${N} criado em ${D}bots/${WIZ_BOT_NAME}/${N}"
+        if [ "$WIZ_BOT_TOKEN" = "SEU_TOKEN_AQUI" ]; then
+            echo -e "  ${WARN} Token não configurado — edite ${D}bots/${WIZ_BOT_NAME}/.env${N}"
+        fi
+    fi
+
+    echo ""
+    echo -e "  ${D}$(printf '%.0s─' $(seq 1 50))${N}"
+    echo -e "  ${OK} ${B}Configuração inicial concluída!${N}"
+    echo -e "  ${D}$(printf '%.0s─' $(seq 1 50))${N}"
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
 # BOTS STATUS
 # ══════════════════════════════════════════════════════════════════════════════
 
