@@ -1078,11 +1078,21 @@ if [ "$BOT_COUNT" -gt 0 ]; then
             fi
 
             if [ "$HAS_TOKEN" = true ]; then
-                # Limpar locks órfãos e processos antigos antes de iniciar
-                OLD_PID=$(pgrep -f "bot.py --bot-dir.*bots/$bot_name" 2>/dev/null)
-                if [ -n "$OLD_PID" ]; then
-                    kill $OLD_PID 2>/dev/null
-                    sleep 1
+                # Limpar processos antigos antes de iniciar
+                OLD_PIDS=$(pgrep -f "bot.py --bot-dir.*bots/$bot_name" 2>/dev/null || true)
+                if [ -n "$OLD_PIDS" ]; then
+                    kill $OLD_PIDS 2>/dev/null || true
+                    # Espera o processo morrer (até 5s)
+                    for _w in 1 2 3 4 5; do
+                        pgrep -f "bot.py --bot-dir.*bots/$bot_name" >/dev/null 2>&1 || break
+                        sleep 1
+                    done
+                    # Força kill se ainda vivo
+                    OLD_PIDS=$(pgrep -f "bot.py --bot-dir.*bots/$bot_name" 2>/dev/null || true)
+                    if [ -n "$OLD_PIDS" ]; then
+                        kill -9 $OLD_PIDS 2>/dev/null || true
+                        sleep 1
+                    fi
                 fi
                 # Limpar lock files órfãos
                 TOKEN_ID=$(echo "$TOKEN_VAL" | cut -d: -f1)
@@ -1100,21 +1110,25 @@ if [ "$BOT_COUNT" -gt 0 ]; then
                 else
                     # Sem systemd (Docker) — inicia direto
                     mkdir -p "$BASE_DIR/logs"
+                    : > "$BASE_DIR/logs/${bot_name}.log"
                     cd "$BASE_DIR"
                     nohup python3 "$BASE_DIR/bot.py" --bot-dir "$bot_dir" \
                         > "$BASE_DIR/logs/${bot_name}.log" 2>&1 &
                     BOT_PID=$!
-                    sleep 4
+                    sleep 5
                     if kill -0 "$BOT_PID" 2>/dev/null; then
                         echo -e "  ${G}●${N} ${B}${bot_name}${N} ${D}— iniciado (PID $BOT_PID)${N}"
                         ACTIVE_COUNT=$((ACTIVE_COUNT + 1))
                     else
                         echo -e "  ${R}●${N} ${bot_name} ${D}— falha ao iniciar${N}"
-                        if [ -f "$BASE_DIR/logs/${bot_name}.log" ]; then
-                            echo -e "  ${D}    Últimas linhas do log:${N}"
-                            tail -3 "$BASE_DIR/logs/${bot_name}.log" 2>/dev/null | while read -r line; do
+                        LOG_TAIL=$(tail -5 "$BASE_DIR/logs/${bot_name}.log" 2>/dev/null)
+                        if [ -n "$LOG_TAIL" ]; then
+                            echo -e "  ${D}    Log:${N}"
+                            echo "$LOG_TAIL" | while IFS= read -r line; do
                                 echo -e "  ${D}    $line${N}"
                             done
+                        else
+                            echo -e "  ${D}    Log vazio — bot não iniciou${N}"
                         fi
                     fi
                 fi
