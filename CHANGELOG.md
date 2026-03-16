@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 (2026-03-16)
+
+Novas funcionalidades
+
+• Comando /config permite gerenciar agentes e configurações globais diretamente pelo Telegram, sem precisar acessar o servidor via SSH ou painel web
+
+Melhorias
+
+• Terminologia unificada: todos os textos do wizard de criação e setup agora usam "agente" em vez de "bot", refletindo melhor a natureza dos assistentes criados pela plataforma
+• Documentação reorganizada em diretório docs/ dedicado, facilitando a navegação e manutenção do projeto
+• Nova tabela comparativa SMB Claw vs OpenClaw no README, ajudando na avaliação e escolha do framework
+
 ## 0.4.0 (2026-03-16)
 
 Novas funcionalidades

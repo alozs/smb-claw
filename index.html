@@ -833,6 +833,23 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.5.0</span>
+            <span class="cl-date">2026-03-16</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>Novas funcionalidades</li>
+              <li>Comando /config permite gerenciar agentes e configurações globais diretamente pelo Telegram, sem precisar acessar o servidor via SSH ou painel web</li>
+              <li>Melhorias</li>
+              <li>Terminologia unificada: todos os textos do wizard de criação e setup agora usam &quot;agente&quot; em vez de &quot;bot&quot;, refletindo melhor a natureza dos assistentes criados pela plataforma</li>
+              <li>Documentação reorganizada em diretório docs/ dedicado, facilitando a navegação e manutenção do projeto</li>
+              <li>Nova tabela comparativa SMB Claw vs OpenClaw no README, ajudando na avaliação e escolha do framework</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.4.0</span>
             <span class="cl-date">2026-03-16</span>
           </div>
@@ -872,26 +889,6 @@
             <ul>
               <li>Novas funcionalidades</li>
               <li>Acesso temporário ao painel admin via token: agora é possível gerar links de acesso ao painel administrativo com validade configurável diretamente pelo comando /painel no Telegram. Os tokens são temporários, expiram automaticamente e não sobrevivem a reinicializações, garantindo segurança sem necessidade de senhas fixas.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.2.2</span>
-            <span class="cl-date">2026-03-15</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>Novas funcionalidades</li>
-              <li>Wizard interativo para criação de novos agentes Telegram diretamente pelo chat, sem necessidade de editar arquivos manualmente.</li>
-              <li>Wizard interativo para criação de sub-agentes especializados, permitindo delegar tarefas a agentes dedicados com ferramentas e personalidades próprias.</li>
-              <li>Comando /cancelar_wizard para interromper qualquer wizard em andamento a qualquer momento.</li>
-              <li>Menu de comandos Telegram atualizado e organizado, exibindo todas as opções disponíveis para o usuário e para o administrador de forma clara.</li>
-              <li>Melhorias</li>
-              <li>Proteção aprimorada contra uso indevido do sistema: bloqueio de tentativas de sobrescrever instruções de segurança via mensagens e comandos.</li>
-              <li>Boas-vindas do /start revisadas para refletir todos os comandos disponíveis, incluindo os novos wizards de criação.</li>
-              <li>Experiência do administrador mais fluida ao provisionar novos agentes — o processo agora guia passo a passo sem exigir acesso ao servidor.</li>
             </ul>
           </div>
         </div>
