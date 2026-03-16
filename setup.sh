@@ -9,6 +9,8 @@ set -e
 
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 ADMIN_PORT="${ADMIN_PORT:-8080}"
+IN_DOCKER=false
+[ -f /.dockerenv ] || grep -q 'docker\|containerd' /proc/1/cgroup 2>/dev/null && IN_DOCKER=true
 
 # ── Cores ────────────────────────────────────────────────────────────────────
 B='\033[1m'      # bold
@@ -421,4 +423,30 @@ fi
 
 echo -e "  ${G}${B}│${N}$(printf '%*s' $BOX_W '')${G}${B}│${N}"
 echo -e "  ${G}${B}╰$(printf '%.0s─' $(seq 1 $BOX_W))╯${N}"
+
+# Aviso de Docker: porta pode não estar exposta no host
+if [ "$IN_DOCKER" = true ]; then
+    CONTAINER_ID=$(cat /proc/self/cgroup 2>/dev/null | grep -oP '[a-f0-9]{64}' | head -1)
+    SHORT_ID="${CONTAINER_ID:0:12}"
+    CONTAINER_NAME=$(hostname 2>/dev/null)
+    echo ""
+    echo -e "  ${Y}${B}Docker detectado${N}"
+    echo -e "  ${D}$(printf '%.0s─' $(seq 1 50))${N}"
+    echo -e "  ${D}O painel está rodando dentro do container, mas a${N}"
+    echo -e "  ${D}porta ${B}${ADMIN_PORT}${N}${D} pode não estar exposta no host.${N}"
+    echo ""
+    echo -e "  ${D}Se não conseguir acessar, rode no ${B}host${N}${D}:${N}"
+    echo ""
+    echo -e "  ${C}  # Parar e recriar com a porta exposta${N}"
+    echo -e "  ${C}  docker stop ${SHORT_ID:-\$CONTAINER}${N}"
+    echo -e "  ${C}  docker commit ${SHORT_ID:-\$CONTAINER} smb-claw:latest${N}"
+    echo -e "  ${C}  docker run -d -p ${ADMIN_PORT}:${ADMIN_PORT} -p 2222:22 \\${N}"
+    echo -e "  ${C}    --name smb-claw smb-claw:latest${N}"
+    echo ""
+    echo -e "  ${D}Ou use um docker-compose.yml com:${N}"
+    echo -e "  ${C}  ports:${N}"
+    echo -e "  ${C}    - \"${ADMIN_PORT}:${ADMIN_PORT}\"${N}"
+    echo -e "  ${D}$(printf '%.0s─' $(seq 1 50))${N}"
+fi
+
 echo ""
