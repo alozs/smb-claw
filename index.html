@@ -477,6 +477,20 @@
 
     .btn-ghost:hover { background: var(--bg2); border-color: #24243a; }
 
+    /* ─── Changelog ────────────────────────────────────────── */
+    #changelog { padding: 80px 24px; }
+    #changelog h2 { text-align: center; font-size: clamp(1.5rem,3vw,2rem); margin-bottom: 8px; }
+    .changelog-list { display: flex; flex-direction: column; gap: 20px; margin-top: 36px; max-width: 720px; margin-left: auto; margin-right: auto; }
+    .cl-entry { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 24px 28px; }
+    .cl-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .cl-version { font-size: .95rem; font-weight: 700; background: var(--green); color: #080810; padding: 3px 10px; border-radius: 5px; }
+    .cl-date { font-size: .8125rem; color: var(--dim); }
+    .cl-body p { font-size: .875rem; font-weight: 600; color: var(--dim); margin: 12px 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+    .cl-body p:first-child { margin-top: 0; }
+    .cl-body ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+    .cl-body ul li { font-size: .9rem; color: var(--text); padding-left: 16px; position: relative; line-height: 1.5; }
+    .cl-body ul li::before { content: "•"; position: absolute; left: 0; color: var(--green); }
+
     /* ─── Footer ───────────────────────────────────────────── */
     footer {
       border-top: 1px solid var(--line);
@@ -806,6 +820,67 @@
           Ver no GitHub
         </a>
         <a href="#install" class="btn btn-ghost">Como instalar</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Changelog -->
+  <section id="changelog" aria-labelledby="changelog-title">
+    <div class="sec-wrap">
+      <h2 id="changelog-title">O que há de novo</h2>
+      <p class="sec-sub">Histórico de versões gerado automaticamente a cada release.</p>
+      <div class="changelog-list">
+        <!-- CHANGELOG_START -->
+                <div class="cl-entry">
+          <div class="cl-header">
+            <span class="cl-version">v0.2.1</span>
+            <span class="cl-date">2026-03-15</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Com base nas mudanças reais do repositório, aqui estão as notas de release</strong></p>
+            <ul>
+              <li>--</li>
+              <li>Novas funcionalidades</li>
+              <li>Wizard interativo no Telegram para criar agentes e sub-agentes diretamente pelo chat, sem precisar acessar o servidor — basta usar /criar_agente ou /criar_subagente e responder as perguntas passo a passo.</li>
+              <li>O wizard gera o soul.md automaticamente com ajuda do Claude a partir da descrição do agente, ou aceita um texto personalizado.</li>
+              <li>Comando /apagar_agente para remover agentes existentes diretamente pelo Telegram.</li>
+              <li>Seção de changelog público na landing page, exibindo o histórico de versões gerado automaticamente a cada release.</li>
+              <li>Painel admin com editor visual do context.global — instruções globais compartilhadas entre todos os agentes, editáveis sem acessar o servidor.</li>
+              <li>Variáveis de sistema protegidas no painel admin: chaves reservadas aparecem como somente leitura, evitando exclusão acidental.</li>
+              <li>Notas de release geradas automaticamente com IA no release.sh, com fallback entre Claude OAuth, OpenRouter e OpenAI.</li>
+              <li>Aba de status do memory-autosave no painel admin, com log das últimas execuções e botão para rodar manualmente.</li>
+              <li>Melhorias</li>
+              <li>memory-autosave.sh reescrito com detecção automática de provedor e registro de estado persistente em .memory_autosave_state.</li>
+              <li>Scheduler resiliente a flood control do Telegram: mensagens longas são divididas em chunks e reenvios aguardam o tempo indicado pelo Telegram antes de tentar novamente.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
+            <span class="cl-version">v0.2.0</span>
+            <span class="cl-date">2026-03-15</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Novas funcionalidades</strong></p>
+            <ul>
+              <li>Wizard de criação de agentes e sub-agentes direto pelo Telegram, passo a passo com geração de personalidade assistida por IA</li>
+              <li>Menu de comandos nativo do Telegram — botão / ao lado do campo de texto com comandos diferentes para usuários e admin</li>
+              <li>Comando /apagar_agente com confirmação — para serviço, desabilita e remove o diretório completo</li>
+            </ul>
+            <p><strong>Melhorias de estabilidade e segurança</strong></p>
+            <ul>
+              <li>Variáveis de sistema protegidas no painel admin (readonly — sem editar, sem excluir)</li>
+              <li>Crons do sistema protegidos contra exclusão acidental pelo painel</li>
+              <li>context.global com fluxo Editar / Salvar / Restaurar Padrão</li>
+              <li>Correção de parsing de Markdown no Telegram (underscores em comandos)</li>
+              <li>Start e enable automático do serviço systemd ao concluir o wizard</li>
+            </ul>
+          </div>
+        </div>
+        <!-- CHANGELOG_END -->
+      </div>
+      <div style="text-align:center;margin-top:28px">
+        <a href="https://github.com/alozs/smb-claw/releases" class="btn btn-ghost" target="_blank" rel="noopener">Ver todos os releases no GitHub →</a>
       </div>
     </div>
   </section>

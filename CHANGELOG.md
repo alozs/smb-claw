@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.2.1 (2026-03-15)
+
+Com base nas mudanças reais do repositório, aqui estão as notas de release:
+
+---
+
+Novas funcionalidades
+
+• Wizard interativo no Telegram para criar agentes e sub-agentes diretamente pelo chat, sem precisar acessar o servidor — basta usar /criar_agente ou /criar_subagente e responder as perguntas passo a passo.
+• O wizard gera o soul.md automaticamente com ajuda do Claude a partir da descrição do agente, ou aceita um texto personalizado.
+• Comando /apagar_agente para remover agentes existentes diretamente pelo Telegram.
+• Seção de changelog público na landing page, exibindo o histórico de versões gerado automaticamente a cada release.
+• Painel admin com editor visual do context.global — instruções globais compartilhadas entre todos os agentes, editáveis sem acessar o servidor.
+• Variáveis de sistema protegidas no painel admin: chaves reservadas aparecem como somente leitura, evitando exclusão acidental.
+• Notas de release geradas automaticamente com IA no release.sh, com fallback entre Claude OAuth, OpenRouter e OpenAI.
+• Aba de status do memory-autosave no painel admin, com log das últimas execuções e botão para rodar manualmente.
+
+Melhorias
+
+• memory-autosave.sh reescrito com detecção automática de provedor e registro de estado persistente em .memory_autosave_state.
+• Scheduler resiliente a flood control do Telegram: mensagens longas são divididas em chunks e reenvios aguardam o tempo indicado pelo Telegram antes de tentar novamente.
+
 ## 0.2.0 (2026-03-15)
 
 ### Novas funcionalidades
