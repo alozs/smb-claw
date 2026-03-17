@@ -2692,9 +2692,10 @@ async def cmd_painel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     ttl_min = int(args[0]) if args else 30
     ttl_sec = ttl_min * 60
 
+    admin_port = os.environ.get("ADMIN_PORT", "8080")
     try:
         req = urllib.request.Request(
-            "http://127.0.0.1:8080/api/gen-token",
+            f"http://127.0.0.1:{admin_port}/api/gen-token",
             data=_json.dumps({"ttl": ttl_sec}).encode(),
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -2729,7 +2730,7 @@ async def cmd_painel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                 ).stdout.strip().split()[0]
             except Exception:
                 ip = "SEU_IP"
-        panel_url = f"http://{ip}:8080"
+        panel_url = f"http://{ip}:{admin_port}"
 
     url = f"{panel_url}/?token={token}"
     await update.message.reply_text(

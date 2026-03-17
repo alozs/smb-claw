@@ -100,7 +100,9 @@ if [ "$IN_DOCKER" = true ]; then
     if pgrep -f "uvicorn.*admin" > /dev/null 2>&1; then
         pkill -f "uvicorn.*admin" 2>/dev/null
         sleep 1
-        nohup uvicorn admin.app:app --host 0.0.0.0 --port 8080 >> "$BASE_DIR/logs/admin.log" 2>&1 &
+        _ADMIN_PORT=$(grep -s '^ADMIN_PORT=' "$BASE_DIR/config.global" | cut -d= -f2-)
+        _ADMIN_PORT="${_ADMIN_PORT:-8080}"
+        nohup uvicorn admin.app:app --host 0.0.0.0 --port "$_ADMIN_PORT" >> "$BASE_DIR/logs/admin.log" 2>&1 &
         echo "  ✅ admin panel"
         RESTARTED=$((RESTARTED + 1))
     fi

@@ -5,7 +5,11 @@
 TTL_MIN="${1:-30}"
 TTL_SEC=$((TTL_MIN * 60))
 
-RESPONSE=$(curl -s -X POST http://127.0.0.1:8080/api/gen-token \
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ADMIN_PORT=$(grep -s '^ADMIN_PORT=' "$SCRIPT_DIR/config.global" | cut -d= -f2-)
+ADMIN_PORT="${ADMIN_PORT:-8080}"
+
+RESPONSE=$(curl -s -X POST "http://127.0.0.1:${ADMIN_PORT}/api/gen-token" \
   -H "Content-Type: application/json" \
   -d "{\"ttl\": $TTL_SEC}" 2>&1)
 
@@ -17,7 +21,6 @@ if [ -z "$TOKEN" ]; then
     exit 1
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PANEL_URL=$(grep -s '^ADMIN_PANEL_URL=' "$SCRIPT_DIR/config.global" | cut -d= -f2-)
 if [ -z "$PANEL_URL" ]; then
     # Tenta obter IP externo (útil em Docker/NAT)
@@ -26,7 +29,7 @@ if [ -z "$PANEL_URL" ]; then
       || curl -s --max-time 3 https://icanhazip.com 2>/dev/null)
     # Fallback: IP local
     [ -z "$IP" ] && IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-    PANEL_URL="http://${IP}:8080"
+    PANEL_URL="http://${IP}:${ADMIN_PORT}"
 fi
 URL="${PANEL_URL}/?token=${TOKEN}"
 

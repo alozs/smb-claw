@@ -8,7 +8,9 @@
 set -e
 
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
-ADMIN_PORT="${ADMIN_PORT:-8080}"
+# Porta: env var > config.global > 8080
+_CFG_PORT=$(grep -s '^ADMIN_PORT=' "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2-)
+ADMIN_PORT="${ADMIN_PORT:-${_CFG_PORT:-8080}}"
 IN_DOCKER=false
 [ -f /.dockerenv ] || grep -q 'docker\|containerd' /proc/1/cgroup 2>/dev/null && IN_DOCKER=true
 FORCE_CONFIG=false
@@ -856,6 +858,7 @@ print('ok' if c.get('tokens',{}).get('access_token','') else '')
     CUR_BF_TIMES=$(grep "^BUGFIXER_TIMES_PER_DAY=" "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2- || echo "1")
     CUR_BF_TOKEN=$(grep "^BUGFIXER_TELEGRAM_TOKEN=" "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2- || echo "")
     CUR_PANEL_URL=$(grep "^ADMIN_PANEL_URL=" "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2- || echo "")
+    CUR_ADMIN_PORT=$(grep "^ADMIN_PORT=" "$BASE_DIR/config.global" 2>/dev/null | cut -d= -f2- || echo "$ADMIN_PORT")
 
     cat > "$BASE_DIR/config.global" << GCEOF
 PROVIDER=$WIZ_PROVIDER
@@ -865,6 +868,7 @@ ACCESS_MODE=$WIZ_ACCESS
 BUGFIXER_ENABLED=${CUR_BF_ENABLED:-false}
 BUGFIXER_TIMES_PER_DAY=${CUR_BF_TIMES:-1}
 BUGFIXER_TELEGRAM_TOKEN=${CUR_BF_TOKEN}
+ADMIN_PORT=${CUR_ADMIN_PORT:-8080}
 ADMIN_PANEL_URL=${CUR_PANEL_URL}
 GCEOF
     echo ""

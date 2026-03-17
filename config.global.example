@@ -42,3 +42,9 @@ BUGFIXER_TIMES_PER_DAY=1
 # Token do bot Telegram usado para enviar notificações ao admin.
 # Copie o TELEGRAM_TOKEN de qualquer bot em bots/<nome>/.env
 BUGFIXER_TELEGRAM_TOKEN=
+
+# ── Painel Admin ─────────────────────────────────────────────────────────────
+# Porta do painel admin (default: 8080)
+ADMIN_PORT=8080
+# URL pública do painel (auto-detectada se vazia)
+ADMIN_PANEL_URL=
