@@ -1,566 +1,329 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SMB Claw — Agentes de IA no Telegram sem enrolação</title>
-  <meta name="description" content="Framework open source para rodar múltiplos agentes de IA no Telegram. Sem Docker (ou com ele), sem Kubernetes. Um script e seu agente está no ar." />
+  <title>SMB Claw — Agentes de IA que trabalham para você</title>
+  <meta name="description" content="Framework open source para rodar múltiplos agentes de IA no Telegram com foco em segurança, facilidade e controle total." />
   <link rel="icon" type="image/png" href="admin/static/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --bg:       #06060c;
-      --bg1:      #0c0c16;
-      --bg2:      #121222;
-      --line:     #1e1e32;
-      --text:     #94a3b8;
-      --hi:       #f8fafc;
-      --dim:      #64748b;
-      --green:    #4ade80;
-      --green-glow: rgba(74, 222, 128, 0.15);
-      --blue:     #60a5fa;
-      --blue-glow: rgba(96, 165, 250, 0.15);
-      --orange:   #fb923c;
-      --accent:   #4ade80;
+      --bg: #000000;
+      --zinc-950: #09090b;
+      --zinc-900: #18181b;
+      --zinc-800: #27272a;
+      --zinc-700: #3f3f46;
+      --zinc-400: #a1a1aa;
+      --zinc-100: #f4f4f5;
+      --white: #ffffff;
+      --accent: #ffffff;
+      --border: rgba(255, 255, 255, 0.1);
     }
 
-    html { scroll-behavior: smooth; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
 
     body {
       font-family: 'Inter', system-ui, sans-serif;
       background: var(--bg);
-      background-image: 
-        radial-gradient(circle at 50% -20%, #1e1e3e 0%, transparent 50%),
-        radial-gradient(circle at 0% 100%, #0c0c1a 0%, transparent 40%);
-      background-attachment: fixed;
-      color: var(--text);
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
+      color: var(--zinc-100);
+      line-height: 1.5;
       overflow-x: hidden;
     }
 
-    a { color: inherit; text-decoration: none; }
-
-    /* ─── Firulas & Animations ──────────────────────────────── */
-    @keyframes float {
-      0% { transform: translateY(0px); }
-      50% { transform: translateY(-10px); }
-      100% { transform: translateY(0px); }
+    /* ─── Layout & Background ──────────────────────────────── */
+    .grid-bg {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background-image: 
+        radial-gradient(circle at 50% 50%, rgba(255,255,255,0.02) 0%, transparent 80%),
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 100% 100%, 60px 60px, 60px 60px;
+      z-index: -1;
+      mask-image: radial-gradient(ellipse at 50% 50%, black, transparent 90%);
     }
 
-    @keyframes pulse-glow {
-      0% { box-shadow: 0 0 0px var(--green-glow); }
-      50% { box-shadow: 0 0 20px var(--green-glow); }
-      100% { box-shadow: 0 0 0px var(--green-glow); }
-    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
 
-    .reveal {
-      opacity: 0;
-      transform: translateY(20px);
-      transition: all 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-
-    .reveal.active {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    /* ─── Typography ────────────────────────────────────────── */
+    h1, h2, h3 { font-weight: 800; letter-spacing: -0.04em; color: var(--white); }
+    .mono { font-family: 'JetBrains Mono', monospace; font-weight: 500; }
 
     /* ─── Nav ──────────────────────────────────────────────── */
     nav {
-      position: sticky; top: 0; z-index: 100;
-      border-bottom: 1px solid var(--line);
-      background: rgba(6,6,12,.8);
+      position: fixed; top: 0; width: 100%; z-index: 1000;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,0.7);
       backdrop-filter: blur(12px);
     }
 
-    .nav-wrap {
-      max-width: 1000px; margin: 0 auto;
-      padding: 0 24px; height: 60px;
-      display: flex; align-items: center; justify-content: space-between;
+    .nav-inner {
+      height: 64px; display: flex; align-items: center; justify-content: space-between;
     }
 
-    .nav-brand {
+    .logo {
       display: flex; align-items: center; gap: 12px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .9rem; font-weight: 700;
-      color: var(--hi); letter-spacing: -0.02em;
+      font-weight: 700; font-size: 1rem;
     }
 
-    .nav-brand img {
-      width: 32px; height: 32px;
-      filter: drop-shadow(0 0 8px var(--green-glow));
-    }
+    .logo img { width: 32px; height: 32px; }
 
-    .nav-right {
-      display: flex; align-items: center; gap: 8px; list-style: none;
+    .nav-links { display: flex; gap: 24px; list-style: none; }
+    .nav-links a { 
+      font-size: 0.875rem; color: var(--zinc-400); text-decoration: none; 
+      transition: color 0.2s;
     }
-
-    .nav-right a {
-      font-size: .8125rem; font-weight: 500; color: var(--dim);
-      padding: 6px 12px; border-radius: 6px;
-      transition: all .2s;
-    }
-
-    .nav-right a:hover { color: var(--hi); background: var(--bg2); }
-
-    .nav-gh {
-      background: var(--hi) !important;
-      color: var(--bg) !important;
-      font-weight: 600 !important;
-    }
+    .nav-links a:hover { color: var(--white); }
 
     /* ─── Hero ─────────────────────────────────────────────── */
-    #hero {
-      max-width: 1000px; margin: 0 auto;
-      padding: 100px 24px 80px;
-      text-align: center;
-    }
-
-    .hero-content {
-      display: flex; flex-direction: column; align-items: center;
-      margin-bottom: 60px;
-    }
-
-    .hero-logo-wrap {
-      position: relative;
+    .hero { padding: 160px 0 100px; text-align: center; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px; border-radius: 100px;
+      background: var(--zinc-900); border: 1px solid var(--border);
+      font-size: 0.75rem; font-weight: 600; color: var(--zinc-400);
       margin-bottom: 32px;
-      animation: float 6s ease-in-out infinite;
     }
 
-    .hero-logo {
-      width: 160px; height: 160px;
-      filter: drop-shadow(0 0 30px var(--green-glow));
-      object-fit: contain;
-    }
-
-    .hero-tag {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .7rem; font-weight: 600;
-      color: var(--green); background: var(--green-d);
-      border: 1px solid rgba(74,222,128,0.2);
-      padding: 4px 12px; border-radius: 100px;
+    .hero h1 {
+      font-size: clamp(2.5rem, 6vw, 4.5rem); line-height: 1;
       margin-bottom: 24px;
+    }
+
+    .hero p {
+      font-size: 1.25rem; color: var(--zinc-400);
+      max-width: 650px; margin: 0 auto 48px;
+    }
+
+    .cta-group { display: flex; gap: 16px; justify-content: center; }
+
+    .btn {
+      padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.9375rem;
+      cursor: pointer; transition: all 0.2s; text-decoration: none;
       display: inline-flex; align-items: center; gap: 8px;
     }
 
-    h1 {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: clamp(2rem, 5vw, 3.2rem);
-      font-weight: 700; line-height: 1.1;
-      color: var(--hi); letter-spacing: -0.03em;
-      margin-bottom: 20px;
+    .btn-white { background: var(--white); color: var(--bg); }
+    .btn-white:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    .btn-outline { background: transparent; color: var(--white); border: 1px solid var(--border); }
+    .btn-outline:hover { background: var(--zinc-900); }
+
+    /* ─── Workflow Section ─────────────────────────────────── */
+    .section { padding: 100px 0; }
+    .section-header { text-align: center; margin-bottom: 80px; }
+    .section-header h2 { font-size: 2.5rem; margin-bottom: 16px; }
+    .section-header p { color: var(--zinc-400); font-size: 1.125rem; }
+
+    .workflow {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px;
     }
 
-    h1 span {
-      background: linear-gradient(to right, var(--green), var(--blue));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+    .flow-card {
+      position: relative; padding: 40px;
+      background: var(--zinc-950); border: 1px solid var(--border);
+      border-radius: 24px;
     }
 
-    .hero-sub {
-      font-size: 1.125rem; color: var(--text);
-      line-height: 1.6; max-width: 600px; margin: 0 auto;
+    .flow-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      background: var(--zinc-900); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 24px; color: var(--white);
     }
 
-    /* terminal */
-    .terminal {
-      max-width: 800px; margin: 0 auto;
-      background: #040408;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-      font-family: 'JetBrains Mono', monospace;
-      text-align: left;
+    .flow-card h3 { margin-bottom: 12px; font-size: 1.25rem; }
+    .flow-card p { color: var(--zinc-400); font-size: 0.9375rem; line-height: 1.6; }
+
+    .terminal-box {
+      margin-top: 24px; background: #000; border-radius: 12px;
+      padding: 16px; border: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem;
     }
-
-    .term-bar {
-      background: #0c0c14;
-      border-bottom: 1px solid var(--line);
-      padding: 12px 18px;
-      display: flex; align-items: center; gap: 8px;
-    }
-
-    .term-dot { width: 12px; height: 12px; border-radius: 50%; }
-    .dot-r { background: #ff5f57; }
-    .dot-y { background: #febc2e; }
-    .dot-g { background: #28c840; }
-
-    .term-title {
-      flex: 1; text-align: center;
-      font-size: .7rem; color: var(--dim);
-      margin-right: 40px;
-    }
-
-    .term-body { padding: 24px; font-size: .875rem; line-height: 1.8; }
-    .term-prompt { color: var(--green); margin-right: 8px; }
-    .term-cmd { color: var(--hi); }
-    .term-out { color: var(--dim); }
-    .term-ok { color: var(--green); }
-    .term-url { color: var(--blue); }
 
     /* ─── Bento Grid ────────────────────────────────────────── */
-    #recursos {
-      border-top: 1px solid var(--line);
-      padding: 100px 0;
+    .bento {
+      display: grid; grid-template-columns: repeat(6, 1fr);
+      grid-template-rows: repeat(2, auto); gap: 16px;
     }
 
-    .sec-wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+    .bento-item {
+      background: var(--zinc-950); border: 1px solid var(--border);
+      border-radius: 24px; padding: 32px;
+      transition: border-color 0.2s;
+    }
+    .bento-item:hover { border-color: rgba(255,255,255,0.2); }
 
-    .sec-kicker {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .75rem; font-weight: 700;
-      color: var(--green); letter-spacing: .15em;
-      text-transform: uppercase; margin-bottom: 12px;
+    .bento-1 { grid-column: span 3; }
+    .bento-2 { grid-column: span 3; }
+    .bento-3 { grid-column: span 2; }
+    .bento-4 { grid-column: span 4; }
+
+    /* ─── Security / Expiration ─────────────────────────────── */
+    .security-badge {
+      display: flex; align-items: center; gap: 8px;
+      color: #10b981; font-size: 0.8125rem; font-weight: 600;
+      margin-bottom: 16px;
     }
 
-    h2 {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: clamp(1.5rem, 4vw, 2.2rem);
-      font-weight: 700; color: var(--hi);
-      margin-bottom: 16px; letter-spacing: -0.02em;
-    }
-
-    .sec-sub { font-size: 1rem; color: var(--dim); margin-bottom: 56px; }
-
-    .feat-bento {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-    }
-
-    .feat {
-      background: var(--bg1);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 32px;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative; overflow: hidden;
-    }
-
-    .feat::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
-    }
-
-    .feat:hover {
-      border-color: rgba(74,222,128,0.3);
-      transform: translateY(-4px);
-      background: var(--bg2);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    }
-
-    .feat-tag {
-      display: inline-block;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .65rem; font-weight: 700;
-      color: var(--accent); background: rgba(74,222,128,0.1);
-      padding: 2px 8px; border-radius: 4px;
-      margin-bottom: 16px; text-transform: uppercase;
-    }
-
-    .feat-name {
-      font-size: 1.1rem; font-weight: 700;
-      color: var(--hi); margin-bottom: 12px;
-      display: flex; align-items: center; gap: 10px;
-    }
-
-    .feat-desc { font-size: .875rem; color: var(--text); line-height: 1.6; }
-
-    .feat-full { grid-column: span 2; }
-    .feat-thinking {
-      background: linear-gradient(135deg, var(--bg1) 0%, #0c1424 100%);
-      border-color: rgba(96,165,250,0.2);
-    }
-    .feat-thinking:hover { border-color: var(--blue); }
-
-    /* ─── Stats ────────────────────────────────────────────── */
-    #stats { padding: 40px 24px; }
-    .stats-row {
-      max-width: 1000px; margin: 0 auto;
-      display: grid; grid-template-columns: repeat(4, 1fr);
-      background: var(--bg1);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-    }
-
-    .stat {
-      padding: 32px;
-      text-align: center;
-      border-right: 1px solid var(--line);
-    }
-    .stat:last-child { border-right: none; }
-
-    .stat-n {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 1.75rem; font-weight: 700;
-      color: var(--hi); margin-bottom: 4px;
-    }
-    .stat-l { font-size: .75rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; }
-
-    /* ─── Provedores ───────────────────────────────────────── */
-    .prov-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px; margin-top: 32px;
-    }
-    .prov-card {
-      background: var(--bg1);
-      border: 1px solid var(--line);
-      padding: 24px; border-radius: 12px;
-      text-align: center;
-    }
-    .prov-card h3 { font-family: 'JetBrains Mono', monospace; color: var(--hi); margin-bottom: 8px; }
-    .prov-card p { font-size: .75rem; color: var(--dim); }
-
-    /* ─── Changelog ────────────────────────────────────────── */
-    #changelog { padding: 100px 24px; background: rgba(0,0,0,0.2); }
-    .changelog-list { max-width: 800px; margin: 40px auto 0; }
-    .cl-entry {
-      position: relative;
-      padding-left: 32px;
-      margin-bottom: 48px;
-      border-left: 1px solid var(--line);
-    }
-    .cl-entry::before {
-      content: ''; position: absolute; left: -5px; top: 0;
-      width: 9px; height: 9px; border-radius: 50%;
-      background: var(--green); box-shadow: 0 0 10px var(--green);
-    }
-    .cl-version { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--hi); font-size: 1.1rem; }
-    .cl-date { font-size: .8rem; color: var(--dim); margin-left: 12px; }
-    .cl-body { margin-top: 16px; }
-    .cl-body ul { list-style: none; }
-    .cl-body li { margin-bottom: 8px; font-size: .9375rem; line-height: 1.6; }
-    .cl-body li::before { content: '→'; color: var(--green); margin-right: 10px; font-family: monospace; }
-
-    /* ─── Footer ───────────────────────────────────────────── */
-    footer {
-      border-top: 1px solid var(--line);
-      padding: 60px 24px;
-      text-align: center;
-    }
-    .footer-links { display: flex; justify-content: center; gap: 24px; margin-bottom: 24px; }
-    .footer-links a { color: var(--dim); font-size: .875rem; }
-    .footer-links a:hover { color: var(--hi); }
-    .footer-copy { font-size: .8rem; color: var(--dim); }
-
-    /* ─── CTA ──────────────────────────────────────────────── */
-    .btn {
-      display: inline-flex; align-items: center; gap: 10px;
-      padding: 14px 28px; border-radius: 10px;
-      font-weight: 600; font-size: .9375rem;
-      transition: all 0.2s;
-    }
-    .btn-primary { background: var(--hi); color: var(--bg); }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(255,255,255,0.1); }
-    .btn-secondary { background: var(--bg2); color: var(--hi); border: 1px solid var(--line); }
-    .btn-secondary:hover { border-color: var(--dim); }
-
-    /* Responsive */
+    /* ─── Responsive ───────────────────────────────────────── */
     @media (max-width: 900px) {
-      .feat-bento { grid-template-columns: 1fr; }
-      .feat-full { grid-column: auto; }
-      .stats-row { grid-template-columns: 1fr 1fr; }
-      .stat:nth-child(2) { border-right: none; }
-      .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
+      .workflow { grid-template-columns: 1fr; }
+      .bento { grid-template-columns: 1fr; }
+      .bento-item { grid-column: span 1; }
+      .hero h1 { font-size: 3rem; }
     }
-    @media (max-width: 600px) {
-      .stats-row { grid-template-columns: 1fr; }
-      .stat { border-right: none; }
-      .stat:not(:last-child) { border-bottom: 1px solid var(--line); }
-      h1 { font-size: 2.2rem; }
-    }
+
+    /* Icons */
+    .icon { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   </style>
 </head>
 <body>
 
+  <div class="grid-bg"></div>
+
   <nav>
-    <div class="nav-wrap">
-      <a href="#" class="nav-brand">
-        <img src="admin/static/logo2.png" alt="SMB Claw" />
+    <div class="container nav-inner">
+      <div class="logo">
+        <img src="admin/static/logo2.png" alt="SMB Claw Logo" />
         smb-claw
-      </a>
-      <ul class="nav-right">
+      </div>
+      <ul class="nav-links">
+        <li><a href="#fluxo">Fluxo</a></li>
         <li><a href="#recursos">Recursos</a></li>
-        <li><a href="#changelog">Novidades</a></li>
-        <li><a href="https://github.com/alozs/smb-claw" class="nav-gh">GitHub</a></li>
+        <li><a href="https://github.com/alozs/smb-claw" target="_blank">GitHub</a></li>
       </ul>
+      <div>
+        <a href="https://github.com/alozs/smb-claw" class="btn btn-outline" style="padding: 8px 16px; font-size: 0.8125rem;">Star on GitHub</a>
+      </div>
     </div>
   </nav>
 
-  <section id="hero">
-    <div class="hero-content reveal">
-      <div class="hero-logo-wrap">
-        <img class="hero-logo" src="admin/static/logo2.png" alt="Logo" />
-      </div>
-      <div class="hero-tag">v0.7.0 — REASONING UPDATE</div>
-      <h1>Agentes de IA que <span>realmente</span> pensam.</h1>
-      <p class="hero-sub">
-        O framework para quem cansou de infraestrutura complexa. 
-        Rode múltiplos agentes com memória profunda e ferramentas em qualquer VPS.
-      </p>
-      <div style="margin-top: 40px; display: flex; gap: 12px; justify-content: center;">
-        <a href="https://github.com/alozs/smb-claw" class="btn btn-primary">Começar Agora</a>
-        <a href="#recursos" class="btn btn-secondary">Explorar Recursos</a>
-      </div>
+  <header class="hero container">
+    <div class="badge">
+      <svg class="icon"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      v0.7.0 — Reasoning Update
+    </div>
+    <h1>Construa agentes.<br />Mantenha o controle.</h1>
+    <p>O framework de orquestração de IA que prioriza o controle total do desenvolvedor. Do terminal para o Telegram em 5 minutos.</p>
+    <div class="cta-group">
+      <a href="https://github.com/alozs/smb-claw" class="btn btn-white">
+        Get Started
+        <svg class="icon" style="width: 16px; height: 16px;"><polyline points="9 18 15 12 9 6"/></svg>
+      </a>
+      <a href="#fluxo" class="btn btn-outline">Ver como funciona</a>
+    </div>
+  </header>
+
+  <section id="fluxo" class="section container">
+    <div class="section-header">
+      <h2>O Ciclo de Vida do Agente</h2>
+      <p>Desenvolvido para ser configurado uma vez e operado de qualquer lugar.</p>
     </div>
 
-    <div class="terminal reveal" style="transition-delay: 0.2s;">
-      <div class="term-bar">
-        <span class="term-dot dot-r"></span>
-        <span class="term-dot dot-y"></span>
-        <span class="term-dot dot-g"></span>
-        <span class="term-title">terminal — smb-claw</span>
-      </div>
-      <div class="term-body">
-        <div><span class="term-prompt">❯</span> <span class="term-cmd">bash setup.sh</span></div>
-        <div class="term-out">  detectando ambiente... [Docker detected]</div>
-        <div class="term-out">  configurando tokens isolados...</div>
-        <div class="term-ok">  ✔ Painel Admin: http://localhost:8080</div>
-        <div><span class="term-prompt">❯</span> <span class="term-cmd">/thinking level=high</span></div>
-        <div class="term-out">  ⏳ <span style="color:var(--blue)">Pensando profundamente (16k budget)...</span></div>
-      </div>
-    </div>
-  </section>
-
-  <section id="stats">
-    <div class="stats-row reveal">
-      <div class="stat">
-        <div class="stat-n">v0.7.0</div>
-        <div class="stat-l">Versão Atual</div>
-      </div>
-      <div class="stat">
-        <div class="stat-n">16k</div>
-        <div class="stat-l">Thinking Tokens</div>
-      </div>
-      <div class="stat">
-        <div class="stat-n">100%</div>
-        <div class="stat-l">Docker Ready</div>
-      </div>
-      <div class="stat">
-        <div class="stat-n">0ms</div>
-        <div class="stat-l">Latência de Memória</div>
-      </div>
-    </div>
-  </section>
-
-  <section id="recursos">
-    <div class="sec-wrap">
-      <div class="sec-kicker">recursos</div>
-      <h2 class="reveal">Poder de fogo para produção</h2>
-      <p class="sec-sub reveal">O SMB Claw foi construído para ser resiliente, seguro e, acima de tudo, simples.</p>
-
-      <div class="feat-bento">
-        <div class="feat feat-full feat-thinking reveal">
-          <div class="feat-tag">novo: v0.7.0</div>
-          <div class="feat-name">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-            Modo Pensamento (Extended Reasoning)
-          </div>
-          <div class="feat-desc">
-            Agora com suporte ao comando <code style="color:var(--blue)">/thinking</code>. 
-            Configure o nível de raciocínio (off, low, medium, high) para resolver problemas complexos com orçamentos de até 16.000 tokens de pensamento interno.
-          </div>
+    <div class="workflow">
+      <!-- Passo 1: Terminal -->
+      <div class="flow-card">
+        <div class="flow-icon">
+          <svg class="icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
         </div>
-
-        <div class="feat reveal">
-          <div class="feat-name">Docker Nativo</div>
-          <div class="feat-desc">Suporte completo a ambientes containerizados com detecção automática. Use Systemd na VPS ou Docker no Cloud — o SMB Claw se adapta.</div>
+        <h3>01. Instalação Zero-Drama</h3>
+        <p>Use o terminal apenas para o essencial. O setup configura seu ambiente, detecta o provedor e sobe os serviços de base.</p>
+        <div class="terminal-box mono">
+          <span style="color:var(--zinc-400)">$</span> bash setup.sh
         </div>
+      </div>
 
-        <div class="feat reveal">
-          <div class="feat-name">Memória Destilada</div>
-          <div class="feat-desc">Compactação automática de memória (MEMORY.md) quando excede 6KB. Seus agentes nunca esquecem o que importa, mas não ficam lentos.</div>
+      <!-- Passo 2: Telegram -->
+      <div class="flow-card">
+        <div class="flow-icon">
+          <svg class="icon"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
         </div>
-
-        <div class="feat reveal">
-          <div class="feat-name">Segurança Isolada</div>
-          <div class="feat-desc">Tokens protegidos por lock files, denylist de comandos destrutivos no shell e chmod 600 automático em arquivos sensíveis.</div>
+        <h3>02. Operação Via Chat</h3>
+        <p>Crie novos agentes, defina personalidades e execute comandos administrativos diretamente pelo Telegram. O terminal agora é opcional.</p>
+        <div class="terminal-box mono" style="background: var(--zinc-900);">
+          <span style="color: #409eff">/criar_agente</span>
         </div>
+      </div>
 
-        <div class="feat reveal">
-          <div class="feat-name">Histórico Infinito</div>
-          <div class="feat-desc">Mensagens que excedem o contexto são arquivadas em banco de dados SQLite, prontas para auditoria e recuperação.</div>
+      <!-- Passo 3: Painel -->
+      <div class="flow-card">
+        <div class="flow-icon">
+          <svg class="icon"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
         </div>
-
-        <div class="feat reveal">
-          <div class="feat-name">Truncate Inteligente</div>
-          <div class="feat-desc">Saídas de ferramentas muito longas são truncadas em 12k caracteres, evitando erros de contexto sem quebrar a lógica do agente.</div>
+        <h3>03. Gestão Web Segura</h3>
+        <p>Acesse logs em tempo real, gerencie memória de longo prazo e edite configurações pelo painel web protegido por tokens temporários.</p>
+        <div class="terminal-box mono" style="border-color: #10b981;">
+          <span style="color: #10b981">✔ Access Token: 4j2k...</span>
         </div>
       </div>
     </div>
   </section>
 
-  <section id="changelog">
-    <div class="sec-wrap">
-      <div class="sec-kicker">changelog</div>
-      <h2 class="reveal">Evolução contínua</h2>
-      
-      <div class="changelog-list reveal">
-        <!-- v0.7.0 -->
-        <div class="cl-entry">
-          <div class="cl-version">v0.7.0 <span class="cl-date">Março 2026</span></div>
-          <div class="cl-body">
-            <ul>
-              <li><strong>Extended Reasoning:</strong> Novo comando `/thinking` para Claude 3.7+ e Anthropic.</li>
-              <li><strong>Context Protection:</strong> Truncate automático de tool outputs em 12k chars.</li>
-              <li><strong>Memory Compression:</strong> Alertas automáticos para MEMORY.md > 6KB.</li>
-              <li><strong>DB Archiving:</strong> Mensagens antigas agora são salvas no banco de dados.</li>
-            </ul>
-          </div>
-        </div>
+  <section id="recursos" class="section container">
+    <div class="section-header">
+      <h2>Segurança e Governança</h2>
+      <p>Agentes poderosos exigem responsabilidade e isolamento.</p>
+    </div>
 
-        <!-- v0.6.0 -->
-        <div class="cl-entry">
-          <div class="cl-version">v0.6.0 <span class="cl-date">Fevereiro 2026</span></div>
-          <div class="cl-body">
-            <ul>
-              <li><strong>Docker Support:</strong> Framework adaptado para rodar 100% em containers.</li>
-              <li><strong>Advanced Git:</strong> Sincronização avançada de repositórios via agente.</li>
-              <li><strong>Active Indicator:</strong> Feedback visual "⏳ Pensando" em todos os provedores.</li>
-            </ul>
+    <div class="bento">
+      <div class="bento-item bento-1">
+        <div class="security-badge">
+          <svg class="icon" style="width: 14px; height: 14px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          ADMIN AUTH
+        </div>
+        <h3>Tokens com Expiração</h3>
+        <p style="color: var(--zinc-400); margin-top: 12px;">O painel admin não usa senhas estáticas. Acesse via tokens gerados pelo bot que expiram em 2 horas ou no próximo reinício.</p>
+      </div>
+
+      <div class="bento-item bento-2">
+        <div class="security-badge" style="color: #60a5fa;">
+          <svg class="icon" style="width: 14px; height: 14px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          SANDBOX
+        </div>
+        <h3>Shell Denylist</h3>
+        <p style="color: var(--zinc-400); margin-top: 12px;">Proteção nativa contra comandos destrutivos. O agente pode rodar scripts, mas nunca deletar o próprio núcleo ou parar serviços críticos.</p>
+      </div>
+
+      <div class="bento-item bento-3">
+        <div class="security-badge" style="color: #fb923c;">
+          <svg class="icon" style="width: 14px; height: 14px;"><path d="M12 2v20"/><path d="M2 12h20"/></svg>
+          REASONING
+        </div>
+        <h3>Extended Thinking</h3>
+        <p style="color: var(--zinc-400); margin-top: 12px;">Suporte nativo a orçamentos de pensamento (tokens de raciocínio) para tarefas complexas.</p>
+      </div>
+
+      <div class="bento-item bento-4">
+        <h3>Memória Destilada em Camadas</h3>
+        <div style="display: flex; gap: 24px; margin-top: 20px;">
+          <div style="flex: 1;">
+            <span class="mono" style="font-size: 0.75rem; color: #fff;">Short-term</span>
+            <p style="font-size: 0.8125rem; color: var(--zinc-400);">Contexto imediato da conversa via banco de dados SQLite.</p>
+          </div>
+          <div style="flex: 1;">
+            <span class="mono" style="font-size: 0.75rem; color: #fff;">Long-term</span>
+            <p style="font-size: 0.8125rem; color: var(--zinc-400);">Arquivos .md destilados automaticamente toda noite.</p>
+          </div>
+          <div style="flex: 1;">
+            <span class="mono" style="font-size: 0.75rem; color: #fff;">Soul</span>
+            <p style="font-size: 0.8125rem; color: var(--zinc-400);">Instruções fixas que definem a ética e o comportamento.</p>
           </div>
         </div>
-      </div>
-      
-      <div style="text-align: center; margin-top: 40px;">
-        <a href="https://github.com/alozs/smb-claw/releases" style="color: var(--dim); font-size: .875rem;">Ver histórico completo no GitHub →</a>
       </div>
     </div>
   </section>
 
-  <footer>
-    <div class="footer-links">
-      <a href="#hero">Início</a>
-      <a href="#recursos">Recursos</a>
-      <a href="https://github.com/alozs/smb-claw">GitHub</a>
-      <a href="/admin">Painel Admin</a>
+  <footer class="container" style="padding: 80px 0 40px; border-top: 1px solid var(--border); text-align: center;">
+    <div class="logo" style="justify-content: center; margin-bottom: 24px;">
+      <img src="admin/static/logo2.png" alt="Logo" />
+      smb-claw
     </div>
-    <div class="footer-copy">
-      SMB Claw — Licença MIT. Feito para quem constrói o futuro.
-    </div>
+    <p style="color: var(--zinc-400); font-size: 0.875rem;">© 2026 SMB Claw Framework. Licença MIT.</p>
   </footer>
-
-  <script>
-    // Reveal animation on scroll
-    function reveal() {
-      var reveals = document.querySelectorAll(".reveal");
-      for (var i = 0; i < reveals.length; i++) {
-        var windowHeight = window.innerHeight;
-        var elementTop = reveals[i].getBoundingClientRect().top;
-        var elementVisible = 150;
-        if (elementTop < windowHeight - elementVisible) {
-          reveals[i].classList.add("active");
-        }
-      }
-    }
-    window.addEventListener("scroll", reveal);
-    reveal(); // Initial check
-  </script>
 
 </body>
 </html>
