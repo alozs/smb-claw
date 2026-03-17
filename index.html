@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SMB Claw — Agentes de IA que realmente funcionam</title>
-  <meta name="description" content="O framework open-source para rodar agentes de IA resilientes, seguros e ultra leves no Telegram." />
+  <title>SMB Claw — Gestão Profissional de Agentes Telegram</title>
+  <meta name="description" content="Framework open-source focado em simplicidade, facilidade de uso e segurança para agentes de IA." />
   <link rel="icon" type="image/png" href="admin/static/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -57,34 +57,24 @@
     }
 
     .nav-inner { height: 64px; display: flex; align-items: center; justify-content: space-between; }
-    .logo-link { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--white); font-weight: 700; font-size: 0.9rem; }
+    .logo-link { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--white); font-weight: 700; font-size: 0.9rem; text-transform: none; }
     .logo-link img { width: 28px; height: 28px; }
 
     .nav-links { display: flex; gap: 24px; list-style: none; }
     .nav-links a { font-size: 0.8125rem; color: var(--zinc-400); text-decoration: none; transition: color 0.2s; }
     .nav-links a:hover { color: var(--white); }
 
-    .hero { padding: 140px 0 80px; text-align: center; }
+    .hero { padding: 140px 0 60px; text-align: center; }
     
     .hero-logo-container { width: 120px; height: 120px; margin: 0 auto 32px; }
     .hero-logo-container img { width: 100%; height: 100%; filter: drop-shadow(0 0 30px rgba(255,255,255,0.1)); }
 
-    .hero h1 { font-size: clamp(2.2rem, 5vw, 3.8rem); font-weight: 800; letter-spacing: -0.05em; color: var(--white); line-height: 1.1; margin-bottom: 24px; }
-    .hero p { font-size: 1.125rem; color: var(--zinc-400); max-width: 650px; margin: 0 auto 40px; }
-
-    .btn {
-      padding: 10px 20px; border-radius: 6px; font-weight: 600; font-size: 0.875rem;
-      cursor: pointer; transition: all 0.2s; text-decoration: none;
-      display: inline-flex; align-items: center; gap: 8px;
-    }
-    .btn-white { background: var(--white); color: var(--bg); }
-    .btn-white:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,255,255,0.2); }
-    .btn-outline { background: transparent; color: var(--white); border: 1px solid var(--border); }
-    .btn-outline:hover { background: var(--zinc-900); border-color: var(--zinc-700); }
+    .hero h1 { font-size: 1.125rem; font-weight: 600; color: var(--white); line-height: 1.5; margin-bottom: 16px; max-width: 800px; margin-left: auto; margin-right: auto; }
+    .hero p { font-size: 0.9375rem; color: var(--zinc-400); max-width: 800px; margin: 0 auto 32px; }
 
     .install-box {
       background: var(--zinc-950); border: 1px solid var(--border);
-      border-radius: 12px; padding: 20px; margin: 40px auto;
+      border-radius: 12px; padding: 20px; margin: 20px auto;
       max-width: 500px; text-align: left; position: relative;
     }
     .install-box pre { font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; color: var(--zinc-100); }
@@ -93,52 +83,51 @@
     /* ─── Story Section ────────────────────────────────────── */
     .story { padding: 80px 0; border-top: 1px solid var(--border); }
     .story-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: start; }
-    .story h2 { font-size: 2rem; margin-bottom: 24px; }
-    .story p { color: var(--zinc-400); margin-bottom: 20px; font-size: 1rem; }
-    .story blockquote { border-left: 2px solid var(--white); padding-left: 24px; font-style: italic; color: var(--zinc-100); margin: 32px 0; }
+    .story h2 { font-size: 2rem; margin-bottom: 24px; letter-spacing: -0.04em; }
+    .story p { color: var(--zinc-400); margin-bottom: 20px; font-size: 0.9375rem; }
+    .story strong { color: var(--white); }
 
-    .stats-card { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 20px; padding: 32px; }
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    .stat-item h4 { font-size: 1.5rem; color: var(--white); margin-bottom: 4px; }
-    .stat-item p { font-size: 0.75rem; color: var(--zinc-400); text-transform: uppercase; letter-spacing: 0.05em; }
+    .comp-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; margin-top: 24px; }
+    .comp-table th { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); color: var(--zinc-400); font-weight: 600; text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.05em; }
+    .comp-table td { padding: 12px; border-bottom: 1px solid var(--border); color: var(--zinc-100); }
+    .comp-table tr:last-child td { border-bottom: none; }
+    .comp-table .hl { color: var(--green); font-weight: 600; }
 
     /* ─── Workflow ─────────────────────────────────────────── */
-    .workflow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 80px 0; }
+    .workflow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 60px 0; }
     .step { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 16px; padding: 32px; }
     .step-icon { width: 40px; height: 40px; background: var(--zinc-900); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; color: var(--white); }
-    .step h3 { font-size: 1.125rem; margin-bottom: 12px; }
-    .step p { font-size: 0.875rem; color: var(--zinc-400); }
+    .step h3 { font-size: 1rem; margin-bottom: 12px; font-weight: 700; }
+    .step p { font-size: 0.875rem; color: var(--zinc-400); line-height: 1.6; }
 
     /* ─── Bento Grid ────────────────────────────────────────── */
     .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
     .bento-card { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 20px; padding: 24px; }
-    .bento-card h4 { font-size: 1rem; margin-bottom: 8px; color: var(--white); display: flex; align-items: center; gap: 8px; }
-    .bento-card p { font-size: 0.8125rem; color: var(--zinc-400); }
+    .bento-card h4 { font-size: 0.9375rem; margin-bottom: 8px; color: var(--white); display: flex; align-items: center; gap: 8px; font-weight: 700; }
+    .bento-card p { font-size: 0.8125rem; color: var(--zinc-400); line-height: 1.5; }
     .bento-span-3 { grid-column: span 3; }
     .bento-span-2 { grid-column: span 2; }
     .bento-span-4 { grid-column: span 4; }
-    .tag { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: var(--zinc-900); color: var(--zinc-400); }
-    .tag-green { color: #10b981; background: rgba(16,185,129,0.1); }
 
     /* ─── Changelog ────────────────────────────────────────── */
     .changelog { padding: 80px 0; border-top: 1px solid var(--border); }
     .cl-entry { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 16px; }
     .cl-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .cl-version { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--white); }
+    .cl-version { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--white); font-size: 0.9rem; }
     .cl-date { font-size: 0.75rem; color: var(--zinc-700); }
     .cl-body { font-size: 0.875rem; color: var(--zinc-400); }
-    .cl-body ul { list-style: none; margin-top: 8px; }
-    .cl-body li { margin-bottom: 4px; position: relative; padding-left: 16px; }
-    .cl-body li::before { content: "•"; position: absolute; left: 0; color: var(--zinc-700); }
 
     footer { border-top: 1px solid var(--border); padding: 60px 0 40px; text-align: center; }
+    .logo-footer { display: flex; align-items: center; gap: 10px; justify-content: center; margin-bottom: 24px; color: var(--white); font-weight: 700; font-size: 1.1rem; }
+    .logo-footer img { width: 28px; height: 28px; }
     .footer-links { display: flex; justify-content: center; gap: 32px; margin-bottom: 32px; }
-    .footer-links a { color: var(--zinc-400); text-decoration: none; font-size: 0.8125rem; }
+    .footer-links a { color: var(--zinc-400); text-decoration: none; font-size: 0.8125rem; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--white); }
 
     @media (max-width: 850px) {
       .story-grid, .workflow, .bento { grid-template-columns: 1fr; }
       .bento-card { grid-column: span 1; }
-      .hero h1 { font-size: 2.5rem; }
+      .hero h1 { font-size: 1rem; }
     }
   </style>
 </head>
@@ -150,12 +139,13 @@
     <div class="container nav-inner">
       <a href="#" class="logo-link">
         <img src="admin/static/logo2.png" alt="SMB Claw Logo" />
-        smb-claw
+        SMB Claw
       </a>
       <ul class="nav-links">
         <li><a href="#fluxo">Fluxo</a></li>
         <li><a href="#recursos">Recursos</a></li>
         <li><a href="#changelog">Novidades</a></li>
+        <li><a href="https://github.com/alozs/smb-claw" target="_blank">GitHub</a></li>
       </ul>
       <a href="https://github.com/alozs/smb-claw" class="btn btn-outline" style="padding: 6px 14px; font-size: 0.75rem;">
         <i data-lucide="github" style="width: 14px;"></i> Star
@@ -167,16 +157,11 @@
     <div class="hero-logo-container">
       <img src="admin/static/logo2.png" alt="SMB Claw Logo" />
     </div>
-    <h1>Agentes de IA que <span>fazem</span> o que você pede.</h1>
-    <p>O framework ultra leve para colocar agentes de IA em produção rápido. Sem infraestrutura complexa, sem loops infinitos, apenas resultados.</p>
+    <h1>Gestão de agentes de IA para Telegram, focado em simplicidade, facilidade de uso e segurança.</h1>
+    <p>Rode múltiplos agentes independentes numa única VPS, cada um com personalidade própria, memória persistente, ferramentas modulares e subagentes especializados.</p>
     
-    <div class="cta-group" style="display: flex; gap: 12px; justify-content: center;">
-      <a href="https://github.com/alozs/smb-claw" class="btn btn-white">Começar no GitHub</a>
-      <a href="#fluxo" class="btn btn-outline">Ver Fluxo</a>
-    </div>
-
     <div class="install-box">
-      <div class="label">Setup em 2 minutos</div>
+      <div class="label">Setup Rápido</div>
       <pre><code>git clone https://github.com/alozs/smb-claw
 cd smb-claw && bash setup.sh</code></pre>
     </div>
@@ -186,29 +171,41 @@ cd smb-claw && bash setup.sh</code></pre>
     <div class="story-grid">
       <div>
         <h2>Por que o SMB Claw existe?</h2>
-        <p>Depois de semanas passando raiva com frameworks pesados que pedem 16GB de RAM e infraestrutura de cluster só para rodar um bot estável, decidimos criar algo diferente.</p>
-        <blockquote>"Troque infraestrutura robusta por simplicidade radical. Um script, 2 minutos, e seu agente está no ar."</blockquote>
-        <p>O SMB Claw foi desenhado para ser eficiente, seguro e, acima de tudo, previsível. Ele não tenta reinterpretar seus objetivos — ele executa.</p>
+        <p>Depois de semanas passando raiva com o OpenClaw — que às vezes funciona, às vezes não, você pede uma coisa e ele faz outra — decidi criar minha própria alternativa com uma proposta diferente: <strong>extremamente simples, eficiente e funcionando como um verdadeiro assistente de IA confiável.</strong></p>
+        <p>Sem precisar lidar com infraestrutura complexa como Kubernetes. Basicamente um script e você já tem um agente rodando — do jeito que deveria ser desde o começo. Funciona tanto em VPS com systemd quanto em containers Docker.</p>
       </div>
-      <div class="stats-card">
-        <div class="stats-grid">
-          <div class="stat-item">
-            <h4>~75 MB</h4>
-            <p>RAM por Agente</p>
-          </div>
-          <div class="stat-item">
-            <h4>~11k</h4>
-            <p>Linhas de Código</p>
-          </div>
-          <div class="stat-item">
-            <h4>Zero</h4>
-            <p>Portas Abertas</p>
-          </div>
-          <div class="stat-item">
-            <h4>$5/mês</h4>
-            <p>VPS p/ 20+ Agentes</p>
-          </div>
-        </div>
+      <div>
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th>Diferença</th>
+              <th>SMB Claw</th>
+              <th>Outros (OpenClaw)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>RAM por Agente</td>
+              <td class="hl">~75 MB</td>
+              <td>8–16 GB (Cluster)</td>
+            </tr>
+            <tr>
+              <td>Setup Inicial</td>
+              <td class="hl">~2 minutos</td>
+              <td>15–60 minutos</td>
+            </tr>
+            <tr>
+              <td>Complexidade</td>
+              <td class="hl">~11k linhas</td>
+              <td>~350k linhas</td>
+            </tr>
+            <tr>
+              <td>Infraestrutura</td>
+              <td class="hl">VPS $5/mês</td>
+              <td>VPS $20+/mês</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </section>
@@ -235,28 +232,27 @@ cd smb-claw && bash setup.sh</code></pre>
 
   <section id="recursos" class="container" style="padding-bottom: 80px;">
     <div class="bento">
-      <div class="bento-card bento-span-4">
-        <div style="margin-bottom: 12px;"><span class="tag tag-green">Segurança</span></div>
+      <div class="bento-card bento-span-3">
         <h4><i data-lucide="lock" style="width: 18px;"></i> Acesso Temporário</h4>
         <p>Painel protegido por tokens in-memory. Sem senhas estáticas. Expiração automática após 30 minutos de inatividade.</p>
       </div>
-      <div class="bento-card bento-span-2">
+      <div class="bento-card bento-span-3">
         <h4><i data-lucide="users" style="width: 18px;"></i> Sub-agentes</h4>
-        <p>Delegue tarefas para agentes especializados criados dinamicamente.</p>
+        <p>Delegue tarefas para agentes especializados criados dinamicamente via chat.</p>
       </div>
       <div class="bento-card bento-span-3">
         <h4><i data-lucide="database" style="width: 18px;"></i> Memória em Camadas</h4>
-        <p>Soul, USER.md, MEMORY.md e histórico SQLite. Persistente entre restarts.</p>
+        <p>Gestão eficiente de contexto: <strong>Soul</strong> (regras imutáveis), <strong>USER.md</strong> (preferências) e <strong>MEMORY.md</strong> (longo prazo). Persistência técnica via SQLite que sobrevive a reinicializações sem perda de foco.</p>
       </div>
       <div class="bento-card bento-span-3">
         <h4><i data-lucide="zap" style="width: 18px;"></i> Bug Fixer Autônomo</h4>
-        <p>Agente que monitora logs, detecta erros e sugere correções via Telegram.</p>
+        <p>Agente que monitora logs, detecta erros e sugere correções via Telegram de forma proativa.</p>
       </div>
     </div>
   </section>
 
   <section id="changelog" class="changelog container">
-    <h2 style="text-align: center; margin-bottom: 48px;">O que há de novo</h2>
+    <h2 style="text-align: center; margin-bottom: 48px; letter-spacing: -0.04em;">O que há de novo</h2>
     <div class="cl-entry">
       <div class="cl-header">
         <span class="cl-version">v0.7.0</span>
@@ -264,8 +260,8 @@ cd smb-claw && bash setup.sh</code></pre>
       </div>
       <div class="cl-body">
         • Raciocínio estendido: comando `/thinking` para níveis de pensamento profundo (até 16k tokens).<br>
-        • Truncate automático de outputs longos (>12k chars) em todos os provedores.<br>
-        • Arquivamento automático de mensagens excedentes no banco de dados.
+        • Truncate automático de outputs longos (>12k chars) para proteger o contexto.<br>
+        • Arquivamento automático de mensagens excedentes no banco de dados SQLite.
       </div>
     </div>
     <div class="cl-entry">
@@ -283,25 +279,22 @@ cd smb-claw && bash setup.sh</code></pre>
         <span class="cl-date">2026-03-17</span>
       </div>
       <div class="cl-body">
-        • Feedback visual: Indicador de ferramenta ativa funcionando em todos os provedores suportados.
+        • Feedback visual: Indicador de ferramenta ativa funcionando em todos os provedores (Anthropic, OpenRouter, Codex).
       </div>
-    </div>
-    <div style="text-align: center; margin-top: 24px;">
-      <a href="https://github.com/alozs/smb-claw/releases" style="color: var(--zinc-700); font-size: 0.8125rem;">Ver todos os releases no GitHub →</a>
     </div>
   </section>
 
   <footer>
     <div class="container">
-      <div class="logo-link" style="justify-content: center; margin-bottom: 24px;">
+      <div class="logo-footer">
         <img src="admin/static/logo2.png" alt="Logo" />
-        smb-claw
+        SMB Claw
       </div>
       <div class="footer-links">
         <a href="https://github.com/alozs/smb-claw" target="_blank">Repositório</a>
         <a href="https://github.com/alozs/smb-claw/blob/main/LICENSE" target="_blank">Licença MIT</a>
       </div>
-      <p style="color: var(--zinc-700); font-size: 0.75rem;">SMB Claw • 2026 • Simplicidade Radical.</p>
+      <p style="color: var(--zinc-700); font-size: 0.75rem;">SMB Claw • 2026 • Simplicidade e Controle.</p>
     </div>
   </footer>
 
