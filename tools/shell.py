@@ -79,6 +79,9 @@ def execute(name: str, inp: dict, *, config: dict) -> str:
         return (out + f"\nexit: {r.returncode}").strip() or "(sem saída)"
 
     if name == "manage_cron":
+        import shutil as _shutil
+        if not _shutil.which("crontab"):
+            return "Erro: crontab não disponível neste ambiente. Em Docker, instale com: apt-get install -y cron && service cron start"
         action = inp["action"]
         if action == "list":
             r = subprocess.run(["crontab", "-l"], capture_output=True, text=True)

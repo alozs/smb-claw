@@ -129,6 +129,7 @@ command -v pip3 &>/dev/null || command -v pip &>/dev/null || SYS_PKGS="$SYS_PKGS
 command -v git &>/dev/null || SYS_PKGS="$SYS_PKGS git"
 command -v curl &>/dev/null || SYS_PKGS="$SYS_PKGS curl"
 command -v lsof &>/dev/null || SYS_PKGS="$SYS_PKGS lsof"
+command -v crontab &>/dev/null || SYS_PKGS="$SYS_PKGS cron"
 
 if [ -n "$SYS_PKGS" ]; then
     step_header "Instalando dependências do sistema"
@@ -1194,6 +1195,11 @@ fi
 
 echo -e "  ${G}${B}│${N}$(printf '%*s' $BOX_W '')${G}${B}│${N}"
 echo -e "  ${G}${B}╰$(printf '%.0s─' $(seq 1 $BOX_W))╯${N}"
+
+# Em Docker: garantir que o daemon cron está rodando
+if [ "$IN_DOCKER" = true ] && command -v crontab &>/dev/null; then
+    service cron start >/dev/null 2>&1 || true
+fi
 
 # Aviso de Docker: porta pode não estar exposta no host
 if [ "$IN_DOCKER" = true ]; then
