@@ -15,11 +15,13 @@ def get_definitions(work_dir):
         "input_schema": {
             "type": "object",
             "properties": {
-                "action":   {"type": "string", "enum": ["clone", "pull", "status", "add", "commit", "push", "log", "diff"]},
-                "repo_url": {"type": "string"},
-                "path":     {"type": "string"},
-                "message":  {"type": "string"},
-                "files":    {"type": "string"},
+                "action":    {"type": "string", "enum": ["clone", "pull", "fetch", "checkout", "status", "add", "commit", "push", "log", "diff"]},
+                "repo_url":  {"type": "string"},
+                "path":      {"type": "string"},
+                "message":   {"type": "string"},
+                "files":     {"type": "string"},
+                "branch":    {"type": "string", "description": "Branch para checkout ou pull"},
+                "token_var": {"type": "string", "description": "Nome da variável de credencial a usar como token git (ex: GITHUB_TOKEN_MIA_PRODUTO). Se omitido, usa GIT_TOKEN."},
             },
             "required": ["action"],
         },
@@ -31,8 +33,13 @@ def execute(inp: dict, *, config: dict) -> str:
     git_token = config.get("GIT_TOKEN", "")
     git_user = config.get("GIT_USER", "")
     git_email = config.get("GIT_EMAIL", "")
-    secrets = [git_token, config.get("GITHUB_TOKEN", "")]
+    secrets = [s for s in [git_token, config.get("GITHUB_TOKEN", "")] if s]
     append_daily_log = config["append_daily_log"]
+
+    # Suporta token_var: permite especificar qual variável de config usar como token
+    token_var = inp.get("token_var", "")
+    if token_var:
+        git_token = config.get(token_var, git_token)
 
     action = inp["action"]
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -40,7 +47,7 @@ def execute(inp: dict, *, config: dict) -> str:
     def _inject(url):
         if git_token and ("github.com" in url or "gitlab.com" in url):
             p = urlparse(url)
-            return p._replace(netloc=f"{git_user or 'oauth2'}:{git_token}@{p.hostname}").geturl()
+            return p._replace(netloc=f"{git_user or 'x-access-token'}:{git_token}@{p.hostname}").geturl()
         return url
 
     env = os.environ.copy()
@@ -82,7 +89,17 @@ def execute(inp: dict, *, config: dict) -> str:
         cwd = repos[0]
 
     if action == "pull":
+        branch = inp.get("branch", "")
+        if branch:
+            return _git("pull", "origin", branch, cwd=cwd)
         return _git("pull", cwd=cwd)
+    if action == "fetch":
+        return _git("fetch", "--all", "--prune", cwd=cwd)
+    if action == "checkout":
+        branch = inp.get("branch", "")
+        if not branch:
+            return "Erro: branch obrigatório para checkout"
+        return _git("checkout", branch, cwd=cwd)
     if action == "status":
         return _git("status", cwd=cwd)
     if action == "log":
