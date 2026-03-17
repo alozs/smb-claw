@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.16 (2026-03-17)
+
+• `git_op` agora resolve `token_var` diretamente do ambiente do processo (secrets.env), não apenas das variáveis fixas do TOOL_CONFIG — corrige erro "terminal prompts disabled" ao clonar repos privados com tokens customizados
+
 ## 0.6.15 (2026-03-17)
 
 **Correções**
