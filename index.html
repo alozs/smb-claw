@@ -37,7 +37,7 @@
 
     .grid-bg {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background-image: 
+      background-image:
         radial-gradient(circle at 50% 0%, rgba(255,255,255,0.03) 0%, transparent 70%),
         linear-gradient(var(--border) 1px, transparent 1px),
         linear-gradient(90deg, var(--border) 1px, transparent 1px);
@@ -66,19 +66,19 @@
 
     /* ─── Hero ─────────────────────────────────────────────── */
     .hero { padding: 160px 0 100px; text-align: center; }
-    
+
     .hero-logo-container { width: 100px; height: 100px; margin: 0 auto 40px; }
     .hero-logo-container img { width: 100%; height: 100%; filter: brightness(0) invert(1) drop-shadow(0 0 30px rgba(255,255,255,0.1)); }
 
-    .hero h1 { 
-      font-size: clamp(2.5rem, 8vw, 4.2rem); 
-      font-weight: 800; 
-      letter-spacing: -0.06em; 
-      color: var(--white); 
-      line-height: 1; 
-      margin-bottom: 16px; 
+    .hero h1 {
+      font-size: clamp(2.5rem, 8vw, 4.2rem);
+      font-weight: 800;
+      letter-spacing: -0.06em;
+      color: var(--white);
+      line-height: 1;
+      margin-bottom: 16px;
     }
-    
+
     .hero .tagline {
       font-size: clamp(1.1rem, 3vw, 1.5rem);
       font-weight: 600;
@@ -88,15 +88,77 @@
       letter-spacing: -0.02em;
     }
 
-    .hero .sub-intro { 
-      font-size: 1.125rem; 
-      color: var(--zinc-400); 
-      max-width: 850px; 
-      margin: 0 auto 48px; 
+    .hero .sub-intro {
+      font-size: 1.125rem;
+      color: var(--zinc-400);
+      max-width: 850px;
+      margin: 0 auto 48px;
       line-height: 1.6;
     }
 
     .hero strong { color: var(--white); font-weight: 600; }
+
+    /* ─── Testimonial Card (speech bubble) ──────────────────── */
+    .testimonial-card {
+      display: inline-flex;
+      gap: 16px;
+      align-items: flex-start;
+      background: var(--zinc-950);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 24px 28px;
+      max-width: 680px;
+      margin: 0 auto 48px;
+      text-align: left;
+      position: relative;
+    }
+    .testimonial-card::before {
+      content: '';
+      position: absolute;
+      bottom: -10px;
+      left: 60px;
+      width: 18px;
+      height: 18px;
+      background: var(--zinc-950);
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      transform: rotate(45deg);
+      border-radius: 0 0 4px 0;
+    }
+    .testimonial-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .testimonial-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .testimonial-body { flex: 1; }
+    .testimonial-body blockquote {
+      font-size: 1rem;
+      color: var(--zinc-100);
+      font-style: italic;
+      line-height: 1.65;
+      margin-bottom: 10px;
+    }
+    .testimonial-meta {
+      font-size: 0.8125rem;
+      color: var(--zinc-400);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .testimonial-meta a {
+      color: var(--zinc-400);
+      text-decoration: none;
+    }
+    .testimonial-meta a:hover { color: var(--white); }
 
     .btn-main {
       display: inline-flex; align-items: center; gap: 10px;
@@ -108,10 +170,32 @@
     }
     .btn-main:hover { transform: translateY(-2px); box-shadow: 0 15px 50px rgba(255,255,255,0.25); }
 
+    /* ─── Floating CTA ──────────────────────────────────────── */
+    .float-cta {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 24px;
+      border-radius: 100px;
+      background: var(--white);
+      color: var(--bg);
+      font-weight: 700;
+      font-size: 0.9375rem;
+      text-decoration: none;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.1);
+      transition: all 0.2s;
+    }
+    .float-cta:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,0,0,0.7); }
+    @media (max-width: 600px) { .float-cta { display: none; } }
+
     /* ─── Sections ─────────────────────────────────────────── */
     .section { padding: 100px 0; border-top: 1px solid var(--border); }
     .section h2 { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 48px; color: var(--white); }
-    
+
     /* Bento Features */
     .bento { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
     .bento-card { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 24px; padding: 40px; transition: border-color 0.3s; }
@@ -135,7 +219,47 @@
     .comp-table tr:last-child td { border-bottom: none; }
     .comp-table tr:hover td { background: rgba(255,255,255,0.01); }
     .comp-table .hl { color: var(--green); font-weight: 700; }
-    .table-source { font-size: 0.8125rem; color: var(--zinc-700); margin-top: 16px; text-align: right; }
+
+    /* Footnotes */
+    .table-footnotes {
+      margin-top: 16px;
+      padding: 16px 20px;
+      background: var(--zinc-950);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font-size: 0.8125rem;
+      color: var(--zinc-700);
+      line-height: 1.7;
+    }
+    .table-footnotes a { color: var(--zinc-400); text-decoration: none; }
+    .table-footnotes a:hover { color: var(--white); text-decoration: underline; }
+    sup { font-size: 0.65rem; vertical-align: super; }
+
+    /* Post-table CTA */
+    .post-table-cta {
+      margin-top: 40px;
+      padding: 32px;
+      background: linear-gradient(135deg, rgba(16,185,129,0.06) 0%, rgba(255,255,255,0.03) 100%);
+      border: 1px solid rgba(16,185,129,0.2);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .post-table-cta p { font-size: 1.125rem; font-weight: 600; color: var(--white); }
+    .post-table-cta span { font-size: 0.9375rem; color: var(--zinc-400); display: block; margin-top: 4px; font-weight: 400; }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 14px 28px; border-radius: 12px;
+      font-weight: 700; font-size: 1rem;
+      background: var(--green); color: #000;
+      text-decoration: none; transition: all 0.2s;
+      white-space: nowrap;
+      box-shadow: 0 8px 24px rgba(16,185,129,0.25);
+    }
+    .btn-secondary:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(16,185,129,0.4); }
 
     /* Install Box */
     .install-box {
@@ -148,11 +272,13 @@
     .install-box .label { position: absolute; top: -12px; left: 24px; background: var(--bg); padding: 0 12px; font-size: 0.75rem; color: var(--zinc-400); text-transform: uppercase; letter-spacing: 0.15em; font-weight: 800; }
 
     /* Changelog */
+    .changelog { padding: 100px 0; border-top: 1px solid var(--border); }
     .cl-entry { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 24px; padding: 32px; margin-bottom: 24px; }
     .cl-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .cl-version { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--white); font-size: 1.1rem; background: var(--zinc-900); padding: 6px 16px; border-radius: 8px; }
     .cl-date { font-size: 0.875rem; color: var(--zinc-700); font-weight: 600; }
     .cl-body { font-size: 1rem; color: var(--zinc-400); line-height: 1.7; }
+    .cl-badge { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; padding: 3px 10px; border-radius: 100px; background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); margin-left: 12px; vertical-align: middle; }
 
     footer { border-top: 1px solid var(--border); padding: 100px 0 60px; text-align: center; background: rgba(255,255,255,0.01); }
     .logo-footer { display: flex; align-items: center; gap: 12px; justify-content: center; margin-bottom: 32px; color: var(--white); font-weight: 800; font-size: 1.5rem; letter-spacing: -0.02em; }
@@ -165,12 +291,19 @@
       .bento { grid-template-columns: 1fr; }
       .hero h1 { font-size: 3rem; }
       .section h2 { font-size: 1.75rem; }
+      .post-table-cta { flex-direction: column; text-align: center; }
     }
   </style>
 </head>
 <body>
 
   <div class="grid-bg"></div>
+
+  <!-- Floating CTA -->
+  <a href="https://github.com/alozs/smb-claw" class="float-cta" target="_blank">
+    <i data-lucide="github" style="width: 18px;"></i>
+    Instalar agora →
+  </a>
 
   <nav>
     <div class="container nav-inner">
@@ -196,17 +329,29 @@
     </div>
     <h1>SMB Claw</h1>
     <span class="tagline">Agentes de IA no Telegram que realmente funcionam — em 2 minutos</span>
-    
+
     <p class="sub-intro">
-      <strong>Ultra leve</strong> • ~75 MB por agente • 50 agentes rodando na mesma VPS de R$ 25–50/mês<br>
+      <strong>Ultra leve</strong> • ~75 MB idle por agente • 50 agentes rodando na mesma VPS de R$&nbsp;25–50/mês<br>
       Sem Kubernetes. Sem Docker complicado. Sem portas expostas por padrão.<br>
       Só <code>bash setup.sh</code> e você já tem agentes profissionais no Telegram.
     </p>
 
-    <p class="sub-intro" style="font-style: italic; color: var(--zinc-100);">
-      "Depois de semanas passando raiva com o OpenClaw, criei o SMB Claw: leve, seguro, confiável e que realmente faz o que você pede — sem loops infinitos nem reinterpretar tudo."
-    </p>
-    
+    <!-- Testimonial speech bubble -->
+    <div class="testimonial-card">
+      <div class="testimonial-avatar">
+        <img src="https://github.com/alozs.png" alt="alozs avatar" />
+      </div>
+      <div class="testimonial-body">
+        <blockquote>"Depois de semanas passando raiva com o OpenClaw, criei o SMB Claw: leve, seguro, confiável — e que realmente faz o que você pede, sem loops infinitos nem reinterpretar seus objetivos."</blockquote>
+        <div class="testimonial-meta">
+          <a href="https://github.com/alozs" target="_blank">@alozs</a>
+          <span style="color: var(--zinc-700);">·</span>
+          <span>Criador do SMB Claw</span>
+          <i data-lucide="github" style="width: 14px; margin-left: 4px;"></i>
+        </div>
+      </div>
+    </div>
+
     <a href="https://github.com/alozs/smb-claw" class="btn-main">Instalar agora em 2 minutos →</a>
   </header>
 
@@ -216,7 +361,7 @@
       <div class="bento-card">
         <h4><i data-lucide="zap" style="color: var(--green);"></i> Alta Performance</h4>
         <ul>
-          <li><strong>75 MB idle por agente</strong> — roda dezenas em uma VPS barata (4 GB RAM, ~R$ 25–50/mês)</li>
+          <li><strong>~75 MB idle por agente</strong> — roda dezenas em uma VPS barata (4 GB RAM, ~R$&nbsp;25–50/mês)</li>
           <li>50 agentes simultâneos numa VPS comum (sem precisar de cluster ou 32 GB+)</li>
         </ul>
       </div>
@@ -239,7 +384,7 @@
         <div class="bento" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 32px;">
           <div style="background: var(--zinc-900); padding: 24px; border-radius: 16px; border: 1px solid var(--border);">
             <strong style="display: block; margin-bottom: 8px; font-size: 1.1rem;"><i data-lucide="target" style="width: 18px; vertical-align: middle; margin-right: 8px;"></i> Foco Total</strong>
-            <span style="color: var(--zinc-400); font-size: 0.9375rem;">100% otimizado para o Telegram, onde a interação realmente acontece.</span>
+            <span style="color: var(--zinc-400); font-size: 0.9375rem;">100% focado no Telegram — zero overhead de plataformas extras, privacidade máxima onde a interação realmente acontece.</span>
           </div>
           <div style="background: var(--zinc-900); padding: 24px; border-radius: 16px; border: 1px solid var(--border);">
             <strong style="display: block; margin-bottom: 8px; font-size: 1.1rem;"><i data-lucide="zap" style="width: 18px; vertical-align: middle; margin-right: 8px;"></i> Setup Instantâneo</strong>
@@ -261,7 +406,7 @@
   <section id="comparativo" class="section container">
     <h2>SMB Claw vs OpenClaw</h2>
     <p style="color: var(--zinc-400); margin-bottom: 32px; font-size: 1.125rem;">Comparação real atualizada em março de 2026.</p>
-    
+
     <div class="table-container">
       <table class="comp-table">
         <thead>
@@ -274,8 +419,8 @@
         <tbody>
           <tr>
             <td>RAM por agente</td>
-            <td class="hl">~75 MB idle</td>
-            <td>8–16 GB recomendado (1,5–2 GB idle mínimo)</td>
+            <td class="hl">~75 MB idle real</td>
+            <td>~1,5–2 GB idle / 1–8+ GB em uso real (multi-agente com embeddings)<sup>[1]</sup></td>
           </tr>
           <tr>
             <td>Setup</td>
@@ -294,18 +439,18 @@
           </tr>
           <tr>
             <td>Infraestrutura</td>
-            <td class="hl">VPS barata $5–20/mês ou local</td>
+            <td class="hl">VPS barata R$&nbsp;25–50/mês ou local</td>
             <td>VPS $20+/mês ou cluster K8s</td>
           </tr>
           <tr>
             <td>50 agentes simultâneos</td>
-            <td class="hl">VPS 4 GB (~R$ 25–50/mês)</td>
+            <td class="hl">VPS 4 GB (~R$&nbsp;25–50/mês)</td>
             <td>Cluster com 32+ GB RAM</td>
           </tr>
           <tr>
             <td>Segurança</td>
             <td class="hl">Sandbox + Denylist + Token HMAC</td>
-            <td>Vulnerabilidades documentadas (Porta 18789)</td>
+            <td>512 vulnerabilidades documentadas (8 críticas); CVE-2026-25253 RCE 8.8; WebSocket gateway (porta 18789 exposta por padrão)<sup>[2]</sup></td>
           </tr>
           <tr>
             <td>Memória</td>
@@ -315,7 +460,7 @@
           <tr>
             <td>Confiabilidade</td>
             <td class="hl">Faz exatamente o que você pede</td>
-            <td>Loops de raciocínio e reinterpretação constante</td>
+            <td>Loops de raciocínio + reinterpretação constante</td>
           </tr>
           <tr>
             <td>Provedores suportados</td>
@@ -324,23 +469,42 @@
           </tr>
           <tr>
             <td>Integrações</td>
-            <td class="hl">Telegram (foco total)</td>
+            <td class="hl">Telegram (foco total = zero overhead, privacidade máxima)</td>
             <td>50+ plataformas</td>
           </tr>
           <tr>
             <td>Painel admin</td>
-            <td class="hl">FastAPI com token temporário (30 min)</td>
-            <td>Dashboard porta 18789 (exposta)</td>
+            <td class="hl">FastAPI + token HMAC temporário (expira em 30 min)</td>
+            <td>Dashboard WebSocket gateway (porta 18789 exposta por padrão)</td>
           </tr>
           <tr>
             <td>Mantenedor</td>
             <td class="hl">Mantido ativamente</td>
-            <td>Criador saiu para a OpenAI (2026)</td>
+            <td>Criador (Peter Steinberger) saiu para a OpenAI em fev/2026<sup>[3]</sup> — projeto continua como foundation open-source pela community</td>
           </tr>
         </tbody>
       </table>
     </div>
-    <p class="table-source">Fontes: Cisco (jan/2026), Kaspersky (fev/2026), TechCrunch/Reuters, testes reais e reclamações públicas.</p>
+
+    <!-- Footnotes -->
+    <div class="table-footnotes">
+      <strong style="color: var(--zinc-400);">Fontes:</strong><br>
+      [1] Testes reais e discussões públicas no Reddit/GitHub Issues: agente único com modelo pequeno ~1–2 GB; multi-agente ou com embeddings pode atingir 500 MB–1 GB por processo adicional.<br>
+      [2] <a href="https://www.kaspersky.com" target="_blank">Kaspersky (fev/2026)</a>: 512 vulnerabilidades, 8 críticas; <a href="https://www.cisco.com" target="_blank">Cisco Talos (jan/2026)</a>: "security nightmare", ~12% dos plugins do marketplace são maliciosos; CVE-2026-25253 RCE 9.8 — milhares de instâncias expostas confirmadas.<br>
+      [3] <a href="https://techcrunch.com" target="_blank">TechCrunch</a> / anúncio público de Peter Steinberger, fevereiro/2026.
+    </div>
+
+    <!-- Post-table CTA -->
+    <div class="post-table-cta">
+      <div>
+        <p>Chega de 8 GB de RAM por agente e portas abertas por padrão.</p>
+        <span>Configure tudo em 2 minutos com um único comando.</span>
+      </div>
+      <a href="https://github.com/alozs/smb-claw" class="btn-secondary" target="_blank">
+        <i data-lucide="download" style="width: 18px;"></i>
+        Instalar agora →
+      </a>
+    </div>
   </section>
 
   <section id="destaques" class="section container">
@@ -360,15 +524,15 @@
       </div>
       <div class="bento-card">
         <h4><i data-lucide="shield-check"></i> Painel web seguro</h4>
-        <p>FastAPI + token temporário HMAC de 30 minutos. Zero portas expostas desnecessariamente.</p>
+        <p>FastAPI + token HMAC temporário de 30 minutos. Zero portas expostas desnecessariamente.</p>
       </div>
       <div class="bento-card">
         <h4><i data-lucide="refresh-cw"></i> Autosave constante</h4>
         <p>Persistência contínua que garante que o contexto e a memória nunca sejam perdidos.</p>
       </div>
       <div class="bento-card">
-        <h4><i data-lucide="box"></i> Zero dependências pesadas</h4>
-        <p>Roda liso em qualquer VPS barata ou máquina local sem exigir clusters ou containers complexos.</p>
+        <h4><i data-lucide="send"></i> Telegram nativo</h4>
+        <p>100% focado no Telegram — zero overhead de integrações extras, privacidade máxima, latência mínima.</p>
       </div>
     </div>
   </section>
@@ -394,32 +558,19 @@
     </div>
   </section>
 
-  <section class="section container" style="text-align: center;">
-    <h2 style="font-size: 3rem; margin-bottom: 16px;">Pronto para parar de perder tempo e dinheiro?</h2>
-    <p style="color: var(--zinc-400); margin-bottom: 48px; font-size: 1.25rem;">Instalação em literalmente 2 minutos:</p>
-    
-    <div class="install-box">
-      <div class="label">Comandos de Instalação</div>
-      <pre><code>git clone https://github.com/alozs/smb-claw
-cd smb-claw
-bash setup.sh</code></pre>
-    </div>
-    
-    <div style="margin-top: 60px;">
-      <a href="https://github.com/alozs/smb-claw" class="btn-main">Instalar agora →</a>
-    </div>
-  </section>
-
+  <!-- Novidades — movido para antes do CTA final -->
   <section id="changelog" class="changelog container">
-    <h2 style="text-align: center;">O que há de novo</h2>
+    <h2 style="text-align: center; font-size: 2.25rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 48px; color: var(--white);">
+      Novidades v0.7.0 <span class="cl-badge">Novo</span>
+    </h2>
     <div class="cl-entry">
       <div class="cl-header">
         <span class="cl-version">v0.7.0</span>
         <span class="cl-date">2026-03-17</span>
       </div>
       <div class="cl-body">
-        • Raciocínio estendido: comando `/thinking` para níveis de pensamento profundo (até 16k tokens).<br>
-        • Truncate automático de outputs longos (>12k chars) para proteger o contexto.<br>
+        • <strong style="color: var(--zinc-100);">Raciocínio estendido:</strong> comando <code>/thinking</code> para níveis de pensamento profundo (até 16k tokens).<br>
+        • <strong style="color: var(--zinc-100);">Truncate automático</strong> de outputs longos (&gt;12k chars) para proteger o contexto.<br>
         • Arquivamento automático de mensagens excedentes no banco de dados SQLite.
       </div>
     </div>
@@ -429,7 +580,7 @@ bash setup.sh</code></pre>
         <span class="cl-date">2026-03-17</span>
       </div>
       <div class="cl-body">
-        • Git: Resolução dinâmica de tokens diretamente de `secrets.env` para repositórios privados.
+        • Git: Resolução dinâmica de tokens diretamente de <code>secrets.env</code> para repositórios privados.
       </div>
     </div>
     <div class="cl-entry">
@@ -440,6 +591,22 @@ bash setup.sh</code></pre>
       <div class="cl-body">
         • Feedback visual: Indicador de ferramenta ativa funcionando em todos os provedores suportados.
       </div>
+    </div>
+  </section>
+
+  <section class="section container" style="text-align: center;">
+    <h2 style="font-size: 3rem; margin-bottom: 16px;">Pronto para parar de perder tempo e dinheiro?</h2>
+    <p style="color: var(--zinc-400); margin-bottom: 48px; font-size: 1.25rem;">Instalação em literalmente 2 minutos:</p>
+
+    <div class="install-box">
+      <div class="label">Comandos de Instalação</div>
+      <pre><code>git clone https://github.com/alozs/smb-claw
+cd smb-claw
+bash setup.sh</code></pre>
+    </div>
+
+    <div style="margin-top: 60px;">
+      <a href="https://github.com/alozs/smb-claw" class="btn-main">Instalar agora →</a>
     </div>
   </section>
 
