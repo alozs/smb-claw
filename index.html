@@ -833,6 +833,20 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.6.7</span>
+            <span class="cl-date">2026-03-17</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>Correções</li>
+              <li>Processo de atualização via /update agora aguarda corretamente o encerramento de cada bot antes de reiniciá-lo, eliminando conflitos de instâncias duplicadas em ambientes Docker</li>
+              <li>Locks obsoletos são automaticamente removidos durante o restart, prevenindo falhas de inicialização causadas por arquivos de lock órfãos após paradas inesperadas</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.6.5</span>
             <span class="cl-date">2026-03-17</span>
           </div>
@@ -854,22 +868,6 @@
             <ul>
               <li>### Correções</li>
               <li>Corrigido problema onde comandos de gerenciamento de processos podiam interpretar incorretamente nomes de diretórios contendo hífens duplos, evitando falhas ao iniciar ou parar bots com caminhos como `--bot-dir`.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.6.3</span>
-            <span class="cl-date">2026-03-17</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>### Correções</li>
-              <li>Corrigido o endpoint de autenticação OAuth do provedor Codex, garantindo que bots configurados com modelos OpenAI voltem a funcionar normalmente</li>
-              <li>### Melhorias</li>
-              <li>O painel admin agora exibe o provedor efetivo de cada bot (API key, OAuth Claude, OAuth Codex, OpenRouter), facilitando o diagnóstico de problemas de autenticação</li>
-              <li>Aprimorado o sistema de notificações proativas, tornando os agendamentos mais confiáveis e consistentes</li>
             </ul>
           </div>
         </div>

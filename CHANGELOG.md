@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.7 (2026-03-17)
+
+Correções
+
+• Processo de atualização via /update agora aguarda corretamente o encerramento de cada bot antes de reiniciá-lo, eliminando conflitos de instâncias duplicadas em ambientes Docker
+• Locks obsoletos são automaticamente removidos durante o restart, prevenindo falhas de inicialização causadas por arquivos de lock órfãos após paradas inesperadas
+
 ## 0.6.5 (2026-03-17)
 
 
