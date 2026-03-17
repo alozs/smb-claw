@@ -398,6 +398,15 @@ else
     fi
 fi
 
+# Salva a porta final no config.global (para outros scripts usarem)
+if [ -f "$BASE_DIR/config.global" ]; then
+    if grep -q '^ADMIN_PORT=' "$BASE_DIR/config.global"; then
+        sed -i "s/^ADMIN_PORT=.*/ADMIN_PORT=$ADMIN_PORT/" "$BASE_DIR/config.global"
+    else
+        echo "ADMIN_PORT=$ADMIN_PORT" >> "$BASE_DIR/config.global"
+    fi
+fi
+
 # ── OAuth PKCE helper ──────────────────────────────────────────────────────
 # Uso: do_oauth <provider_label> <authorize_url> <token_url> <client_id> <redirect_uri> <scopes> <extra_params> <token_file> <token_format>
 # token_format: "codex" ou "claude"
