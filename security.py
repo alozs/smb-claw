@@ -15,6 +15,11 @@ def check_shell_safety(command: str, protected_paths: list[str]) -> str | None:
     blocked = [
         r"printenv", r"\benv\b", r"\$\{?ANTHROPIC", r"\$\{?TELEGRAM",
         r"\$\{?DB_URL", r"\$\{?GIT_TOKEN", r"\$\{?GITHUB_TOKEN",
+        # Impede o bot de matar/reiniciar a si mesmo ou outros bots
+        r"\bkill\b", r"\bpkill\b", r"\bkillall\b",
+        r"\bbot\.py\b",
+        r"\bsystemctl\b",
+        r"\bservice\s+claude",
     ]
     for pat in blocked:
         if re.search(pat, command, re.IGNORECASE):
