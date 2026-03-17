@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.4 (2026-03-17)
+
+
+
+### Correções
+
+• Corrigido problema onde comandos de gerenciamento de processos podiam interpretar incorretamente nomes de diretórios contendo hífens duplos, evitando falhas ao iniciar ou parar bots com caminhos como `--bot-dir`.
+
 ## 0.6.3 (2026-03-17)
 
 

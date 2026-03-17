@@ -833,6 +833,19 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.6.4</span>
+            <span class="cl-date">2026-03-17</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>### Correções</li>
+              <li>Corrigido problema onde comandos de gerenciamento de processos podiam interpretar incorretamente nomes de diretórios contendo hífens duplos, evitando falhas ao iniciar ou parar bots com caminhos como `--bot-dir`.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.6.3</span>
             <span class="cl-date">2026-03-17</span>
           </div>
@@ -857,19 +870,6 @@
             <ul>
               <li>### Novas funcionalidades</li>
               <li>O script de instalação (setup.sh) agora salva automaticamente a porta do painel admin no arquivo de configuração global, eliminando a necessidade de configuração manual após a instalação</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.6.1</span>
-            <span class="cl-date">2026-03-17</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>### Novas funcionalidades</li>
-              <li>A porta do painel admin agora é configurável através da variável ADMIN_PORT, permitindo escolher em qual porta o painel web será servido. Útil para ambientes onde a porta padrão já está em uso ou quando se deseja rodar múltiplas instâncias lado a lado.</li>
             </ul>
           </div>
         </div>
