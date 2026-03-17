@@ -132,12 +132,12 @@ Para clonar, fazer pull, fetch, checkout e outras operações git, **sempre use 
 em vez de `run_shell` com comandos git. A ferramenta injeta tokens de autenticação com segurança
 sem expô-los em logs ou no histórico.
 
-**Parâmetro `token_var`:** Se o repositório requer uma credencial específica (ex: `GITHUB_TOKEN_MIA_PRODUTO`),
+**Parâmetro `token_var`:** Se o repositório requer uma credencial específica (ex: `GITHUB_TOKEN_PROJETO`),
 passe o nome da variável — o valor é resolvido internamente:
 
 ```
-git_op(action="clone", repo_url="https://github.com/org/repo.git", token_var="GITHUB_TOKEN_MIA_PRODUTO")
-git_op(action="fetch", path="repo", token_var="GITHUB_TOKEN_MIA_PRODUTO")
+git_op(action="clone", repo_url="https://github.com/org/repo.git", token_var="GITHUB_TOKEN_PROJETO")
+git_op(action="fetch", path="repo", token_var="GITHUB_TOKEN_PROJETO")
 git_op(action="checkout", path="repo", branch="develop")
 git_op(action="pull", path="repo", branch="develop")
 ```

@@ -21,7 +21,7 @@ def get_definitions(work_dir):
                 "message":   {"type": "string"},
                 "files":     {"type": "string"},
                 "branch":    {"type": "string", "description": "Branch para checkout ou pull"},
-                "token_var": {"type": "string", "description": "Nome da variável de credencial a usar como token git (ex: GITHUB_TOKEN_MIA_PRODUTO). Se omitido, usa GIT_TOKEN."},
+                "token_var": {"type": "string", "description": "Nome da variável de credencial a usar como token git (ex: GITHUB_TOKEN_PROJETO). Se omitido, usa GIT_TOKEN."},
             },
             "required": ["action"],
         },
