@@ -611,10 +611,16 @@ async def bot_action(name: str, req: ActionRequest):
         if req.action in ("stop", "restart"):
             subprocess.run(["pkill", "-f", "--", f"--bot-dir.*bots/{name}"],
                            capture_output=True, timeout=10)
+            # Aguarda o processo morrer (até 10s) e limpa o lock file
+            for _ in range(10):
+                r = subprocess.run(["pgrep", "-f", "--", f"bot.py --bot-dir.*bots/{name}"],
+                                   capture_output=True)
+                if r.returncode != 0:
+                    break
+                time.sleep(1)
+            for lf in (BASE_DIR / ".locks").glob(f"*{name}*"):
+                lf.unlink(missing_ok=True)
         if req.action in ("start", "restart"):
-            import time as _time
-            if req.action == "restart":
-                _time.sleep(1)
             log_path = BASE_DIR / "logs" / f"{name}.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log_fd = open(log_path, "a")
@@ -1075,8 +1081,14 @@ async def restart_all_bots():
         if IN_DOCKER:
             subprocess.run(["pkill", "-f", "--", f"--bot-dir.*bots/{name}"],
                            capture_output=True, timeout=10)
-            import time as _time
-            _time.sleep(1)
+            for _ in range(10):
+                r = subprocess.run(["pgrep", "-f", "--", f"bot.py --bot-dir.*bots/{name}"],
+                                   capture_output=True)
+                if r.returncode != 0:
+                    break
+                time.sleep(1)
+            for lf in (BASE_DIR / ".locks").glob(f"*{name}*"):
+                lf.unlink(missing_ok=True)
             bot_dir = str(BOTS_DIR / name)
             log_path = BASE_DIR / "logs" / f"{name}.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
