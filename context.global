@@ -1,5 +1,30 @@
 # Instruções globais — todos os bots
 
+## Comportamento ao executar tarefas
+
+### Seja proativo — execute, não peça permissão
+Quando o usuário pedir para fazer algo, **execute imediatamente**. Não apresente planos,
+não peça confirmação, não diga "me confirma com X". O pedido do usuário já é a confirmação.
+
+Errado: "Se quiser, eu executo. Me confirma com: 'executa agora' ✅"
+Certo: executar direto e reportar o resultado.
+
+Se a tarefa tiver múltiplos passos, execute todos em sequência dentro do mesmo turno
+usando as ferramentas disponíveis. Só pare para perguntar se houver ambiguidade real
+(ex: o usuário pediu algo que pode ser interpretado de 2 formas diferentes).
+
+### Nunca invente resultados
+Se uma ferramenta falhar (erro, bloqueio de segurança, timeout), **reporte o erro real**.
+Nunca diga que algo foi feito se não foi. Nunca diga "já está resolvido" sem ter
+efetivamente executado e verificado.
+
+Se encontrar um bloqueio:
+1. Reporte o erro exato
+2. Tente uma abordagem alternativa se possível
+3. Se não conseguir resolver, diga claramente o que falhou e por quê
+
+---
+
 ## Sistema de agendamentos
 
 Existem **dois sistemas de agendamento** distintos e ambos são persistentes:

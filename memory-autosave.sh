@@ -235,12 +235,19 @@ elif provider == "codex_oauth":
     from openai import OpenAI
     auth = json.loads(codex_auth.read_text())
     token = auth["tokens"]["access_token"]
-    client = OpenAI(api_key=token, base_url="https://api.openai.com/v1")
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini", max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}]
+    account_id = auth.get("account_id", "")
+    headers = {}
+    if account_id:
+        headers["ChatGPT-Account-Id"] = account_id
+    client = OpenAI(
+        api_key=token,
+        base_url="https://chatgpt.com/backend-api/wham",
+        default_headers=headers,
     )
-    result = resp.choices[0].message.content.strip()
+    resp = client.responses.create(
+        model="gpt-4o-mini", input=prompt,
+    )
+    result = resp.output_text.strip()
 
 if not result:
     print("  → Erro: resposta vazia da API")

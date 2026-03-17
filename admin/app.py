@@ -199,6 +199,18 @@ def get_bot_env(bot_name: str) -> dict:
     return load_env(env_path)
 
 
+def get_bot_env_effective(bot_name: str) -> dict:
+    """Load bot env with global defaults applied (mirrors bot.py precedence)."""
+    merged = {}
+    global_cfg = BASE_DIR / "config.global"
+    if global_cfg.exists():
+        for k, v in load_env(global_cfg).items():
+            merged.setdefault(k, v)
+    env_path = BOTS_DIR / bot_name / ".env"
+    merged.update(load_env(env_path))
+    return merged
+
+
 def _format_uptime(dt: datetime) -> str:
     """Format a datetime into a human-readable uptime string."""
     delta = datetime.now() - dt
@@ -254,7 +266,7 @@ def get_uptime(bot_name: str) -> str:
 
 
 def get_bot_summary(bot_name: str) -> dict:
-    env = get_bot_env(bot_name)
+    env = get_bot_env_effective(bot_name)
     if IN_DOCKER:
         try:
             result = subprocess.run(
@@ -533,7 +545,7 @@ async def delete_bot(name: str):
 @app.get("/api/bots/{name}/env")
 async def get_env(name: str):
     validate_bot_name(name)
-    env = get_bot_env(name)
+    env = get_bot_env_effective(name)
     masked = {k: mask_sensitive(k, v) for k, v in env.items()}
     return {"fields": masked}
 
@@ -1420,16 +1432,29 @@ async def setup_test_provider(body: TestProviderRequest):
 
         elif provider in ("codex", "openrouter"):
             from openai import OpenAI
+            is_codex_oauth = False
             if provider == "codex":
                 if not api_key:
                     if CODEX_AUTH_PATH.exists():
                         auth = json.loads(CODEX_AUTH_PATH.read_text())
                         api_key = auth.get("tokens", {}).get("access_token", "")
+                        is_codex_oauth = bool(api_key)
                     if not api_key:
                         api_key = load_env(BASE_DIR / "secrets.global").get("OPENAI_API_KEY")
                 if not api_key:
                     return {"ok": False, "error": "No API key or Codex OAuth token found."}
-                client = OpenAI(api_key=api_key)
+                if is_codex_oauth:
+                    account_id = auth.get("account_id", "")
+                    headers = {}
+                    if account_id:
+                        headers["ChatGPT-Account-Id"] = account_id
+                    client = OpenAI(
+                        api_key=api_key,
+                        base_url="https://chatgpt.com/backend-api/wham",
+                        default_headers=headers,
+                    )
+                else:
+                    client = OpenAI(api_key=api_key)
                 test_model = model or "gpt-5.1-codex-mini"
             else:  # openrouter
                 if not api_key:
@@ -1440,10 +1465,15 @@ async def setup_test_provider(body: TestProviderRequest):
                 client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
                 test_model = model or "google/gemini-2.5-flash"
 
-            resp = client.chat.completions.create(
-                model=test_model, max_tokens=5,
-                messages=[{"role": "user", "content": "Hi"}],
-            )
+            if is_codex_oauth:
+                resp = client.responses.create(
+                    model=test_model, input="Hi",
+                )
+            else:
+                resp = client.chat.completions.create(
+                    model=test_model, max_tokens=5,
+                    messages=[{"role": "user", "content": "Hi"}],
+                )
             return {"ok": True, "model": test_model}
 
         else:
