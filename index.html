@@ -49,6 +49,7 @@
 
     .container { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
 
+    /* ─── Nav ──────────────────────────────────────────────── */
     nav {
       position: fixed; top: 0; width: 100%; z-index: 1000;
       border-bottom: 1px solid var(--border);
@@ -57,77 +58,106 @@
     }
 
     .nav-inner { height: 64px; display: flex; align-items: center; justify-content: space-between; }
-    .logo-link { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--white); font-weight: 700; font-size: 0.9rem; text-transform: none; }
+    .logo-link { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--white); font-weight: 700; font-size: 0.95rem; }
     .logo-link img { width: 28px; height: 28px; filter: brightness(0) invert(1); }
 
     .nav-links { display: flex; gap: 24px; list-style: none; }
-    .nav-links a { font-size: 0.8125rem; color: var(--zinc-400); text-decoration: none; transition: color 0.2s; }
+    .nav-links a { font-size: 0.8125rem; color: var(--zinc-400); text-decoration: none; transition: color 0.2s; font-weight: 500; }
     .nav-links a:hover { color: var(--white); }
 
-    .hero { padding: 140px 0 60px; text-align: center; }
+    /* ─── Hero ─────────────────────────────────────────────── */
+    .hero { padding: 160px 0 80px; text-align: center; }
     
-    .hero-logo-container { width: 120px; height: 120px; margin: 0 auto 32px; }
+    .hero-logo-container { width: 100px; height: 100px; margin: 0 auto 40px; }
     .hero-logo-container img { width: 100%; height: 100%; filter: brightness(0) invert(1) drop-shadow(0 0 30px rgba(255,255,255,0.1)); }
 
-    .hero h1 { font-size: 1.125rem; font-weight: 600; color: var(--white); line-height: 1.5; margin-bottom: 16px; max-width: 800px; margin-left: auto; margin-right: auto; }
-    .hero p { font-size: 0.9375rem; color: var(--zinc-400); max-width: 800px; margin: 0 auto 32px; }
+    .hero h1 { 
+      font-size: clamp(1.75rem, 5vw, 2.75rem); 
+      font-weight: 800; 
+      letter-spacing: -0.04em; 
+      color: var(--white); 
+      line-height: 1.2; 
+      margin-bottom: 24px; 
+      max-width: 900px; 
+      margin-left: auto; 
+      margin-right: auto; 
+    }
+    
+    .hero p { 
+      font-size: 1.125rem; 
+      color: var(--zinc-400); 
+      max-width: 700px; 
+      margin: 0 auto 48px; 
+      line-height: 1.5;
+    }
 
     .install-box {
       background: var(--zinc-950); border: 1px solid var(--border);
-      border-radius: 12px; padding: 20px; margin: 20px auto;
+      border-radius: 12px; padding: 24px; margin: 40px auto;
       max-width: 500px; text-align: left; position: relative;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
     }
-    .install-box pre { font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; color: var(--zinc-100); }
-    .install-box .label { position: absolute; top: -10px; left: 20px; background: var(--bg); padding: 0 8px; font-size: 0.65rem; color: var(--zinc-400); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+    .install-box pre { font-family: 'JetBrains Mono', monospace; font-size: 0.875rem; color: var(--zinc-100); }
+    .install-box .label { position: absolute; top: -10px; left: 20px; background: var(--bg); padding: 0 10px; font-size: 0.7rem; color: var(--zinc-400); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
 
     /* ─── Story Section ────────────────────────────────────── */
-    .story { padding: 80px 0; border-top: 1px solid var(--border); }
-    .story-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: start; }
-    .story h2 { font-size: 2rem; margin-bottom: 24px; letter-spacing: -0.04em; }
-    .story p { color: var(--zinc-400); margin-bottom: 20px; font-size: 0.9375rem; }
-    .story strong { color: var(--white); }
+    .story { padding: 100px 0; border-top: 1px solid var(--border); }
+    .story-grid { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 80px; align-items: center; }
+    .story h2 { font-size: 2.25rem; margin-bottom: 28px; letter-spacing: -0.04em; font-weight: 800; }
+    .story p { color: var(--zinc-400); margin-bottom: 24px; font-size: 1.05rem; line-height: 1.6; }
+    .story strong { color: var(--white); font-weight: 600; }
 
-    .comp-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; margin-top: 24px; }
-    .comp-table th { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); color: var(--zinc-400); font-weight: 600; text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.05em; }
-    .comp-table td { padding: 12px; border-bottom: 1px solid var(--border); color: var(--zinc-100); }
+    .comp-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.875rem; background: var(--zinc-950); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+    .comp-table th { text-align: left; padding: 16px; border-bottom: 1px solid var(--border); color: var(--zinc-400); font-weight: 700; text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.1em; background: rgba(255,255,255,0.02); }
+    .comp-table td { padding: 16px; border-bottom: 1px solid var(--border); color: var(--zinc-100); }
     .comp-table tr:last-child td { border-bottom: none; }
-    .comp-table .hl { color: var(--green); font-weight: 600; }
+    .comp-table .hl { color: var(--green); font-weight: 700; }
 
     /* ─── Workflow ─────────────────────────────────────────── */
-    .workflow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 60px 0; }
-    .step { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 16px; padding: 32px; }
-    .step-icon { width: 40px; height: 40px; background: var(--zinc-900); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; color: var(--white); }
-    .step h3 { font-size: 1rem; margin-bottom: 12px; font-weight: 700; }
-    .step p { font-size: 0.875rem; color: var(--zinc-400); line-height: 1.6; }
+    .workflow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin: 80px 0; }
+    .step { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 20px; padding: 40px; transition: border-color 0.3s; }
+    .step:hover { border-color: rgba(255,255,255,0.2); }
+    .step-icon { width: 48px; height: 48px; background: var(--zinc-900); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; color: var(--white); }
+    .step h3 { font-size: 1.25rem; margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; }
+    .step p { font-size: 0.9375rem; color: var(--zinc-400); line-height: 1.6; }
 
     /* ─── Bento Grid ────────────────────────────────────────── */
-    .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
-    .bento-card { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 20px; padding: 24px; }
-    .bento-card h4 { font-size: 0.9375rem; margin-bottom: 8px; color: var(--white); display: flex; align-items: center; gap: 8px; font-weight: 700; }
-    .bento-card p { font-size: 0.8125rem; color: var(--zinc-400); line-height: 1.5; }
-    .bento-span-3 { grid-column: span 3; }
-    .bento-span-2 { grid-column: span 2; }
-    .bento-span-4 { grid-column: span 4; }
-
+    .bento { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+    .bento-card { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 24px; padding: 32px; transition: transform 0.2s; }
+    .bento-card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.15); }
+    .bento-card h4 { font-size: 1.125rem; margin-bottom: 12px; color: var(--white); display: flex; align-items: center; gap: 12px; font-weight: 800; letter-spacing: -0.02em; }
+    .bento-card p { font-size: 0.9375rem; color: var(--zinc-400); line-height: 1.6; }
+    
     /* ─── Changelog ────────────────────────────────────────── */
-    .changelog { padding: 80px 0; border-top: 1px solid var(--border); }
-    .cl-entry { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 16px; }
-    .cl-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .cl-version { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--white); font-size: 0.9rem; }
-    .cl-date { font-size: 0.75rem; color: var(--zinc-700); }
-    .cl-body { font-size: 0.875rem; color: var(--zinc-400); }
+    .changelog { padding: 100px 0; border-top: 1px solid var(--border); }
+    .changelog h2 { font-size: 2rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 48px; text-align: center; }
+    .cl-entry { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 20px; padding: 32px; margin-bottom: 24px; }
+    .cl-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .cl-version { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--white); font-size: 1rem; background: var(--zinc-900); padding: 4px 12px; border-radius: 6px; }
+    .cl-date { font-size: 0.8125rem; color: var(--zinc-700); font-weight: 600; }
+    .cl-body { font-size: 0.9375rem; color: var(--zinc-400); line-height: 1.7; }
 
-    footer { border-top: 1px solid var(--border); padding: 60px 0 40px; text-align: center; }
-    .logo-footer { display: flex; align-items: center; gap: 10px; justify-content: center; margin-bottom: 24px; color: var(--white); font-weight: 700; font-size: 1.1rem; }
-    .logo-footer img { width: 28px; height: 28px; filter: brightness(0) invert(1); }
-    .footer-links { display: flex; justify-content: center; gap: 32px; margin-bottom: 32px; }
-    .footer-links a { color: var(--zinc-400); text-decoration: none; font-size: 0.8125rem; transition: color 0.2s; }
+    /* ─── Footer ───────────────────────────────────────────── */
+    footer { border-top: 1px solid var(--border); padding: 80px 0 60px; text-align: center; background: rgba(255,255,255,0.01); }
+    .logo-footer { display: flex; align-items: center; gap: 12px; justify-content: center; margin-bottom: 32px; color: var(--white); font-weight: 800; font-size: 1.25rem; }
+    .logo-footer img { width: 32px; height: 32px; filter: brightness(0) invert(1); }
+    .footer-links { display: flex; justify-content: center; gap: 40px; margin-bottom: 40px; }
+    .footer-links a { color: var(--zinc-400); text-decoration: none; font-size: 0.875rem; transition: color 0.2s; font-weight: 500; }
     .footer-links a:hover { color: var(--white); }
+
+    .btn-outline { 
+      padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.875rem;
+      cursor: pointer; transition: all 0.2s; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent; color: var(--white); border: 1px solid var(--border); 
+    }
+    .btn-outline:hover { background: var(--zinc-900); border-color: var(--zinc-700); }
 
     @media (max-width: 850px) {
       .story-grid, .workflow, .bento { grid-template-columns: 1fr; }
-      .bento-card { grid-column: span 1; }
-      .hero h1 { font-size: 1rem; }
+      .hero h1 { font-size: 2rem; }
+      .story { text-align: center; }
+      .story-grid { gap: 40px; }
     }
   </style>
 </head>
@@ -230,29 +260,29 @@ cd smb-claw && bash setup.sh</code></pre>
     </div>
   </section>
 
-  <section id="recursos" class="container" style="padding-bottom: 80px;">
+  <section id="recursos" class="container" style="padding-bottom: 100px;">
     <div class="bento">
-      <div class="bento-card bento-span-3">
-        <h4><i data-lucide="lock" style="width: 18px;"></i> Acesso Temporário</h4>
-        <p>Painel protegido por tokens in-memory. Sem senhas estáticas. Expiração automática após 30 minutos de inatividade.</p>
+      <div class="bento-card">
+        <h4><i data-lucide="lock" style="width: 20px;"></i> Acesso Temporário</h4>
+        <p>Painel administrativo protegido por tokens in-memory. Sem senhas estáticas. Expiração automática após 30 minutos de inatividade.</p>
       </div>
-      <div class="bento-card bento-span-3">
-        <h4><i data-lucide="users" style="width: 18px;"></i> Sub-agentes</h4>
-        <p>Delegue tarefas para agentes especializados criados dinamicamente via chat.</p>
+      <div class="bento-card">
+        <h4><i data-lucide="users" style="width: 20px;"></i> Sub-agentes</h4>
+        <p>Delegue tarefas para agentes especializados criados dinamicamente via chat para processamentos específicos.</p>
       </div>
-      <div class="bento-card bento-span-3">
-        <h4><i data-lucide="database" style="width: 18px;"></i> Memória em Camadas</h4>
-        <p>Gestão eficiente de contexto: <strong>Soul</strong> (regras imutáveis), <strong>USER.md</strong> (preferências) e <strong>MEMORY.md</strong> (longo prazo). Persistência técnica via SQLite que sobrevive a reinicializações sem perda de foco.</p>
+      <div class="bento-card">
+        <h4><i data-lucide="database" style="width: 20px;"></i> Memória em Camadas</h4>
+        <p>Gestão técnica de contexto: <strong>Soul</strong> (regras), <strong>USER.md</strong> (perfil) e <strong>MEMORY.md</strong> (destilado). Persistência via SQLite para manter o histórico estável entre reinicializações.</p>
       </div>
-      <div class="bento-card bento-span-3">
-        <h4><i data-lucide="zap" style="width: 18px;"></i> Bug Fixer Autônomo</h4>
-        <p>Agente que monitora logs, detecta erros e sugere correções via Telegram de forma proativa.</p>
+      <div class="bento-card">
+        <h4><i data-lucide="zap" style="width: 20px;"></i> Bug Fixer Autônomo</h4>
+        <p>Agente dedicado que monitora logs, analisa falhas e sugere correções ou alerta o administrador via Telegram de forma proativa.</p>
       </div>
     </div>
   </section>
 
   <section id="changelog" class="changelog container">
-    <h2 style="text-align: center; margin-bottom: 48px; letter-spacing: -0.04em;">O que há de novo</h2>
+    <h2>O que há de novo</h2>
     <div class="cl-entry">
       <div class="cl-header">
         <span class="cl-version">v0.7.0</span>
@@ -294,7 +324,7 @@ cd smb-claw && bash setup.sh</code></pre>
         <a href="https://github.com/alozs/smb-claw" target="_blank">Repositório</a>
         <a href="https://github.com/alozs/smb-claw/blob/main/LICENSE" target="_blank">Licença MIT</a>
       </div>
-      <p style="color: var(--zinc-700); font-size: 0.75rem;">SMB Claw • 2026 • Simplicidade e Controle.</p>
+      <p style="color: var(--zinc-700); font-size: 0.8125rem; font-weight: 500;">SMB Claw • 2026 • Simplicidade e Controle.</p>
     </div>
   </footer>
 
