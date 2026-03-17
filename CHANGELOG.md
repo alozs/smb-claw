@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.14 (2026-03-17)
+
+• Mensagem "⏳ Pensando..." com animação agora é exibida para todos os provedores (Codex, Anthropic, OpenRouter), não apenas para claude-cli
+
 ## 0.6.13 (2026-03-17)
 
 Correções
