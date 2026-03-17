@@ -312,11 +312,47 @@ def _make_openrouter_client():
     )
 
 _CODEX_AUTH_PATH = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "auth.json"
+_CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
+_CODEX_TOKEN_URL = "https://auth.openai.com/oauth/token"
+
+
+def _refresh_codex_token(auth: dict) -> dict | None:
+    """Refresh Codex OAuth token using refresh_token. Returns updated auth dict or None."""
+    import urllib.request
+    refresh_token = auth.get("tokens", {}).get("refresh_token", "")
+    if not refresh_token:
+        return None
+    try:
+        data = urllib.parse.urlencode({
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": _CODEX_CLIENT_ID,
+        }).encode()
+        req = urllib.request.Request(
+            _CODEX_TOKEN_URL, data=data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            tokens = json.loads(resp.read())
+        auth["tokens"]["access_token"] = tokens["access_token"]
+        if tokens.get("refresh_token"):
+            auth["tokens"]["refresh_token"] = tokens["refresh_token"]
+        if tokens.get("id_token"):
+            auth["tokens"]["id_token"] = tokens["id_token"]
+        auth["last_refresh"] = __import__("datetime").datetime.now().isoformat()
+        _CODEX_AUTH_PATH.write_text(json.dumps(auth, indent=2))
+        os.chmod(_CODEX_AUTH_PATH, 0o600)
+        logger.info("Codex OAuth token refreshed successfully")
+        return auth
+    except Exception as e:
+        logger.warning(f"Codex token refresh failed: {e}")
+        return None
+
 
 def _make_codex_client():
     """Cria cliente OpenAI usando OAuth do Codex CLI (ChatGPT OAuth) ou OPENAI_API_KEY.
-    Lê access_token de ~/.codex/auth.json a cada chamada (token refresh automático).
-    OAuth usa endpoint WHAM (chatgpt.com/backend-api/wham) que aceita ChatGPT Plus."""
+    Lê access_token de ~/.codex/auth.json a cada chamada. Se expirado, tenta refresh
+    automático usando refresh_token. OAuth usa endpoint WHAM (chatgpt.com/backend-api/wham)."""
     from openai import AsyncOpenAI
     if OPENAI_API_KEY:
         return AsyncOpenAI(api_key=OPENAI_API_KEY)
@@ -739,12 +775,26 @@ async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
     t0 = time.monotonic()
     total_input = total_output = total_tool_calls = 0
     error_str = ""
+    _refreshed = False
     try:
         for _ in range(20):
             kwargs = dict(model=MODEL, instructions=system, input=resp_input, store=False, stream=True)
             if resp_tools:
                 kwargs["tools"] = resp_tools
-            stream = await client.responses.create(**kwargs)
+            try:
+                stream = await client.responses.create(**kwargs)
+            except Exception as _api_err:
+                if not _refreshed and "403" in str(_api_err) and _CODEX_AUTH_PATH.exists():
+                    auth = json.loads(_CODEX_AUTH_PATH.read_text())
+                    refreshed = _refresh_codex_token(auth)
+                    if refreshed:
+                        client = _make_codex_client()
+                        _refreshed = True
+                        stream = await client.responses.create(**kwargs)
+                    else:
+                        raise
+                else:
+                    raise
             # Consumir stream — extrair resposta final do evento completed
             text_parts = []
             _cur_text = {}

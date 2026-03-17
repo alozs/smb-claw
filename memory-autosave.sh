@@ -232,21 +232,56 @@ elif provider == "openai_key":
     result = resp.choices[0].message.content.strip()
 
 elif provider == "codex_oauth":
+    import urllib.request, urllib.parse, os as _os
     from openai import OpenAI
+
+    def _refresh_codex(auth_data, auth_path):
+        rt = auth_data.get("tokens", {}).get("refresh_token", "")
+        if not rt:
+            return None
+        data = urllib.parse.urlencode({
+            "grant_type": "refresh_token", "refresh_token": rt,
+            "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+        }).encode()
+        req = urllib.request.Request(
+            "https://auth.openai.com/oauth/token", data=data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            tokens = json.loads(resp.read())
+        auth_data["tokens"]["access_token"] = tokens["access_token"]
+        if tokens.get("refresh_token"):
+            auth_data["tokens"]["refresh_token"] = tokens["refresh_token"]
+        if tokens.get("id_token"):
+            auth_data["tokens"]["id_token"] = tokens["id_token"]
+        auth_path.write_text(json.dumps(auth_data, indent=2))
+        _os.chmod(auth_path, 0o600)
+        return auth_data
+
     auth = json.loads(codex_auth.read_text())
-    token = auth["tokens"]["access_token"]
-    account_id = auth.get("account_id", "")
-    headers = {}
-    if account_id:
-        headers["ChatGPT-Account-Id"] = account_id
-    client = OpenAI(
-        api_key=token,
-        base_url="https://chatgpt.com/backend-api/wham",
-        default_headers=headers,
-    )
-    resp = client.responses.create(
-        model="gpt-4o-mini", input=prompt,
-    )
+
+    def _make_codex_client(a):
+        t = a["tokens"]["access_token"]
+        aid = a.get("account_id", "")
+        h = {}
+        if aid:
+            h["ChatGPT-Account-Id"] = aid
+        return OpenAI(api_key=t, base_url="https://chatgpt.com/backend-api/wham", default_headers=h)
+
+    client = _make_codex_client(auth)
+    try:
+        resp = client.responses.create(model="gpt-4o-mini", input=prompt)
+    except Exception as _e:
+        if "403" in str(_e):
+            print("  Token expirado, tentando refresh...", file=sys.stderr)
+            auth = _refresh_codex(auth, codex_auth)
+            if auth:
+                client = _make_codex_client(auth)
+                resp = client.responses.create(model="gpt-4o-mini", input=prompt)
+            else:
+                raise
+        else:
+            raise
     result = resp.output_text.strip()
 
 if not result:
