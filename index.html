@@ -833,6 +833,20 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.6.9</span>
+            <span class="cl-date">2026-03-17</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>**Novas funcionalidades**</li>
+              <li>A ferramenta Git agora suporta operações avançadas de sincronização com repositórios remotos: é possível fazer fetch para atualizar referências sem mesclar, checkout para trocar de branch e pull direcionado a uma branch específica — tudo diretamente pelo agente, sem precisar de comandos shell manuais.</li>
+              <li>A autenticação Git ganhou flexibilidade: agora é possível indicar qual variável de ambiente contém o token de acesso, permitindo que diferentes bots ou sub-agentes usem credenciais distintas sem conflito.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.6.8</span>
             <span class="cl-date">2026-03-17</span>
           </div>
@@ -855,19 +869,6 @@
               <li>Correções</li>
               <li>Processo de atualização via /update agora aguarda corretamente o encerramento de cada bot antes de reiniciá-lo, eliminando conflitos de instâncias duplicadas em ambientes Docker</li>
               <li>Locks obsoletos são automaticamente removidos durante o restart, prevenindo falhas de inicialização causadas por arquivos de lock órfãos após paradas inesperadas</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.6.5</span>
-            <span class="cl-date">2026-03-17</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>### Novas funcionalidades</li>
-              <li>Refresh automático do token OAuth do Codex: quando o token de acesso expira e a API retorna erro 403, o sistema agora renova a credencial automaticamente sem necessidade de intervenção manual ou reinício do bot. Bots configurados com provider `codex` mantêm operação contínua mesmo após expiração do token.</li>
             </ul>
           </div>
         </div>

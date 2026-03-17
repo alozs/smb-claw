@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.9 (2026-03-17)
+
+**Novas funcionalidades**
+
+• A ferramenta Git agora suporta operações avançadas de sincronização com repositórios remotos: é possível fazer fetch para atualizar referências sem mesclar, checkout para trocar de branch e pull direcionado a uma branch específica — tudo diretamente pelo agente, sem precisar de comandos shell manuais.
+
+• A autenticação Git ganhou flexibilidade: agora é possível indicar qual variável de ambiente contém o token de acesso, permitindo que diferentes bots ou sub-agentes usem credenciais distintas sem conflito.
+
 ## 0.6.8 (2026-03-17)
 
 
