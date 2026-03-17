@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.15 (2026-03-17)
+
+**Correções**
+
+• A notificação de ferramenta ativa (indicador que aparece enquanto o agente executa uma ação) agora funciona corretamente em todos os provedores suportados — Anthropic, OpenRouter, Codex e claude-cli. Antes, a exibição era inconsistente dependendo do provedor configurado.
+
 ## 0.6.14 (2026-03-17)
 
 • Mensagem "⏳ Pensando..." com animação agora é exibida para todos os provedores (Codex, Anthropic, OpenRouter), não apenas para claude-cli

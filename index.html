@@ -833,6 +833,19 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.6.15</span>
+            <span class="cl-date">2026-03-17</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>**Correções**</li>
+              <li>A notificação de ferramenta ativa (indicador que aparece enquanto o agente executa uma ação) agora funciona corretamente em todos os provedores suportados — Anthropic, OpenRouter, Codex e claude-cli. Antes, a exibição era inconsistente dependendo do provedor configurado.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.6.13</span>
             <span class="cl-date">2026-03-17</span>
           </div>
@@ -855,20 +868,6 @@
               <li>Correções</li>
               <li>Ambientes Docker agora funcionam corretamente com agendamentos: o pacote `cron` é instalado automaticamente durante o setup, eliminando falhas silenciosas em containers que não o incluem por padrão.</li>
               <li>Quando o `cron` não está disponível no sistema, o bot exibe uma mensagem de erro clara e direta em vez de falhar sem explicação, facilitando o diagnóstico em ambientes restritos.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.6.9</span>
-            <span class="cl-date">2026-03-17</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>**Novas funcionalidades**</li>
-              <li>A ferramenta Git agora suporta operações avançadas de sincronização com repositórios remotos: é possível fazer fetch para atualizar referências sem mesclar, checkout para trocar de branch e pull direcionado a uma branch específica — tudo diretamente pelo agente, sem precisar de comandos shell manuais.</li>
-              <li>A autenticação Git ganhou flexibilidade: agora é possível indicar qual variável de ambiente contém o token de acesso, permitindo que diferentes bots ou sub-agentes usem credenciais distintas sem conflito.</li>
             </ul>
           </div>
         </div>
