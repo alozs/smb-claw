@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.11 (2026-03-17)
+
+Correções
+
+• Ambientes Docker agora funcionam corretamente com agendamentos: o pacote `cron` é instalado automaticamente durante o setup, eliminando falhas silenciosas em containers que não o incluem por padrão.
+• Quando o `cron` não está disponível no sistema, o bot exibe uma mensagem de erro clara e direta em vez de falhar sem explicação, facilitando o diagnóstico em ambientes restritos.
+
 ## 0.6.10 (2026-03-17)
 
 • Corrige conflito de lock ao reiniciar bot pelo painel admin: espera o processo morrer e limpa o lock antes de iniciar a nova instância

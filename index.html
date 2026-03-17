@@ -833,6 +833,20 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.6.11</span>
+            <span class="cl-date">2026-03-17</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>Correções</li>
+              <li>Ambientes Docker agora funcionam corretamente com agendamentos: o pacote `cron` é instalado automaticamente durante o setup, eliminando falhas silenciosas em containers que não o incluem por padrão.</li>
+              <li>Quando o `cron` não está disponível no sistema, o bot exibe uma mensagem de erro clara e direta em vez de falhar sem explicação, facilitando o diagnóstico em ambientes restritos.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.6.9</span>
             <span class="cl-date">2026-03-17</span>
           </div>
@@ -855,20 +869,6 @@
             <ul>
               <li>### Correções</li>
               <li>Reforço na segurança do shell: comandos potencialmente destrutivos como `kill`, `pkill`, `systemctl` e acesso direto ao `bot.py` agora são bloqueados pela denylist do shell tool, impedindo que agentes interrompam serviços ou processos do sistema de forma acidental ou maliciosa.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.6.7</span>
-            <span class="cl-date">2026-03-17</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>Correções</li>
-              <li>Processo de atualização via /update agora aguarda corretamente o encerramento de cada bot antes de reiniciá-lo, eliminando conflitos de instâncias duplicadas em ambientes Docker</li>
-              <li>Locks obsoletos são automaticamente removidos durante o restart, prevenindo falhas de inicialização causadas por arquivos de lock órfãos após paradas inesperadas</li>
             </ul>
           </div>
         </div>
