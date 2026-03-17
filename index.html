@@ -833,6 +833,22 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.6.3</span>
+            <span class="cl-date">2026-03-17</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>### Correções</li>
+              <li>Corrigido o endpoint de autenticação OAuth do provedor Codex, garantindo que bots configurados com modelos OpenAI voltem a funcionar normalmente</li>
+              <li>### Melhorias</li>
+              <li>O painel admin agora exibe o provedor efetivo de cada bot (API key, OAuth Claude, OAuth Codex, OpenRouter), facilitando o diagnóstico de problemas de autenticação</li>
+              <li>Aprimorado o sistema de notificações proativas, tornando os agendamentos mais confiáveis e consistentes</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.6.2</span>
             <span class="cl-date">2026-03-17</span>
           </div>
@@ -854,21 +870,6 @@
             <ul>
               <li>### Novas funcionalidades</li>
               <li>A porta do painel admin agora é configurável através da variável ADMIN_PORT, permitindo escolher em qual porta o painel web será servido. Útil para ambientes onde a porta padrão já está em uso ou quando se deseja rodar múltiplas instâncias lado a lado.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.6.0</span>
-            <span class="cl-date">2026-03-17</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>Novas funcionalidades</li>
-              <li>Suporte completo a Docker: todos os pontos do sistema que dependiam de systemd agora funcionam também em containers Docker, permitindo rodar o SMB Claw em ambientes containerizados sem adaptações manuais</li>
-              <li>Detecção automática do ambiente de execução — o framework identifica se está rodando em uma VPS com systemd ou em um container Docker e ajusta o gerenciamento de serviços adequadamente</li>
-              <li>Flexibilidade de deploy ampliada: agora é possível escolher entre instalação direta na VPS ou deploy via Docker conforme a necessidade da sua infraestrutura</li>
             </ul>
           </div>
         </div>

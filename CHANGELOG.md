@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.3 (2026-03-17)
+
+
+
+### Correções
+
+• Corrigido o endpoint de autenticação OAuth do provedor Codex, garantindo que bots configurados com modelos OpenAI voltem a funcionar normalmente
+
+### Melhorias
+
+• O painel admin agora exibe o provedor efetivo de cada bot (API key, OAuth Claude, OAuth Codex, OpenRouter), facilitando o diagnóstico de problemas de autenticação
+• Aprimorado o sistema de notificações proativas, tornando os agendamentos mais confiáveis e consistentes
+
 ## 0.6.2 (2026-03-17)
 
 
