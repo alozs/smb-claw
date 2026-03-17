@@ -45,3 +45,7 @@ bots/*/avatar.*
 # ── Env local ─────────────────────────────────────────────────────────────────
 .env
 .env.local
+
+# ── Scripts pessoais / fora do projeto ────────────────────────────────────────
+radar-collect.py
+.memory_autosave_state

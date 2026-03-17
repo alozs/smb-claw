@@ -2,15 +2,9 @@
 
 ## 0.7.0 (2026-03-17)
 
-Agora tenho o panorama completo. Gerando as notas de release:
-
----
-
 **Novas funcionalidades**
 
 • Raciocínio estendido por sessão: novo comando `/thinking` permite ativar o modo de pensamento profundo do modelo em quatro níveis (off, low, medium, high), com orçamentos de até 16 mil tokens de raciocínio interno. Funciona nos provedores Anthropic e Claude-CLI.
-
-• Coleta automática de dados de mercado: novo script `radar-collect.py` busca preços, variações, médias móveis (SMA 20/50d), volume e notícias de ações via yfinance, salvando snapshots diários no workspace do bot Radar de Ações.
 
 **Melhorias**
 
