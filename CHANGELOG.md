@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.8 (2026-03-17)
+
+
+
+### Correções
+
+• Reforço na segurança do shell: comandos potencialmente destrutivos como `kill`, `pkill`, `systemctl` e acesso direto ao `bot.py` agora são bloqueados pela denylist do shell tool, impedindo que agentes interrompam serviços ou processos do sistema de forma acidental ou maliciosa.
+
 ## 0.6.7 (2026-03-17)
 
 Correções
