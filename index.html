@@ -3,15 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SMB Claw — Agentes de IA que trabalham para você</title>
-  <meta name="description" content="Framework open source para rodar múltiplos agentes de IA no Telegram com foco em segurança, facilidade e controle total." />
+  <title>SMB Claw — Orquestração Profissional de Agentes Telegram</title>
+  <meta name="description" content="O framework open-source para rodar agentes de IA resilientes, seguros e com memória persistente." />
   <link rel="icon" type="image/png" href="admin/static/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root {
-      --bg: #000000;
+      --bg: #030303;
       --zinc-950: #09090b;
       --zinc-900: #18181b;
       --zinc-800: #27272a;
@@ -20,7 +22,7 @@
       --zinc-100: #f4f4f5;
       --white: #ffffff;
       --accent: #ffffff;
-      --border: rgba(255, 255, 255, 0.1);
+      --border: rgba(255, 255, 255, 0.08);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,155 +32,109 @@
       font-family: 'Inter', system-ui, sans-serif;
       background: var(--bg);
       color: var(--zinc-100);
-      line-height: 1.5;
+      line-height: 1.6;
       overflow-x: hidden;
     }
 
-    /* ─── Layout & Background ──────────────────────────────── */
     .grid-bg {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background-image: 
-        radial-gradient(circle at 50% 50%, rgba(255,255,255,0.02) 0%, transparent 80%),
+        radial-gradient(circle at 50% 0%, rgba(255,255,255,0.03) 0%, transparent 70%),
         linear-gradient(var(--border) 1px, transparent 1px),
         linear-gradient(90deg, var(--border) 1px, transparent 1px);
-      background-size: 100% 100%, 60px 60px, 60px 60px;
+      background-size: 100% 100%, 80px 80px, 80px 80px;
       z-index: -1;
       mask-image: radial-gradient(ellipse at 50% 50%, black, transparent 90%);
     }
 
-    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
-
-    /* ─── Typography ────────────────────────────────────────── */
-    h1, h2, h3 { font-weight: 800; letter-spacing: -0.04em; color: var(--white); }
-    .mono { font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+    .container { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
 
     /* ─── Nav ──────────────────────────────────────────────── */
     nav {
       position: fixed; top: 0; width: 100%; z-index: 1000;
       border-bottom: 1px solid var(--border);
-      background: rgba(0,0,0,0.7);
+      background: rgba(3,3,3,0.8);
       backdrop-filter: blur(12px);
     }
 
-    .nav-inner {
-      height: 64px; display: flex; align-items: center; justify-content: space-between;
-    }
-
-    .logo {
-      display: flex; align-items: center; gap: 12px;
-      font-weight: 700; font-size: 1rem;
-    }
-
-    .logo img { width: 32px; height: 32px; }
+    .nav-inner { height: 64px; display: flex; align-items: center; justify-content: space-between; }
+    .logo-link { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--white); font-weight: 700; font-size: 0.9rem; }
+    .logo-link img { width: 28px; height: 28px; }
 
     .nav-links { display: flex; gap: 24px; list-style: none; }
-    .nav-links a { 
-      font-size: 0.875rem; color: var(--zinc-400); text-decoration: none; 
-      transition: color 0.2s;
-    }
+    .nav-links a { font-size: 0.8125rem; color: var(--zinc-400); text-decoration: none; transition: color 0.2s; }
     .nav-links a:hover { color: var(--white); }
 
     /* ─── Hero ─────────────────────────────────────────────── */
-    .hero { padding: 160px 0 100px; text-align: center; }
-    .badge {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 6px 12px; border-radius: 100px;
-      background: var(--zinc-900); border: 1px solid var(--border);
-      font-size: 0.75rem; font-weight: 600; color: var(--zinc-400);
-      margin-bottom: 32px;
+    .hero { padding: 140px 0 80px; text-align: center; }
+    
+    .hero-logo-container {
+      width: 120px; height: 120px; margin: 0 auto 32px;
+      position: relative;
+    }
+    .hero-logo-container img {
+      width: 100%; height: 100%;
+      filter: drop-shadow(0 0 20px rgba(255,255,255,0.1));
     }
 
-    .hero h1 {
-      font-size: clamp(2.5rem, 6vw, 4.5rem); line-height: 1;
-      margin-bottom: 24px;
-    }
-
-    .hero p {
-      font-size: 1.25rem; color: var(--zinc-400);
-      max-width: 650px; margin: 0 auto 48px;
-    }
-
-    .cta-group { display: flex; gap: 16px; justify-content: center; }
+    .hero h1 { font-size: clamp(2.2rem, 5vw, 3.8rem); font-weight: 800; letter-spacing: -0.05em; color: var(--white); line-height: 1.1; margin-bottom: 24px; }
+    .hero p { font-size: 1.125rem; color: var(--zinc-400); max-width: 600px; margin: 0 auto 40px; }
 
     .btn {
-      padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.9375rem;
+      padding: 10px 20px; border-radius: 6px; font-weight: 600; font-size: 0.875rem;
       cursor: pointer; transition: all 0.2s; text-decoration: none;
       display: inline-flex; align-items: center; gap: 8px;
     }
-
     .btn-white { background: var(--white); color: var(--bg); }
-    .btn-white:hover { opacity: 0.9; transform: translateY(-1px); }
-
+    .btn-white:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,255,255,0.15); }
     .btn-outline { background: transparent; color: var(--white); border: 1px solid var(--border); }
-    .btn-outline:hover { background: var(--zinc-900); }
+    .btn-outline:hover { background: var(--zinc-900); border-color: var(--zinc-700); }
 
-    /* ─── Workflow Section ─────────────────────────────────── */
-    .section { padding: 100px 0; }
-    .section-header { text-align: center; margin-bottom: 80px; }
-    .section-header h2 { font-size: 2.5rem; margin-bottom: 16px; }
-    .section-header p { color: var(--zinc-400); font-size: 1.125rem; }
-
-    .workflow {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px;
-    }
-
-    .flow-card {
-      position: relative; padding: 40px;
+    /* ─── Install Section ──────────────────────────────────── */
+    .install-box {
       background: var(--zinc-950); border: 1px solid var(--border);
-      border-radius: 24px;
+      border-radius: 12px; padding: 20px; margin: 40px auto;
+      max-width: 600px; text-align: left; position: relative;
     }
+    .install-box pre { font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; color: var(--zinc-100); overflow-x: auto; }
+    .install-box .label { position: absolute; top: -10px; left: 20px; background: var(--bg); padding: 0 8px; font-size: 0.65rem; color: var(--zinc-400); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
 
-    .flow-icon {
-      width: 48px; height: 48px; border-radius: 12px;
-      background: var(--zinc-900); border: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 24px; color: var(--white);
-    }
-
-    .flow-card h3 { margin-bottom: 12px; font-size: 1.25rem; }
-    .flow-card p { color: var(--zinc-400); font-size: 0.9375rem; line-height: 1.6; }
-
-    .terminal-box {
-      margin-top: 24px; background: #000; border-radius: 12px;
-      padding: 16px; border: 1px solid var(--border);
-      font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem;
-    }
+    /* ─── Workflow ─────────────────────────────────────────── */
+    .workflow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 80px 0; }
+    .step { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 16px; padding: 32px; transition: transform 0.2s; }
+    .step:hover { border-color: rgba(255,255,255,0.15); }
+    .step-icon { width: 40px; height: 40px; background: var(--zinc-900); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; color: var(--white); }
+    .step h3 { font-size: 1.125rem; margin-bottom: 12px; }
+    .step p { font-size: 0.875rem; color: var(--zinc-400); line-height: 1.6; }
 
     /* ─── Bento Grid ────────────────────────────────────────── */
-    .bento {
-      display: grid; grid-template-columns: repeat(6, 1fr);
-      grid-template-rows: repeat(2, auto); gap: 16px;
-    }
+    .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
+    .bento-card { background: var(--zinc-950); border: 1px solid var(--border); border-radius: 20px; padding: 24px; position: relative; overflow: hidden; }
+    .bento-card:hover { border-color: rgba(255,255,255,0.15); }
+    
+    .bento-card h4 { font-size: 1rem; margin-bottom: 8px; color: var(--white); display: flex; align-items: center; gap: 8px; }
+    .bento-card p { font-size: 0.8125rem; color: var(--zinc-400); }
+    
+    .bento-span-3 { grid-column: span 3; }
+    .bento-span-2 { grid-column: span 2; }
+    .bento-span-4 { grid-column: span 4; }
 
-    .bento-item {
-      background: var(--zinc-950); border: 1px solid var(--border);
-      border-radius: 24px; padding: 32px;
-      transition: border-color 0.2s;
-    }
-    .bento-item:hover { border-color: rgba(255,255,255,0.2); }
+    .tag { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: var(--zinc-900); color: var(--zinc-400); }
+    .tag-green { color: #10b981; background: rgba(16,185,129,0.1); }
+    .tag-blue { color: #3b82f6; background: rgba(59,130,246,0.1); }
 
-    .bento-1 { grid-column: span 3; }
-    .bento-2 { grid-column: span 3; }
-    .bento-3 { grid-column: span 2; }
-    .bento-4 { grid-column: span 4; }
+    /* ─── Footer ───────────────────────────────────────────── */
+    footer { border-top: 1px solid var(--border); padding: 60px 0 40px; text-align: center; }
+    .footer-links { display: flex; justify-content: center; gap: 32px; margin-bottom: 32px; }
+    .footer-links a { color: var(--zinc-400); text-decoration: none; font-size: 0.8125rem; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--white); }
 
-    /* ─── Security / Expiration ─────────────────────────────── */
-    .security-badge {
-      display: flex; align-items: center; gap: 8px;
-      color: #10b981; font-size: 0.8125rem; font-weight: 600;
-      margin-bottom: 16px;
-    }
-
-    /* ─── Responsive ───────────────────────────────────────── */
-    @media (max-width: 900px) {
+    @media (max-width: 850px) {
       .workflow { grid-template-columns: 1fr; }
       .bento { grid-template-columns: 1fr; }
-      .bento-item { grid-column: span 1; }
-      .hero h1 { font-size: 3rem; }
+      .bento-card { grid-column: span 1; }
+      .hero h1 { font-size: 2.5rem; }
     }
-
-    /* Icons */
-    .icon { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   </style>
 </head>
 <body>
@@ -187,143 +143,124 @@
 
   <nav>
     <div class="container nav-inner">
-      <div class="logo">
+      <a href="#" class="logo-link">
         <img src="admin/static/logo2.png" alt="SMB Claw Logo" />
         smb-claw
-      </div>
+      </a>
       <ul class="nav-links">
-        <li><a href="#fluxo">Fluxo</a></li>
-        <li><a href="#recursos">Recursos</a></li>
-        <li><a href="https://github.com/alozs/smb-claw" target="_blank">GitHub</a></li>
+        <li><a href="#workflow">Fluxo</a></li>
+        <li><a href="#features">Recursos</a></li>
+        <li><a href="https://github.com/alozs/smb-claw" target="_blank">Repositório</a></li>
       </ul>
-      <div>
-        <a href="https://github.com/alozs/smb-claw" class="btn btn-outline" style="padding: 8px 16px; font-size: 0.8125rem;">Star on GitHub</a>
-      </div>
+      <a href="https://github.com/alozs/smb-claw" class="btn btn-outline" style="padding: 6px 14px; font-size: 0.75rem;">
+        <i data-lucide="github" style="width: 14px;"></i> Star
+      </a>
     </div>
   </nav>
 
   <header class="hero container">
-    <div class="badge">
-      <svg class="icon"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      v0.7.0 — Reasoning Update
+    <div class="hero-logo-container">
+      <img src="admin/static/logo2.png" alt="SMB Claw Logo" />
     </div>
-    <h1>Construa agentes.<br />Mantenha o controle.</h1>
-    <p>O framework de orquestração de IA que prioriza o controle total do desenvolvedor. Do terminal para o Telegram em 5 minutos.</p>
-    <div class="cta-group">
-      <a href="https://github.com/alozs/smb-claw" class="btn btn-white">
-        Get Started
-        <svg class="icon" style="width: 16px; height: 16px;"><polyline points="9 18 15 12 9 6"/></svg>
-      </a>
-      <a href="#fluxo" class="btn btn-outline">Ver como funciona</a>
+    <h1>Agentes Telegram que <span>escalam</span> com você.</h1>
+    <p>O framework resiliente para gerenciar múltiplos agentes de IA. Do setup no terminal à operação total via Telegram e Painel Web.</p>
+    
+    <div class="cta-group" style="display: flex; gap: 12px; justify-content: center;">
+      <a href="#install" class="btn btn-white">Começar Instalação</a>
+      <a href="https://github.com/alozs/smb-claw" class="btn btn-outline" target="_blank">Documentação</a>
+    </div>
+
+    <div id="install" class="install-box">
+      <div class="label">Instalação via Terminal</div>
+      <pre><code>git clone https://github.com/alozs/smb-claw
+cd smb-claw && bash setup.sh</code></pre>
     </div>
   </header>
 
-  <section id="fluxo" class="section container">
-    <div class="section-header">
-      <h2>O Ciclo de Vida do Agente</h2>
-      <p>Desenvolvido para ser configurado uma vez e operado de qualquer lugar.</p>
-    </div>
-
+  <section id="workflow" class="container">
     <div class="workflow">
-      <!-- Passo 1: Terminal -->
-      <div class="flow-card">
-        <div class="flow-icon">
-          <svg class="icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-        </div>
-        <h3>01. Instalação Zero-Drama</h3>
-        <p>Use o terminal apenas para o essencial. O setup configura seu ambiente, detecta o provedor e sobe os serviços de base.</p>
-        <div class="terminal-box mono">
-          <span style="color:var(--zinc-400)">$</span> bash setup.sh
-        </div>
+      <div class="step">
+        <div class="step-icon"><i data-lucide="terminal"></i></div>
+        <h3>01. Setup Rápido</h3>
+        <p>Um único comando para configurar dependências, detectar provedores (Claude, OpenRouter, Codex) e iniciar o Painel Admin.</p>
       </div>
-
-      <!-- Passo 2: Telegram -->
-      <div class="flow-card">
-        <div class="flow-icon">
-          <svg class="icon"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-        </div>
-        <h3>02. Operação Via Chat</h3>
-        <p>Crie novos agentes, defina personalidades e execute comandos administrativos diretamente pelo Telegram. O terminal agora é opcional.</p>
-        <div class="terminal-box mono" style="background: var(--zinc-900);">
-          <span style="color: #409eff">/criar_agente</span>
-        </div>
+      <div class="step">
+        <div class="step-icon"><i data-lucide="message-square"></i></div>
+        <h3>02. Gestão via Telegram</h3>
+        <p>Crie agentes e sub-agentes com <code style="color:var(--white)">/criar_agente</code>. Controle tudo via chat, sem precisar tocar no servidor novamente.</p>
       </div>
-
-      <!-- Passo 3: Painel -->
-      <div class="flow-card">
-        <div class="flow-icon">
-          <svg class="icon"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-        </div>
-        <h3>03. Gestão Web Segura</h3>
-        <p>Acesse logs em tempo real, gerencie memória de longo prazo e edite configurações pelo painel web protegido por tokens temporários.</p>
-        <div class="terminal-box mono" style="border-color: #10b981;">
-          <span style="color: #10b981">✔ Access Token: 4j2k...</span>
-        </div>
+      <div class="step">
+        <div class="step-icon"><i data-lucide="shield-check"></i></div>
+        <h3>03. Painel de Controle</h3>
+        <p>Acesse o painel web para logs em tempo real e ajustes finos. Protegido por tokens temporários gerados no Telegram.</p>
       </div>
     </div>
   </section>
 
-  <section id="recursos" class="section container">
-    <div class="section-header">
-      <h2>Segurança e Governança</h2>
-      <p>Agentes poderosos exigem responsabilidade e isolamento.</p>
+  <section id="features" class="container" style="padding-bottom: 100px;">
+    <div style="text-align: center; margin-bottom: 48px;">
+      <h2 style="font-size: 2rem; letter-spacing: -0.04em;">Recursos de Elite</h2>
     </div>
 
     <div class="bento">
-      <div class="bento-item bento-1">
-        <div class="security-badge">
-          <svg class="icon" style="width: 14px; height: 14px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          ADMIN AUTH
-        </div>
-        <h3>Tokens com Expiração</h3>
-        <p style="color: var(--zinc-400); margin-top: 12px;">O painel admin não usa senhas estáticas. Acesse via tokens gerados pelo bot que expiram em 2 horas ou no próximo reinício.</p>
+      <!-- Segurança -->
+      <div class="bento-card bento-span-4">
+        <div style="margin-bottom: 12px;"><span class="tag tag-green">Segurança</span></div>
+        <h4><i data-lucide="lock" style="width: 18px;"></i> Acesso Temporário</h4>
+        <p>O painel administrativo utiliza autenticação por tokens in-memory com validade de <strong>30 minutos</strong>. Sem senhas estáticas expostas no servidor.</p>
       </div>
 
-      <div class="bento-item bento-2">
-        <div class="security-badge" style="color: #60a5fa;">
-          <svg class="icon" style="width: 14px; height: 14px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          SANDBOX
-        </div>
-        <h3>Shell Denylist</h3>
-        <p style="color: var(--zinc-400); margin-top: 12px;">Proteção nativa contra comandos destrutivos. O agente pode rodar scripts, mas nunca deletar o próprio núcleo ou parar serviços críticos.</p>
+      <!-- Sub-agentes -->
+      <div class="bento-card bento-span-2">
+        <div style="margin-bottom: 12px;"><span class="tag tag-blue">IA</span></div>
+        <h4><i data-lucide="users" style="width: 18px;"></i> Sub-agentes</h4>
+        <p>Delegue tarefas complexas para agentes especializados criados dinamicamente via chat.</p>
       </div>
 
-      <div class="bento-item bento-3">
-        <div class="security-badge" style="color: #fb923c;">
-          <svg class="icon" style="width: 14px; height: 14px;"><path d="M12 2v20"/><path d="M2 12h20"/></svg>
-          REASONING
-        </div>
-        <h3>Extended Thinking</h3>
-        <p style="color: var(--zinc-400); margin-top: 12px;">Suporte nativo a orçamentos de pensamento (tokens de raciocínio) para tarefas complexas.</p>
+      <!-- Memória -->
+      <div class="bento-card bento-span-3">
+        <h4><i data-lucide="database" style="width: 18px;"></i> Memória em Camadas</h4>
+        <p>Sistema híbrido: Soul (regras), USER.md (preferências), MEMORY.md (longo prazo) e histórico SQLite (curto prazo).</p>
       </div>
 
-      <div class="bento-item bento-4">
-        <h3>Memória Destilada em Camadas</h3>
-        <div style="display: flex; gap: 24px; margin-top: 20px;">
-          <div style="flex: 1;">
-            <span class="mono" style="font-size: 0.75rem; color: #fff;">Short-term</span>
-            <p style="font-size: 0.8125rem; color: var(--zinc-400);">Contexto imediato da conversa via banco de dados SQLite.</p>
-          </div>
-          <div style="flex: 1;">
-            <span class="mono" style="font-size: 0.75rem; color: #fff;">Long-term</span>
-            <p style="font-size: 0.8125rem; color: var(--zinc-400);">Arquivos .md destilados automaticamente toda noite.</p>
-          </div>
-          <div style="flex: 1;">
-            <span class="mono" style="font-size: 0.75rem; color: #fff;">Soul</span>
-            <p style="font-size: 0.8125rem; color: var(--zinc-400);">Instruções fixas que definem a ética e o comportamento.</p>
-          </div>
-        </div>
+      <!-- Bug Fixer -->
+      <div class="bento-card bento-span-3">
+        <h4><i data-lucide="Zap" style="width: 18px;"></i> Bug Fixer Autônomo</h4>
+        <p>Monitoramento proativo de logs. Detecta falhas e sugere correções ou alerta o admin automaticamente via Telegram.</p>
+      </div>
+
+      <!-- Analytics -->
+      <div class="bento-card bento-span-2">
+        <h4><i data-lucide="bar-chart-3" style="width: 18px;"></i> Analytics</h4>
+        <p>Acompanhe consumo de tokens, latência e custo por agente com o comando <code style="color:var(--white)">/stats</code>.</p>
+      </div>
+
+      <!-- Thinking -->
+      <div class="bento-card bento-span-4">
+        <div style="margin-bottom: 12px;"><span class="tag">v0.7.0</span></div>
+        <h4><i data-lucide="brain" style="width: 18px;"></i> Modo Raciocínio (Thinking)</h4>
+        <p>Suporte nativo ao comando <code style="color:var(--white)">/thinking</code> com orçamentos de até 16k tokens de pensamento interno para problemas de alta complexidade.</p>
       </div>
     </div>
   </section>
 
-  <footer class="container" style="padding: 80px 0 40px; border-top: 1px solid var(--border); text-align: center;">
-    <div class="logo" style="justify-content: center; margin-bottom: 24px;">
-      <img src="admin/static/logo2.png" alt="Logo" />
-      smb-claw
+  <footer>
+    <div class="container">
+      <div class="logo-link" style="justify-content: center; margin-bottom: 24px; font-size: 1.2rem;">
+        <img src="admin/static/logo2.png" alt="SMB Claw Logo" />
+        smb-claw
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/alozs/smb-claw" target="_blank">Repositório</a>
+        <a href="https://github.com/alozs/smb-claw/blob/main/LICENSE" target="_blank">Licença MIT</a>
+        <a href="/admin">Acesso Admin</a>
+      </div>
+      <p style="color: var(--zinc-700); font-size: 0.75rem;">SMB Claw Framework • 2026 • Foco em Resiliência e Controle.</p>
     </div>
-    <p style="color: var(--zinc-400); font-size: 0.875rem;">© 2026 SMB Claw Framework. Licença MIT.</p>
   </footer>
 
+  <script>
+    lucide.createIcons();
+  </script>
 </body>
 </html>
