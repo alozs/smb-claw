@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.0 (2026-03-17)
+
+Agora tenho o panorama completo. Gerando as notas de release:
+
+---
+
+**Novas funcionalidades**
+
+• Raciocínio estendido por sessão: novo comando `/thinking` permite ativar o modo de pensamento profundo do modelo em quatro níveis (off, low, medium, high), com orçamentos de até 16 mil tokens de raciocínio interno. Funciona nos provedores Anthropic e Claude-CLI.
+
+• Coleta automática de dados de mercado: novo script `radar-collect.py` busca preços, variações, médias móveis (SMA 20/50d), volume e notícias de ações via yfinance, salvando snapshots diários no workspace do bot Radar de Ações.
+
+**Melhorias**
+
+• Outputs de ferramentas muito longos são truncados automaticamente em 12 mil caracteres em todos os provedores (Anthropic, OpenRouter, Codex), evitando estouro de contexto e erros silenciosos.
+
+• Mensagens que ultrapassam o limite `MAX_HISTORY` agora são arquivadas no banco de dados em vez de simplesmente descartadas, preservando o histórico completo para consulta futura.
+
+• O destilador de memória diária (`memory-autosave.sh`) passa a alertar o modelo para compactar o `MEMORY.md` quando o arquivo ultrapassa 6 KB, evitando crescimento indefinido da memória de longo prazo.
+
 ## 0.6.16 (2026-03-17)
 
 • `git_op` agora resolve `token_var` diretamente do ambiente do processo (secrets.env), não apenas das variáveis fixas do TOOL_CONFIG — corrige erro "terminal prompts disabled" ao clonar repos privados com tokens customizados

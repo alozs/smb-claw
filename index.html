@@ -833,6 +833,25 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.7.0</span>
+            <span class="cl-date">2026-03-17</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Agora tenho o panorama completo. Gerando as notas de release</strong></p>
+            <ul>
+              <li>--</li>
+              <li>**Novas funcionalidades**</li>
+              <li>Raciocínio estendido por sessão: novo comando `/thinking` permite ativar o modo de pensamento profundo do modelo em quatro níveis (off, low, medium, high), com orçamentos de até 16 mil tokens de raciocínio interno. Funciona nos provedores Anthropic e Claude-CLI.</li>
+              <li>Coleta automática de dados de mercado: novo script `radar-collect.py` busca preços, variações, médias móveis (SMA 20/50d), volume e notícias de ações via yfinance, salvando snapshots diários no workspace do bot Radar de Ações.</li>
+              <li>**Melhorias**</li>
+              <li>Outputs de ferramentas muito longos são truncados automaticamente em 12 mil caracteres em todos os provedores (Anthropic, OpenRouter, Codex), evitando estouro de contexto e erros silenciosos.</li>
+              <li>Mensagens que ultrapassam o limite `MAX_HISTORY` agora são arquivadas no banco de dados em vez de simplesmente descartadas, preservando o histórico completo para consulta futura.</li>
+              <li>O destilador de memória diária (`memory-autosave.sh`) passa a alertar o modelo para compactar o `MEMORY.md` quando o arquivo ultrapassa 6 KB, evitando crescimento indefinido da memória de longo prazo.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.6.15</span>
             <span class="cl-date">2026-03-17</span>
           </div>
@@ -854,20 +873,6 @@
             <ul>
               <li>Correções</li>
               <li>Erros ocorridos durante a execução de ferramentas agora são sempre reportados ao usuário e ao admin, eliminando casos em que falhas passavam despercebidas sem nenhuma mensagem de aviso.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.6.11</span>
-            <span class="cl-date">2026-03-17</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>Correções</li>
-              <li>Ambientes Docker agora funcionam corretamente com agendamentos: o pacote `cron` é instalado automaticamente durante o setup, eliminando falhas silenciosas em containers que não o incluem por padrão.</li>
-              <li>Quando o `cron` não está disponível no sistema, o bot exibe uma mensagem de erro clara e direta em vez de falhar sem explicação, facilitando o diagnóstico em ambientes restritos.</li>
             </ul>
           </div>
         </div>
