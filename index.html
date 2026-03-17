@@ -833,6 +833,19 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.6.2</span>
+            <span class="cl-date">2026-03-17</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>### Novas funcionalidades</li>
+              <li>O script de instalação (setup.sh) agora salva automaticamente a porta do painel admin no arquivo de configuração global, eliminando a necessidade de configuração manual após a instalação</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.6.1</span>
             <span class="cl-date">2026-03-17</span>
           </div>
@@ -856,23 +869,6 @@
               <li>Suporte completo a Docker: todos os pontos do sistema que dependiam de systemd agora funcionam também em containers Docker, permitindo rodar o SMB Claw em ambientes containerizados sem adaptações manuais</li>
               <li>Detecção automática do ambiente de execução — o framework identifica se está rodando em uma VPS com systemd ou em um container Docker e ajusta o gerenciamento de serviços adequadamente</li>
               <li>Flexibilidade de deploy ampliada: agora é possível escolher entre instalação direta na VPS ou deploy via Docker conforme a necessidade da sua infraestrutura</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.5.0</span>
-            <span class="cl-date">2026-03-16</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>Novas funcionalidades</li>
-              <li>Comando /config permite gerenciar agentes e configurações globais diretamente pelo Telegram, sem precisar acessar o servidor via SSH ou painel web</li>
-              <li>Melhorias</li>
-              <li>Terminologia unificada: todos os textos do wizard de criação e setup agora usam &quot;agente&quot; em vez de &quot;bot&quot;, refletindo melhor a natureza dos assistentes criados pela plataforma</li>
-              <li>Documentação reorganizada em diretório docs/ dedicado, facilitando a navegação e manutenção do projeto</li>
-              <li>Nova tabela comparativa SMB Claw vs OpenClaw no README, ajudando na avaliação e escolha do framework</li>
             </ul>
           </div>
         </div>

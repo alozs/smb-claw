@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.2 (2026-03-17)
+
+
+
+### Novas funcionalidades
+
+• O script de instalação (setup.sh) agora salva automaticamente a porta do painel admin no arquivo de configuração global, eliminando a necessidade de configuração manual após a instalação
+
 ## 0.6.1 (2026-03-17)
 
 
