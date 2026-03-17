@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.12 (2026-03-17)
+
+• Dockerfile completo: adiciona git, curl, lsof, cron e ffmpeg às dependências de sistema
+• requirements.txt: inclui fastapi, uvicorn, jinja2, python-multipart e aiofiles (admin panel)
+• entrypoint.sh: inicializa cron daemon, limpa locks órfãos, sobe admin panel e todos os bots; watchdog interno reinicia automaticamente processos que caírem
+• docker-compose.yml: usa entrypoint.sh como command, garantindo inicialização correta de todos os serviços
+
 ## 0.6.11 (2026-03-17)
 
 Correções
