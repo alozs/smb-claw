@@ -833,6 +833,19 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.6.1</span>
+            <span class="cl-date">2026-03-17</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>### Novas funcionalidades</li>
+              <li>A porta do painel admin agora é configurável através da variável ADMIN_PORT, permitindo escolher em qual porta o painel web será servido. Útil para ambientes onde a porta padrão já está em uso ou quando se deseja rodar múltiplas instâncias lado a lado.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.6.0</span>
             <span class="cl-date">2026-03-17</span>
           </div>
@@ -860,37 +873,6 @@
               <li>Terminologia unificada: todos os textos do wizard de criação e setup agora usam &quot;agente&quot; em vez de &quot;bot&quot;, refletindo melhor a natureza dos assistentes criados pela plataforma</li>
               <li>Documentação reorganizada em diretório docs/ dedicado, facilitando a navegação e manutenção do projeto</li>
               <li>Nova tabela comparativa SMB Claw vs OpenClaw no README, ajudando na avaliação e escolha do framework</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.4.0</span>
-            <span class="cl-date">2026-03-16</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>Novas funcionalidades</li>
-              <li>Wizard CLI interativo no setup.sh — cria e configura bots direto no terminal, sem editar arquivos manualmente</li>
-              <li>Suporte a OAuth do Claude e OpenAI no wizard, permitindo usar ChatGPT Plus ou Claude Pro sem chave de API</li>
-              <li>Três provedores disponíveis no wizard com submenus unificados: Anthropic, OpenRouter e OpenAI/Codex</li>
-              <li>Auto-detecção de admin no primeiro /start — dispensa configuração manual do ADMIN_ID</li>
-              <li>Auto-start do bot após criação pelo wizard, inclusive em ambientes Docker</li>
-              <li>Suporte ao endpoint WHAM (Responses API da OpenAI) para autenticação via ChatGPT Plus OAuth</li>
-              <li>Instalação automática de dependências do sistema (python3, pip, git, lsof)</li>
-              <li>Detecção de ambiente Docker com aviso sobre portas não expostas</li>
-              <li>Modo --config no setup.sh para editar configuração existente sem reinstalar</li>
-              <li>Aviso de segurança durante o setup e seleção automática de porta alternativa quando a padrão está ocupada</li>
-              <li>Melhorias</li>
-              <li>Diagnóstico aprimorado de falhas na inicialização de bots, com limpeza automática de locks órfãos e processos antigos</li>
-              <li>Bots offline são reiniciados automaticamente</li>
-              <li>Correções</li>
-              <li>Compatibilidade com SDK Anthropic 2.26 — streaming e extração de tool calls corrigidos</li>
-              <li>Setup.sh não aborta mais inesperadamente durante a inicialização de bots</li>
-              <li>Escape codes ANSI não vazam mais na saída do setup em ambientes Docker</li>
-              <li>Detecção de pip3 como fallback quando pip não está disponível</li>
-              <li>Inicialização de bots em Docker usa nohup em vez de systemd</li>
             </ul>
           </div>
         </div>

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1 (2026-03-17)
+
+
+
+### Novas funcionalidades
+
+• A porta do painel admin agora é configurável através da variável ADMIN_PORT, permitindo escolher em qual porta o painel web será servido. Útil para ambientes onde a porta padrão já está em uso ou quando se deseja rodar múltiplas instâncias lado a lado.
+
 ## 0.6.0 (2026-03-17)
 
 Novas funcionalidades
