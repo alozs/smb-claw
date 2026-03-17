@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.13 (2026-03-17)
+
+Correções
+
+• Erros ocorridos durante a execução de ferramentas agora são sempre reportados ao usuário e ao admin, eliminando casos em que falhas passavam despercebidas sem nenhuma mensagem de aviso.
+
 ## 0.6.12 (2026-03-17)
 
 • Dockerfile completo: adiciona git, curl, lsof, cron e ffmpeg às dependências de sistema

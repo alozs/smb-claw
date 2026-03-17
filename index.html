@@ -833,6 +833,19 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.6.13</span>
+            <span class="cl-date">2026-03-17</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>Correções</li>
+              <li>Erros ocorridos durante a execução de ferramentas agora são sempre reportados ao usuário e ao admin, eliminando casos em que falhas passavam despercebidas sem nenhuma mensagem de aviso.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.6.11</span>
             <span class="cl-date">2026-03-17</span>
           </div>
@@ -856,19 +869,6 @@
               <li>**Novas funcionalidades**</li>
               <li>A ferramenta Git agora suporta operações avançadas de sincronização com repositórios remotos: é possível fazer fetch para atualizar referências sem mesclar, checkout para trocar de branch e pull direcionado a uma branch específica — tudo diretamente pelo agente, sem precisar de comandos shell manuais.</li>
               <li>A autenticação Git ganhou flexibilidade: agora é possível indicar qual variável de ambiente contém o token de acesso, permitindo que diferentes bots ou sub-agentes usem credenciais distintas sem conflito.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.6.8</span>
-            <span class="cl-date">2026-03-17</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>### Correções</li>
-              <li>Reforço na segurança do shell: comandos potencialmente destrutivos como `kill`, `pkill`, `systemctl` e acesso direto ao `bot.py` agora são bloqueados pela denylist do shell tool, impedindo que agentes interrompam serviços ou processos do sistema de forma acidental ou maliciosa.</li>
             </ul>
           </div>
         </div>
