@@ -3053,46 +3053,45 @@ async def _process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, c
                         pass
         typing_task = asyncio.create_task(_keep_typing())
 
-        # Mensagem de status em tempo real (apenas claude-cli com stream-json)
+        # Mensagem de status "⏳ Pensando..." — todos os provedores
         status_msg = None
         _thinking_active = False
         _thinking_task = None
-        if PROVIDER == "claude-cli":
-            try:
-                status_msg = await context.bot.send_message(
-                    chat_id=update.effective_chat.id,
-                    text="⏳ Pensando...",
-                )
-            except Exception:
-                pass
+        try:
+            status_msg = await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="⏳ Pensando...",
+            )
+        except Exception:
+            pass
 
-            # Animação do "Pensando" — alterna frames a cada 1.2s
-            if status_msg:
-                _thinking_active = True
-                _thinking_frames = [
-                    "⏳ Pensando",
-                    "⏳ Pensando.",
-                    "⏳ Pensando..",
-                    "⏳ Pensando...",
-                    "⏳ Pensando..",
-                    "⏳ Pensando.",
-                ]
-                async def _animate_thinking():
-                    idx = 0
-                    while _thinking_active:
-                        await asyncio.sleep(1.2)
-                        if not _thinking_active:
-                            break
-                        try:
-                            await context.bot.edit_message_text(
-                                text=_thinking_frames[idx % len(_thinking_frames)],
-                                chat_id=update.effective_chat.id,
-                                message_id=status_msg.message_id,
-                            )
-                        except Exception:
-                            pass
-                        idx += 1
-                _thinking_task = asyncio.create_task(_animate_thinking())
+        # Animação do "Pensando" — alterna frames a cada 1.2s
+        if status_msg:
+            _thinking_active = True
+            _thinking_frames = [
+                "⏳ Pensando",
+                "⏳ Pensando.",
+                "⏳ Pensando..",
+                "⏳ Pensando...",
+                "⏳ Pensando..",
+                "⏳ Pensando.",
+            ]
+            async def _animate_thinking():
+                idx = 0
+                while _thinking_active:
+                    await asyncio.sleep(1.2)
+                    if not _thinking_active:
+                        break
+                    try:
+                        await context.bot.edit_message_text(
+                            text=_thinking_frames[idx % len(_thinking_frames)],
+                            chat_id=update.effective_chat.id,
+                            message_id=status_msg.message_id,
+                        )
+                    except Exception:
+                        pass
+                    idx += 1
+            _thinking_task = asyncio.create_task(_animate_thinking())
 
         _last_notify_time = [0.0]
 
