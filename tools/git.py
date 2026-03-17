@@ -36,10 +36,16 @@ def execute(inp: dict, *, config: dict) -> str:
     secrets = [s for s in [git_token, config.get("GITHUB_TOKEN", "")] if s]
     append_daily_log = config["append_daily_log"]
 
-    # Suporta token_var: permite especificar qual variável de config usar como token
+    # Suporta token_var: resolve variável de credencial por nome
+    # Busca em: 1) config direto (GIT_TOKEN, GITHUB_TOKEN etc.)
+    #           2) _env (os.environ — inclui secrets.env carregado no boot)
     token_var = inp.get("token_var", "")
     if token_var:
-        git_token = config.get(token_var, git_token)
+        resolved = config.get(token_var) or config.get("_env", {}).get(token_var, "")
+        if resolved:
+            git_token = resolved
+        else:
+            return f"❌ Variável '{token_var}' não encontrada. Verifique se está definida em secrets.env do bot."
 
     action = inp["action"]
     work_dir.mkdir(parents=True, exist_ok=True)

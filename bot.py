@@ -155,6 +155,9 @@ TOOL_CONFIG = {
     "PROTECTED_PATHS": _PROTECTED_PATHS,
     "append_daily_log": _append_daily_log,
     "pending_files": _pending_files,
+    # Permite que ferramentas como git_op resolvam variáveis customizadas
+    # (ex: GITHUB_TOKEN_PROJETO) definidas em secrets.env via token_var
+    "_env": os.environ,
 }
 
 # ── Tool definitions ──────────────────────────────────────────────────────────
