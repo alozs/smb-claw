@@ -76,7 +76,12 @@ for bot_dir in "$BASE_DIR"/bots/*/; do
     if [ "$IN_DOCKER" = true ]; then
         if pgrep -f "bot.py --bot-dir.*bots/$bot" > /dev/null 2>&1; then
             pkill -f "bot.py --bot-dir.*bots/$bot" 2>/dev/null
-            sleep 1
+            # Espera processo morrer e lock ser liberado
+            for _i in $(seq 1 10); do
+                pgrep -f "bot.py --bot-dir.*bots/$bot" > /dev/null 2>&1 || break
+                sleep 1
+            done
+            rm -f "$BASE_DIR/.locks/"*"${bot}"* 2>/dev/null
             log_file="$BASE_DIR/logs/${bot}.log"
             mkdir -p "$BASE_DIR/logs"
             nohup python3 "$BASE_DIR/bot.py" --bot-dir "$bot_dir" >> "$log_file" 2>&1 &
