@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.5 (2026-03-17)
+
+
+
+### Novas funcionalidades
+
+• Refresh automático do token OAuth do Codex: quando o token de acesso expira e a API retorna erro 403, o sistema agora renova a credencial automaticamente sem necessidade de intervenção manual ou reinício do bot. Bots configurados com provider `codex` mantêm operação contínua mesmo após expiração do token.
+
 ## 0.6.4 (2026-03-17)
 
 

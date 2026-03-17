@@ -833,6 +833,19 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.6.5</span>
+            <span class="cl-date">2026-03-17</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>### Novas funcionalidades</li>
+              <li>Refresh automático do token OAuth do Codex: quando o token de acesso expira e a API retorna erro 403, o sistema agora renova a credencial automaticamente sem necessidade de intervenção manual ou reinício do bot. Bots configurados com provider `codex` mantêm operação contínua mesmo após expiração do token.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.6.4</span>
             <span class="cl-date">2026-03-17</span>
           </div>
@@ -857,19 +870,6 @@
               <li>### Melhorias</li>
               <li>O painel admin agora exibe o provedor efetivo de cada bot (API key, OAuth Claude, OAuth Codex, OpenRouter), facilitando o diagnóstico de problemas de autenticação</li>
               <li>Aprimorado o sistema de notificações proativas, tornando os agendamentos mais confiáveis e consistentes</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.6.2</span>
-            <span class="cl-date">2026-03-17</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>### Novas funcionalidades</li>
-              <li>O script de instalação (setup.sh) agora salva automaticamente a porta do painel admin no arquivo de configuração global, eliminando a necessidade de configuração manual após a instalação</li>
             </ul>
           </div>
         </div>
