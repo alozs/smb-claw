@@ -2660,7 +2660,7 @@ async def _cfg_do_restart(query, bot_name: str, is_self: bool) -> None:
             if in_docker:
                 # Em Docker: tenta kill + nohup
                 pid_result = _sp.run(
-                    ["pgrep", "-f", f"--bot-dir.*bots/{bot_name}"],
+                    ["pgrep", "-f", "--", f"--bot-dir.*bots/{bot_name}"],
                     capture_output=True, text=True, timeout=5,
                 )
                 if pid_result.stdout.strip():
@@ -2803,7 +2803,7 @@ async def callback_del_agent(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if in_docker:
             # Docker: kill process directly
             try:
-                _sp.run(["pkill", "-f", f"--bot-dir.*bots/{name}"],
+                _sp.run(["pkill", "-f", "--", f"--bot-dir.*bots/{name}"],
                         capture_output=True, timeout=10)
             except Exception as e:
                 errors.append(f"pkill: {e}")

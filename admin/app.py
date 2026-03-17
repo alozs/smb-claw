@@ -270,7 +270,7 @@ def get_bot_summary(bot_name: str) -> dict:
     if IN_DOCKER:
         try:
             result = subprocess.run(
-                ["pgrep", "-f", f"--bot-dir.*bots/{bot_name}"],
+                ["pgrep", "-f", "--", f"--bot-dir.*bots/{bot_name}"],
                 capture_output=True, text=True, timeout=5
             )
             active = result.returncode == 0 and bool(result.stdout.strip())
@@ -518,7 +518,7 @@ async def delete_bot(name: str):
     validate_bot_name(name)
 
     if IN_DOCKER:
-        subprocess.run(["pkill", "-f", f"--bot-dir.*bots/{name}"],
+        subprocess.run(["pkill", "-f", "--", f"--bot-dir.*bots/{name}"],
                        capture_output=True, timeout=10)
     else:
         service = f"claude-bot-{name}"
@@ -609,7 +609,7 @@ async def bot_action(name: str, req: ActionRequest):
     if IN_DOCKER:
         bot_dir = str(BOTS_DIR / name)
         if req.action in ("stop", "restart"):
-            subprocess.run(["pkill", "-f", f"--bot-dir.*bots/{name}"],
+            subprocess.run(["pkill", "-f", "--", f"--bot-dir.*bots/{name}"],
                            capture_output=True, timeout=10)
         if req.action in ("start", "restart"):
             import time as _time
@@ -1073,7 +1073,7 @@ async def restart_all_bots():
     results = []
     for name in sorted(bots):
         if IN_DOCKER:
-            subprocess.run(["pkill", "-f", f"--bot-dir.*bots/{name}"],
+            subprocess.run(["pkill", "-f", "--", f"--bot-dir.*bots/{name}"],
                            capture_output=True, timeout=10)
             import time as _time
             _time.sleep(1)
