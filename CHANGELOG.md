@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.10 (2026-03-17)
+
+• Corrige conflito de lock ao reiniciar bot pelo painel admin: espera o processo morrer e limpa o lock antes de iniciar a nova instância
+• Remove referência a nome de token pessoal nos exemplos do context.global e git_op
+
 ## 0.6.9 (2026-03-17)
 
 **Novas funcionalidades**
