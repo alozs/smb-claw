@@ -95,4 +95,4 @@ async def execute(name: str, inp: dict, *, user_id: int = 0, db, config: dict) -
         )
     except Exception as e:
         logger.error(f"Erro em {name}: {e}", exc_info=True)
-        return f"Erro interno em {name}: {type(e).__name__}"
+        return f"❌ ERRO em {name}: {type(e).__name__}: {e}"

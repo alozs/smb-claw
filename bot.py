@@ -211,10 +211,33 @@ def build_context() -> str:
     return "\n\n".join(parts)
 
 
+def _check_env_capabilities() -> str:
+    """Verifica o que realmente está disponível no ambiente e retorna aviso se algo faltar."""
+    import shutil
+    issues = []
+    in_docker = Path("/.dockerenv").exists() or bool(os.environ.get("IN_DOCKER"))
+
+    if "cron" in ENABLED_TOOLS and not shutil.which("crontab"):
+        issues.append("⚠️ `manage_cron` indisponível: crontab não encontrado. Em Docker: `apt-get install -y cron && service cron start`")
+    if "shell" in ENABLED_TOOLS or "git" in ENABLED_TOOLS:
+        if not shutil.which("git"):
+            issues.append("⚠️ `git_op` degradado: git não encontrado no PATH")
+    if "shell" in ENABLED_TOOLS:
+        if not shutil.which("bash"):
+            issues.append("⚠️ `run_shell` degradado: bash não encontrado no PATH")
+
+    if not issues:
+        return ""
+    return "\n\n---\n## ⚠️ Limitações do ambiente detectadas\n" + "\n".join(issues) + "\n\nQuando uma ferramenta não está disponível, informe o usuário com a mensagem de erro real. Nunca diga que executou com sucesso se a ferramenta retornou erro."
+
+
 def get_system_prompt() -> str:
     prompt = build_context()
     if ENABLED_TOOLS:
         prompt += f"\n\n---\n## Ferramentas disponíveis\n{', '.join(sorted(ENABLED_TOOLS))}. Use quando necessário."
+    env_warnings = _check_env_capabilities()
+    if env_warnings:
+        prompt += env_warnings
     # Tarefas ativas no contexto
     active = [t for t in (db.tasks_for_user(0) if False else [])  # placeholder
               if t["status"] in ("in_progress", "paused", "pending")]
