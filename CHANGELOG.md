@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 (2026-03-17)
+
+Novas funcionalidades
+
+• Suporte completo a Docker: todos os pontos do sistema que dependiam de systemd agora funcionam também em containers Docker, permitindo rodar o SMB Claw em ambientes containerizados sem adaptações manuais
+• Detecção automática do ambiente de execução — o framework identifica se está rodando em uma VPS com systemd ou em um container Docker e ajusta o gerenciamento de serviços adequadamente
+• Flexibilidade de deploy ampliada: agora é possível escolher entre instalação direta na VPS ou deploy via Docker conforme a necessidade da sua infraestrutura
+
 ## 0.5.0 (2026-03-16)
 
 Novas funcionalidades

@@ -833,6 +833,21 @@
         <!-- CHANGELOG_START -->
                 <div class="cl-entry">
           <div class="cl-header">
+            <span class="cl-version">v0.6.0</span>
+            <span class="cl-date">2026-03-17</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>Novas funcionalidades</li>
+              <li>Suporte completo a Docker: todos os pontos do sistema que dependiam de systemd agora funcionam também em containers Docker, permitindo rodar o SMB Claw em ambientes containerizados sem adaptações manuais</li>
+              <li>Detecção automática do ambiente de execução — o framework identifica se está rodando em uma VPS com systemd ou em um container Docker e ajusta o gerenciamento de serviços adequadamente</li>
+              <li>Flexibilidade de deploy ampliada: agora é possível escolher entre instalação direta na VPS ou deploy via Docker conforme a necessidade da sua infraestrutura</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
             <span class="cl-version">v0.5.0</span>
             <span class="cl-date">2026-03-16</span>
           </div>
@@ -876,19 +891,6 @@
               <li>Escape codes ANSI não vazam mais na saída do setup em ambientes Docker</li>
               <li>Detecção de pip3 como fallback quando pip não está disponível</li>
               <li>Inicialização de bots em Docker usa nohup em vez de systemd</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.3.0</span>
-            <span class="cl-date">2026-03-16</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>Novas funcionalidades</li>
-              <li>Acesso temporário ao painel admin via token: agora é possível gerar links de acesso ao painel administrativo com validade configurável diretamente pelo comando /painel no Telegram. Os tokens são temporários, expiram automaticamente e não sobrevivem a reinicializações, garantindo segurança sem necessidade de senhas fixas.</li>
             </ul>
           </div>
         </div>
