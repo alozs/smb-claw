@@ -667,7 +667,7 @@ async def callback_approval(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 # LOOP AGÊNTICO (ASYNC)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-async def _ask_anthropic(messages: list, user_id: int = 0) -> str:
+async def _ask_anthropic(messages: list, user_id: int = 0, notify_fn=None) -> str:
     """Loop agêntico Anthropic — suporta tool_use nativo."""
     system = get_system_prompt()
     t0 = time.monotonic()
@@ -691,6 +691,11 @@ async def _ask_anthropic(messages: list, user_id: int = 0) -> str:
                     if block.type == "tool_use":
                         total_tool_calls += 1
                         logger.info(f"[tool] {block.name} {json.dumps(block.input)[:120]}")
+                        if notify_fn:
+                            try:
+                                await notify_fn(block.name, block.input)
+                            except Exception:
+                                pass
                         result = await tool_registry.execute(
                             block.name, block.input,
                             user_id=user_id, db=db, config=TOOL_CONFIG,
@@ -712,7 +717,7 @@ async def _ask_anthropic(messages: list, user_id: int = 0) -> str:
             pass
 
 
-async def _ask_openrouter(messages: list, user_id: int = 0) -> str:
+async def _ask_openrouter(messages: list, user_id: int = 0, notify_fn=None) -> str:
     """Loop agêntico OpenRouter (OpenAI-compatible) — suporta qualquer modelo."""
     system = get_system_prompt()
     # Constrói lista de mensagens no formato OpenAI (com system separado)
@@ -747,6 +752,11 @@ async def _ask_openrouter(messages: list, user_id: int = 0) -> str:
                     except Exception:
                         tool_input = {}
                     logger.info(f"[tool/openrouter] {tc.function.name} {json.dumps(tool_input)[:120]}")
+                    if notify_fn:
+                        try:
+                            await notify_fn(tc.function.name, tool_input)
+                        except Exception:
+                            pass
                     result = await tool_registry.execute(
                         tc.function.name, tool_input,
                         user_id=user_id, db=db, config=TOOL_CONFIG,
@@ -771,7 +781,7 @@ async def _ask_openrouter(messages: list, user_id: int = 0) -> str:
             pass
 
 
-async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
+async def _ask_codex_responses(messages: list, user_id: int = 0, notify_fn=None) -> str:
     """Loop agêntico OpenAI via Responses API — funciona com ChatGPT Plus OAuth."""
     system = get_system_prompt()
     # Converte mensagens para formato Responses API (WHAM)
@@ -873,6 +883,11 @@ async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
                 except Exception:
                     tool_input = {}
                 logger.info(f"[tool/codex-resp] {tc.name} {json.dumps(tool_input)[:120]}")
+                if notify_fn:
+                    try:
+                        await notify_fn(tc.name, tool_input)
+                    except Exception:
+                        pass
                 result = await tool_registry.execute(
                     tc.name, tool_input,
                     user_id=user_id, db=db, config=TOOL_CONFIG,
@@ -896,10 +911,10 @@ async def _ask_codex_responses(messages: list, user_id: int = 0) -> str:
             pass
 
 
-async def _ask_codex(messages: list, user_id: int = 0) -> str:
+async def _ask_codex(messages: list, user_id: int = 0, notify_fn=None) -> str:
     """Roteador Codex: usa Responses API (ChatGPT Plus OAuth) ou Chat Completions (API key)."""
     if _is_codex_oauth():
-        return await _ask_codex_responses(messages, user_id)
+        return await _ask_codex_responses(messages, user_id, notify_fn=notify_fn)
     # Fallback: Chat Completions API (requer OPENAI_API_KEY com créditos)
     system = get_system_prompt()
     oai_messages = [{"role": "system", "content": system}] + [
@@ -1106,12 +1121,12 @@ async def _ask_cli(messages: list, user_id: int = 0, notify_fn=None) -> str:
 async def ask_claude(messages: list, user_id: int = 0, notify_fn=None) -> str:
     """Roteador principal: delega para Anthropic, OpenRouter, Codex ou Claude CLI conforme PROVIDER."""
     if PROVIDER == "openrouter":
-        return await _ask_openrouter(messages, user_id)
+        return await _ask_openrouter(messages, user_id, notify_fn=notify_fn)
     if PROVIDER == "codex":
-        return await _ask_codex(messages, user_id)
+        return await _ask_codex(messages, user_id, notify_fn=notify_fn)
     if PROVIDER == "claude-cli":
         return await _ask_cli(messages, user_id, notify_fn=notify_fn)
-    return await _ask_anthropic(messages, user_id)
+    return await _ask_anthropic(messages, user_id, notify_fn=notify_fn)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
