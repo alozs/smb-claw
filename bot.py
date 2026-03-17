@@ -325,6 +325,8 @@ def _make_async_client() -> anthropic.AsyncAnthropic:
 _cli_sessions: dict[int, str] = {}
 # Processos CLI ativos por user_id (para suporte ao /cancel)
 _cli_procs: dict[int, asyncio.subprocess.Process] = {}
+# Nível de thinking por user_id: "off" | "low" | "medium" | "high"
+_thinking_levels: dict[int, str] = {}
 
 def _make_openrouter_client():
     """Cria cliente OpenAI-compatible apontando para OpenRouter."""
@@ -677,8 +679,16 @@ async def _ask_anthropic(messages: list, user_id: int = 0, notify_fn=None) -> st
     total_input = total_output = total_tool_calls = 0
     error_str = ""
     try:
+        _THINKING_BUDGETS = {"low": 2000, "medium": 6000, "high": 16000}
+        _thinking_level = _thinking_levels.get(user_id, "off")
+        _thinking_budget = _THINKING_BUDGETS.get(_thinking_level)
         for _ in range(20):
-            kwargs = dict(model=MODEL, max_tokens=4096, system=system, messages=messages)
+            _max_tokens = 4096
+            if _thinking_budget:
+                _max_tokens = _thinking_budget + 4096
+            kwargs = dict(model=MODEL, max_tokens=_max_tokens, system=system, messages=messages)
+            if _thinking_budget:
+                kwargs["thinking"] = {"type": "enabled", "budget_tokens": _thinking_budget}
             if TOOL_DEFINITIONS:
                 kwargs["tools"] = TOOL_DEFINITIONS
             client = _make_async_client()
@@ -703,7 +713,10 @@ async def _ask_anthropic(messages: list, user_id: int = 0, notify_fn=None) -> st
                             block.name, block.input,
                             user_id=user_id, db=db, config=TOOL_CONFIG,
                         )
-                        results.append({"type": "tool_result", "tool_use_id": block.id, "content": result})
+                        _r = result if isinstance(result, str) else str(result)
+                        if len(_r) > 12000:
+                            _r = _r[:12000] + f"\n\n[...output truncado: {len(_r)} chars total]"
+                        results.append({"type": "tool_result", "tool_use_id": block.id, "content": _r})
                 messages.append({"role": "user", "content": results})
                 continue
             break
@@ -764,10 +777,13 @@ async def _ask_openrouter(messages: list, user_id: int = 0, notify_fn=None) -> s
                         tc.function.name, tool_input,
                         user_id=user_id, db=db, config=TOOL_CONFIG,
                     )
+                    _r = result if isinstance(result, str) else str(result)
+                    if len(_r) > 12000:
+                        _r = _r[:12000] + f"\n\n[...output truncado: {len(_r)} chars total]"
                     oai_messages.append({
                         "role": "tool",
                         "tool_call_id": tc.id,
-                        "content": result,
+                        "content": _r,
                     })
                 continue
             break
@@ -895,10 +911,14 @@ async def _ask_codex_responses(messages: list, user_id: int = 0, notify_fn=None)
                     tc.name, tool_input,
                     user_id=user_id, db=db, config=TOOL_CONFIG,
                 )
+                _tool_out = result if isinstance(result, str) else str(result)
+                _MAX_TOOL_OUT = 12000
+                if len(_tool_out) > _MAX_TOOL_OUT:
+                    _tool_out = _tool_out[:_MAX_TOOL_OUT] + f"\n\n[...output truncado: {len(_tool_out)} chars total]"
                 resp_input.append({
                     "type": "function_call_output",
                     "call_id": tc.call_id,
-                    "output": result,
+                    "output": _tool_out,
                 })
             continue
         return "\n".join(text_parts) or ""
@@ -954,10 +974,13 @@ async def _ask_codex(messages: list, user_id: int = 0, notify_fn=None) -> str:
                         tc.function.name, tool_input,
                         user_id=user_id, db=db, config=TOOL_CONFIG,
                     )
+                    _r = result if isinstance(result, str) else str(result)
+                    if len(_r) > 12000:
+                        _r = _r[:12000] + f"\n\n[...output truncado: {len(_r)} chars total]"
                     oai_messages.append({
                         "role": "tool",
                         "tool_call_id": tc.id,
-                        "content": result,
+                        "content": _r,
                     })
                 continue
             break
@@ -1000,6 +1023,8 @@ async def _ask_cli(messages: list, user_id: int = 0, notify_fn=None) -> str:
         }
         # Reforço de identidade injetado em toda mensagem (incluindo resume)
         identity_reminder = f"Lembre-se: seu nome nesta plataforma é {BOT_NAME}. Apresente-se sempre como {BOT_NAME}."
+        _CLI_THINKING_BUDGETS = {"low": 2000, "medium": 6000, "high": 16000}
+        _cli_thinking = _thinking_levels.get(user_id, "off")
         base_flags = [
             "claude", "-p",
             "--model", MODEL,
@@ -1007,6 +1032,8 @@ async def _ask_cli(messages: list, user_id: int = 0, notify_fn=None) -> str:
             "--verbose",
             "--permission-mode", "bypassPermissions",  # executa ferramentas sem prompt interativo
         ]
+        if _cli_thinking in _CLI_THINKING_BUDGETS:
+            base_flags += ["--thinking", str(_CLI_THINKING_BUDGETS[_cli_thinking])]
         if session_id:
             cmd = [
                 *base_flags,
@@ -1274,7 +1301,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         welcome_msg = (
             f"Olá, {user.first_name}! Sou o *{BOT_NAME}*.{tools_info}\n\n"
-            "/clear — limpa histórico\n/cancel — cancela operação em andamento\n/info — quem sou eu\n/id — seu ID\n/tasks — minhas tarefas"
+            "/clear — limpa histórico\n/cancel — cancela operação em andamento\n/info — quem sou eu\n/id — seu ID\n/tasks — minhas tarefas\n/thinking — raciocínio estendido"
             f"{admin_extra}"
         )
     await update.message.reply_text(welcome_msg, parse_mode="Markdown")
@@ -1307,6 +1334,27 @@ async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         pass
     await update.message.reply_text("🛑 Operação cancelada.")
     logger.info(f"[cancel] Processo cancelado pelo usuário {uid}")
+
+
+async def cmd_thinking(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    uid = update.effective_user.id
+    if not has_access(uid): return
+    valid = ("off", "low", "medium", "high")
+    args = context.args or []
+    if not args or args[0] not in valid:
+        current = _thinking_levels.get(uid, "off")
+        await update.message.reply_text(
+            f"Uso: /thinking off|low|medium|high\nAtual: *{current}*\n\n"
+            "Ativa o raciocínio estendido (extended thinking) do modelo.\n"
+            "• off — desativado (padrão)\n• low — 2k tokens de pensamento\n"
+            "• medium — 6k tokens de pensamento\n• high — 16k tokens de pensamento",
+            parse_mode="Markdown"
+        )
+        return
+    level = args[0]
+    _thinking_levels[uid] = level
+    icons = {"off": "💭", "low": "🧠", "medium": "🧠🧠", "high": "🧠🧠🧠"}
+    await update.message.reply_text(f"{icons[level]} Thinking: *{level}*", parse_mode="Markdown")
 
 
 async def cmd_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3053,6 +3101,9 @@ async def _process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, c
         history = conversations.setdefault(conv_id, [])
         history.append({"role": "user", "content": content})
         if len(history) > MAX_HISTORY:
+            overflow = history[:-MAX_HISTORY]
+            if overflow:
+                db.archive_conversation(conv_id, overflow, BOT_NAME)
             conversations[conv_id] = history[-MAX_HISTORY:]
             history = conversations[conv_id]
 
@@ -3609,6 +3660,7 @@ def main() -> None:
     app.add_handler(CommandHandler("start",   cmd_start))
     app.add_handler(CommandHandler("clear",   cmd_clear))
     app.add_handler(CommandHandler("cancel",  cmd_cancel))
+    app.add_handler(CommandHandler("thinking", cmd_thinking))
     app.add_handler(CommandHandler("info",    cmd_info))
     app.add_handler(CommandHandler("id",      cmd_id))
     app.add_handler(CommandHandler("tasks",   cmd_tasks))

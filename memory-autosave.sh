@@ -166,6 +166,16 @@ if not daily_content and not sessions_text:
 # ── Memória atual ──────────────────────────────────────────────────────────
 memory_content = memory_path.read_text(encoding="utf-8").strip() if memory_path.exists() else "(vazia)"
 
+# ── Regra extra de compactação quando MEMORY.md está grande ───────────────
+_MEM_SIZE_LIMIT = 6000
+_size_rule = ""
+if len(memory_content) > _MEM_SIZE_LIMIT:
+    _size_rule = (
+        f"\n- ATENÇÃO: MEMORY.md está grande ({len(memory_content)} chars > {_MEM_SIZE_LIMIT}). "
+        "Consolide seções redundantes, remova informações obsoletas e comprima exemplos repetitivos "
+        "para manter o arquivo abaixo de 6 KB."
+    )
+
 # ── Monta prompt ──────────────────────────────────────────────────────────
 sections = [
     f'Você é um sistema de destilação de memória para o agente "{bot_name}".',
@@ -175,7 +185,7 @@ if daily_content:
     sections.append(f"## Diário do dia ({today})\n{daily_content}")
 if sessions_text:
     sections.append(f"## Sessões de conversa arquivadas hoje\n{sessions_text}")
-sections.append("""## Tarefa
+sections.append(f"""## Tarefa
 Analise o diário do dia e as sessões arquivadas. Decida o que merece ser adicionado/atualizado na memória de longo prazo.
 
 Regras:
@@ -184,7 +194,7 @@ Regras:
 - Se algo na memória atual estiver desatualizado pelo que aconteceu hoje, corrija
 - Retorne o MEMORY.md completo e atualizado (não apenas o diff)
 - Se não houver nada relevante para adicionar, retorne a memória atual sem modificações
-- Formato markdown, organizado por seções temáticas
+- Formato markdown, organizado por seções temáticas{_size_rule}
 
 Retorne SOMENTE o conteúdo do MEMORY.md atualizado, sem explicações adicionais.""")
 
