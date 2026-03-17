@@ -267,7 +267,8 @@ PYEOF
 fi
 
 # ── Commit, tag, push ───────────────────────────────────────────────────────
-git add VERSION CHANGELOG.md index.html
+git add -u  # inclui todos os arquivos rastreados modificados (bot.py, CLAUDE.md, etc.)
+git add VERSION CHANGELOG.md  # garante que estes entram mesmo se ainda não rastreados
 git commit -m "release: v$NEW_VERSION"
 git tag "v$NEW_VERSION"
 echo "🏷️  Tag: v$NEW_VERSION"
