@@ -138,9 +138,18 @@ cat > "$BOT_DIR/MEMORY.md" << EOF
 EOF
 chmod 600 "$BOT_DIR/MEMORY.md"
 
-# ── Serviço systemd ───────────────────────────────────────────────────────────
+# ── Detecção Docker ──────────────────────────────────────────────────────────
+IN_DOCKER=false
+if [ -f /.dockerenv ] || grep -q 'docker\|containerd' /proc/1/cgroup 2>/dev/null; then
+    IN_DOCKER=true
+fi
 
-sudo tee "/etc/systemd/system/$SERVICE_NAME.service" > /dev/null << EOF
+# ── Serviço systemd (skip em Docker) ─────────────────────────────────────────
+
+if [ "$IN_DOCKER" = true ]; then
+    echo "(Docker detectado — pulando criação de serviço systemd)"
+else
+    sudo tee "/etc/systemd/system/$SERVICE_NAME.service" > /dev/null << EOF
 [Unit]
 Description=Claude Bot: $BOT_NAME
 After=network.target
@@ -160,7 +169,8 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-sudo systemctl daemon-reload
+    sudo systemctl daemon-reload
+fi
 
 # ── Resumo ────────────────────────────────────────────────────────────────────
 
@@ -189,10 +199,18 @@ echo ""
 echo "  3. (Opcional) Configure credenciais sensíveis:"
 echo "     bash $BASE_DIR/configurar-secrets.sh $BOT_NAME"
 echo ""
+if [ "$IN_DOCKER" = true ]; then
+echo "  4. Inicie o bot:"
+echo "     nohup python3 $BASE_DIR/bot.py --bot-dir $BOT_DIR >> $BASE_DIR/logs/$BOT_NAME.log 2>&1 &"
+echo ""
+echo "  5. Ver logs:"
+echo "     tail -f $BASE_DIR/logs/$BOT_NAME.log"
+else
 echo "  4. Inicie o bot:"
 echo "     sudo systemctl start $SERVICE_NAME"
 echo "     sudo systemctl enable $SERVICE_NAME"
 echo ""
 echo "  5. Ver logs:"
 echo "     sudo journalctl -u $SERVICE_NAME -f"
+fi
 echo ""

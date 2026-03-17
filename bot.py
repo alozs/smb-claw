@@ -1327,10 +1327,14 @@ async def cmd_restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not is_admin(update.effective_user.id): return
     await update.message.reply_text("🔄 Reiniciando...")
     _RESTART_FLAG.write_text(str(update.effective_user.id))
-    service = f"claude-bot-{BOT_DIR.name}"
-    asyncio.get_event_loop().call_later(
-        0.5, lambda: __import__("subprocess").run(["sudo", "systemctl", "restart", service])
-    )
+    in_docker = Path("/.dockerenv").exists() or os.environ.get("IN_DOCKER")
+    if in_docker:
+        asyncio.get_event_loop().call_later(0.5, lambda: sys.exit(0))
+    else:
+        service = f"claude-bot-{BOT_DIR.name}"
+        asyncio.get_event_loop().call_later(
+            0.5, lambda: __import__("subprocess").run(["sudo", "systemctl", "restart", service])
+        )
 
 
 async def cmd_version(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1687,14 +1691,27 @@ async def _wizard_create_agent(update: Update, wizard: dict) -> None:
         soul_path = BASE_DIR / "bots" / name / "soul.md"
         soul_path.write_text(data.get("soul_md", ""), encoding="utf-8")
 
-        svc = f"claude-bot-{name}.service"
-        _sp.run(["sudo", "systemctl", "enable", svc], timeout=15, capture_output=True)
-        start_result = _sp.run(["sudo", "systemctl", "start", svc], timeout=15, capture_output=True, text=True)
+        in_docker = Path("/.dockerenv").exists() or os.environ.get("IN_DOCKER")
+        if in_docker:
+            bot_dir_path = str(BASE_DIR / "bots" / name)
+            log_path = BASE_DIR / "logs" / f"{name}.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_fd = open(log_path, "a")
+            _sp.Popen(
+                ["python3", str(BASE_DIR / "bot.py"), "--bot-dir", bot_dir_path],
+                stdout=log_fd, stderr=log_fd, start_new_session=True,
+            )
+            start_ok = True
+        else:
+            svc = f"claude-bot-{name}.service"
+            _sp.run(["sudo", "systemctl", "enable", svc], timeout=15, capture_output=True)
+            start_result = _sp.run(["sudo", "systemctl", "start", svc], timeout=15, capture_output=True, text=True)
+            start_ok = start_result.returncode == 0
 
         _append_daily_log(f"Agente criado via wizard: {name} (provider={data.get('provider')})")
 
-        if start_result.returncode != 0:
-            err = (start_result.stderr or start_result.stdout)[:300]
+        if not start_ok:
+            err = (start_result.stderr or start_result.stdout)[:300] if not in_docker else "unknown"
             await update.message.reply_text(
                 f"⚠️ *Agente {name} criado*, mas falhou ao iniciar:\n```\n{err}\n```\n"
                 f"Verifique o token e use o painel admin para iniciar manualmente.",
@@ -2692,12 +2709,26 @@ async def cmd_painel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     panel_url = os.environ.get("ADMIN_PANEL_URL", "").rstrip("/")
     if not panel_url:
         import subprocess as _sp
-        try:
-            ip = _sp.run(
-                ["hostname", "-I"], capture_output=True, text=True, timeout=5
-            ).stdout.strip().split()[0]
-        except Exception:
-            ip = "SEU_IP"
+        ip = None
+        # Tenta obter IP externo (útil em Docker/NAT)
+        for svc in ("https://ifconfig.me", "https://api.ipify.org", "https://icanhazip.com"):
+            try:
+                req_ip = urllib.request.Request(svc, headers={"User-Agent": "curl/7"})
+                with urllib.request.urlopen(req_ip, timeout=3) as resp_ip:
+                    candidate = resp_ip.read().decode().strip()
+                    if candidate:
+                        ip = candidate
+                        break
+            except Exception:
+                continue
+        # Fallback: IP local
+        if not ip:
+            try:
+                ip = _sp.run(
+                    ["hostname", "-I"], capture_output=True, text=True, timeout=5
+                ).stdout.strip().split()[0]
+            except Exception:
+                ip = "SEU_IP"
         panel_url = f"http://{ip}:8080"
 
     url = f"{panel_url}/?token={token}"
@@ -2767,16 +2798,25 @@ async def callback_del_agent(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.edit_message_text(f"⏳ Removendo agente *{name}*...", parse_mode="Markdown")
 
         errors = []
-        # Para e desabilita o serviço
-        _sp.run(["sudo", "systemctl", "stop",    svc], capture_output=True, timeout=15)
-        _sp.run(["sudo", "systemctl", "disable", svc], capture_output=True, timeout=15)
-        # Remove o arquivo de serviço
-        svc_file = Path(f"/etc/systemd/system/{svc}")
-        try:
-            _sp.run(["sudo", "rm", "-f", str(svc_file)], capture_output=True, timeout=10)
-            _sp.run(["sudo", "systemctl", "daemon-reload"], capture_output=True, timeout=10)
-        except Exception as e:
-            errors.append(f"systemd: {e}")
+        in_docker = Path("/.dockerenv").exists() or os.environ.get("IN_DOCKER")
+        if in_docker:
+            # Docker: kill process directly
+            try:
+                _sp.run(["pkill", "-f", f"--bot-dir.*bots/{name}"],
+                        capture_output=True, timeout=10)
+            except Exception as e:
+                errors.append(f"pkill: {e}")
+        else:
+            # Para e desabilita o serviço
+            _sp.run(["sudo", "systemctl", "stop",    svc], capture_output=True, timeout=15)
+            _sp.run(["sudo", "systemctl", "disable", svc], capture_output=True, timeout=15)
+            # Remove o arquivo de serviço
+            svc_file = Path(f"/etc/systemd/system/{svc}")
+            try:
+                _sp.run(["sudo", "rm", "-f", str(svc_file)], capture_output=True, timeout=10)
+                _sp.run(["sudo", "systemctl", "daemon-reload"], capture_output=True, timeout=10)
+            except Exception as e:
+                errors.append(f"systemd: {e}")
         # Remove o diretório do bot
         try:
             if bot_path.exists():
@@ -3471,6 +3511,9 @@ def main() -> None:
     logger.info(f"Bot '{BOT_NAME}' | provider={PROVIDER} | model={MODEL} | access={ACCESS_MODE} | tools={ENABLED_TOOLS or 'none'} | admin={ADMIN_ID}")
     _append_daily_log(f"Bot iniciado | tools={list(ENABLED_TOOLS)}")
 
+    # Write .started timestamp for Docker uptime tracking
+    (BOT_DIR / ".started").write_text(datetime.now().strftime("%Y-%m-%dT%H:%M:%S"))
+
     app = Application.builder().token(TELEGRAM_TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start",   cmd_start))
     app.add_handler(CommandHandler("clear",   cmd_clear))
@@ -3505,6 +3548,15 @@ def main() -> None:
         pattern=r"^wiz_",
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # Comandos não registrados (ex: /radar, /hoje, /carteira) são passados para a IA como texto
+    # O '/' é removido para evitar que provedores cli (claude-cli, codex) interpretem como slash command
+    async def handle_unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if update.message and update.message.text and update.message.text.startswith("/"):
+            text = update.message.text[1:]  # /radar → radar
+            await _process_message(update, context, text) if has_access(update.effective_user.id) else await request_access(update, context)
+        else:
+            await handle_message(update, context)
+    app.add_handler(MessageHandler(filters.COMMAND, handle_unknown_command), group=1)
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))

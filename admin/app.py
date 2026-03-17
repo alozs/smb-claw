@@ -27,6 +27,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 BOTS_DIR = BASE_DIR / "bots"
 SUBAGENTS_DIR = BASE_DIR / "subagents"
 
+IN_DOCKER = Path("/.dockerenv").exists() or bool(os.environ.get("IN_DOCKER"))
+
 FILE_WHITELIST = {"soul.md", "USER.md", "MEMORY.md", "welcome.md", "secrets.env"}
 GLOBAL_WHITELIST = {"context.global", "config.global", "secrets.global"}
 
@@ -197,8 +199,38 @@ def get_bot_env(bot_name: str) -> dict:
     return load_env(env_path)
 
 
+def _format_uptime(dt: datetime) -> str:
+    """Format a datetime into a human-readable uptime string."""
+    delta = datetime.now() - dt
+    total_seconds = int(delta.total_seconds())
+    if total_seconds < 0:
+        return "—"
+    if total_seconds < 60:
+        return f"{total_seconds}s"
+    elif total_seconds < 3600:
+        return f"{total_seconds // 60}m"
+    elif total_seconds < 86400:
+        h = total_seconds // 3600
+        m = (total_seconds % 3600) // 60
+        return f"{h}h {m}m"
+    else:
+        d = total_seconds // 86400
+        h = (total_seconds % 86400) // 3600
+        return f"{d}d {h}h"
+
+
 def get_uptime(bot_name: str) -> str:
     """Return human-readable uptime string or '—' if inactive."""
+    if IN_DOCKER:
+        started_file = BOTS_DIR / bot_name / ".started"
+        if not started_file.exists():
+            return "—"
+        try:
+            dt = datetime.strptime(started_file.read_text().strip(), "%Y-%m-%dT%H:%M:%S")
+            return _format_uptime(dt)
+        except Exception:
+            return "—"
+
     service = f"claude-bot-{bot_name}"
     try:
         result = subprocess.run(
@@ -206,49 +238,42 @@ def get_uptime(bot_name: str) -> str:
             capture_output=True, text=True, timeout=5
         )
         line = result.stdout.strip()
-        # Format: "ActiveEnterTimestamp=Fri 2026-03-13 15:42:39 -03" (or UTC)
         if "=" not in line:
             return "—"
         ts_str = line.split("=", 1)[1].strip()
         if not ts_str or ts_str == "n/a":
             return "—"
-        # Parse the timestamp — systemd uses format like "Fri 2026-03-13 15:42:39 -03"
         parts = ts_str.split()
-        # parts: ['Fri', '2026-03-13', '15:42:39', '-03'] (or 'UTC')
         if len(parts) < 3:
             return "—"
         dt_str = f"{parts[1]} {parts[2]}"
         dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-        now = datetime.now()
-        delta = now - dt
-        total_seconds = int(delta.total_seconds())
-        if total_seconds < 60:
-            return f"{total_seconds}s"
-        elif total_seconds < 3600:
-            return f"{total_seconds // 60}m"
-        elif total_seconds < 86400:
-            h = total_seconds // 3600
-            m = (total_seconds % 3600) // 60
-            return f"{h}h {m}m"
-        else:
-            d = total_seconds // 86400
-            h = (total_seconds % 86400) // 3600
-            return f"{d}d {h}h"
+        return _format_uptime(dt)
     except Exception:
         return "—"
 
 
 def get_bot_summary(bot_name: str) -> dict:
     env = get_bot_env(bot_name)
-    service = f"claude-bot-{bot_name}"
-    try:
-        result = subprocess.run(
-            ["systemctl", "is-active", service],
-            capture_output=True, text=True, timeout=5
-        )
-        active = result.stdout.strip() == "active"
-    except Exception:
-        active = False
+    if IN_DOCKER:
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", f"--bot-dir.*bots/{bot_name}"],
+                capture_output=True, text=True, timeout=5
+            )
+            active = result.returncode == 0 and bool(result.stdout.strip())
+        except Exception:
+            active = False
+    else:
+        service = f"claude-bot-{bot_name}"
+        try:
+            result = subprocess.run(
+                ["systemctl", "is-active", service],
+                capture_output=True, text=True, timeout=5
+            )
+            active = result.stdout.strip() == "active"
+        except Exception:
+            active = False
 
     msgs_today = 0
     db_path = BOTS_DIR / bot_name / "bot_data.db"
@@ -479,21 +504,21 @@ async def create_bot(req: CreateBotRequest):
 @app.delete("/api/bots/{name}")
 async def delete_bot(name: str):
     validate_bot_name(name)
-    service = f"claude-bot-{name}"
 
-    # Stop and disable service
-    for cmd in ["stop", "disable"]:
-        subprocess.run(["sudo", "systemctl", cmd, service],
+    if IN_DOCKER:
+        subprocess.run(["pkill", "-f", f"--bot-dir.*bots/{name}"],
+                       capture_output=True, timeout=10)
+    else:
+        service = f"claude-bot-{name}"
+        for cmd in ["stop", "disable"]:
+            subprocess.run(["sudo", "systemctl", cmd, service],
+                           capture_output=True, text=True, timeout=30)
+        service_file = Path(f"/etc/systemd/system/{service}.service")
+        if service_file.exists():
+            subprocess.run(["sudo", "rm", str(service_file)],
+                           capture_output=True, text=True, timeout=10)
+        subprocess.run(["sudo", "systemctl", "daemon-reload"],
                        capture_output=True, text=True, timeout=30)
-
-    # Remove service file
-    service_file = Path(f"/etc/systemd/system/{service}.service")
-    if service_file.exists():
-        subprocess.run(["sudo", "rm", str(service_file)],
-                       capture_output=True, text=True, timeout=10)
-
-    subprocess.run(["sudo", "systemctl", "daemon-reload"],
-                   capture_output=True, text=True, timeout=30)
 
     # Remove bot directory
     bot_dir = BOTS_DIR / name
@@ -568,13 +593,31 @@ async def bot_action(name: str, req: ActionRequest):
     validate_bot_name(name)
     if req.action not in ("start", "stop", "restart"):
         raise HTTPException(400, detail="Invalid action")
-    service = f"claude-bot-{name}"
-    result = subprocess.run(
-        ["sudo", "systemctl", req.action, service],
-        capture_output=True, text=True, timeout=30
-    )
-    if result.returncode != 0:
-        raise HTTPException(500, detail=result.stderr or f"systemctl {req.action} failed")
+
+    if IN_DOCKER:
+        bot_dir = str(BOTS_DIR / name)
+        if req.action in ("stop", "restart"):
+            subprocess.run(["pkill", "-f", f"--bot-dir.*bots/{name}"],
+                           capture_output=True, timeout=10)
+        if req.action in ("start", "restart"):
+            import time as _time
+            if req.action == "restart":
+                _time.sleep(1)
+            log_path = BASE_DIR / "logs" / f"{name}.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_fd = open(log_path, "a")
+            subprocess.Popen(
+                ["python3", str(BASE_DIR / "bot.py"), "--bot-dir", bot_dir],
+                stdout=log_fd, stderr=log_fd, start_new_session=True,
+            )
+    else:
+        service = f"claude-bot-{name}"
+        result = subprocess.run(
+            ["sudo", "systemctl", req.action, service],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode != 0:
+            raise HTTPException(500, detail=result.stderr or f"systemctl {req.action} failed")
     return {"ok": True, "action": req.action}
 
 
@@ -583,6 +626,50 @@ async def bot_action(name: str, req: ActionRequest):
 @app.get("/api/bots/{name}/logs")
 async def stream_logs(name: str):
     validate_bot_name(name)
+
+    if IN_DOCKER:
+        log_file = BASE_DIR / "logs" / f"{name}.log"
+
+        async def gen_docker():
+            if log_file.exists():
+                proc_hist = await asyncio.create_subprocess_exec(
+                    "tail", "-n", "100", str(log_file),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                out, _ = await proc_hist.communicate()
+                for line in out.decode(errors="replace").splitlines():
+                    yield f"data: {line}\n\n"
+
+            proc = await asyncio.create_subprocess_exec(
+                "tail", "-f", str(log_file),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            try:
+                while True:
+                    try:
+                        line = await asyncio.wait_for(proc.stdout.readline(), timeout=15.0)
+                    except asyncio.TimeoutError:
+                        yield "data: \n\n"
+                        continue
+                    if not line:
+                        break
+                    yield f"data: {line.decode(errors='replace').rstrip()}\n\n"
+            except asyncio.CancelledError:
+                pass
+            finally:
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
+
+        return StreamingResponse(
+            gen_docker(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
     service = f"claude-bot-{name}"
 
     async def gen():
@@ -973,11 +1060,26 @@ async def restart_all_bots():
     bots = [d.name for d in BOTS_DIR.iterdir() if d.is_dir() and (d / ".env").exists()]
     results = []
     for name in sorted(bots):
-        r = subprocess.run(
-            ["sudo", "systemctl", "restart", f"claude-bot-{name}"],
-            capture_output=True, text=True, timeout=15
-        )
-        results.append({"name": name, "ok": r.returncode == 0})
+        if IN_DOCKER:
+            subprocess.run(["pkill", "-f", f"--bot-dir.*bots/{name}"],
+                           capture_output=True, timeout=10)
+            import time as _time
+            _time.sleep(1)
+            bot_dir = str(BOTS_DIR / name)
+            log_path = BASE_DIR / "logs" / f"{name}.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_fd = open(log_path, "a")
+            subprocess.Popen(
+                ["python3", str(BASE_DIR / "bot.py"), "--bot-dir", bot_dir],
+                stdout=log_fd, stderr=log_fd, start_new_session=True,
+            )
+            results.append({"name": name, "ok": True})
+        else:
+            r = subprocess.run(
+                ["sudo", "systemctl", "restart", f"claude-bot-{name}"],
+                capture_output=True, text=True, timeout=15
+            )
+            results.append({"name": name, "ok": r.returncode == 0})
     return {"results": results}
 
 
@@ -1445,10 +1547,20 @@ BUGFIXER_TELEGRAM_TOKEN={existing_cfg.get('BUGFIXER_TELEGRAM_TOKEN', '')}
 
                 # Start the bot
                 if bc.get("telegram_token"):
-                    subprocess.run(
-                        ["sudo", "systemctl", "enable", "--now", f"claude-bot-{bot_name}"],
-                        capture_output=True, timeout=15,
-                    )
+                    if IN_DOCKER:
+                        bot_dir_path = str(BOTS_DIR / bot_name)
+                        log_path = BASE_DIR / "logs" / f"{bot_name}.log"
+                        log_path.parent.mkdir(parents=True, exist_ok=True)
+                        log_fd = open(log_path, "a")
+                        subprocess.Popen(
+                            ["python3", str(BASE_DIR / "bot.py"), "--bot-dir", bot_dir_path],
+                            stdout=log_fd, stderr=log_fd, start_new_session=True,
+                        )
+                    else:
+                        subprocess.run(
+                            ["sudo", "systemctl", "enable", "--now", f"claude-bot-{bot_name}"],
+                            capture_output=True, timeout=15,
+                        )
 
                 bot_result = {"name": bot_name, "created": True}
             else:

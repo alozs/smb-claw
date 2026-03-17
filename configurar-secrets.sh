@@ -101,10 +101,28 @@ echo ""
 echo "✅ secrets.env salvo em $SECRETS_FILE (chmod 600)"
 echo ""
 
+# ── Detecção Docker ──────────────────────────────────────────────────────────
+IN_DOCKER=false
+if [ -f /.dockerenv ] || grep -q 'docker\|containerd' /proc/1/cgroup 2>/dev/null; then
+    IN_DOCKER=true
+fi
+
 # Reinicia o serviço se estiver rodando
-SERVICE="claude-bot-$BOT_NAME"
-if systemctl is-active --quiet "$SERVICE" 2>/dev/null; then
-    echo "🔄 Reiniciando $SERVICE para aplicar..."
-    sudo systemctl restart "$SERVICE"
-    echo "✅ Reiniciado."
+if [ "$IN_DOCKER" = true ]; then
+    if pgrep -f "bot.py --bot-dir.*bots/$BOT_NAME" > /dev/null 2>&1; then
+        echo "🔄 Reiniciando $BOT_NAME para aplicar..."
+        pkill -f "bot.py --bot-dir.*bots/$BOT_NAME" 2>/dev/null
+        sleep 1
+        log_file="$SCRIPT_DIR/logs/${BOT_NAME}.log"
+        mkdir -p "$SCRIPT_DIR/logs"
+        nohup python3 "$SCRIPT_DIR/bot.py" --bot-dir "$BOT_DIR" >> "$log_file" 2>&1 &
+        echo "✅ Reiniciado (PID $!)."
+    fi
+else
+    SERVICE="claude-bot-$BOT_NAME"
+    if systemctl is-active --quiet "$SERVICE" 2>/dev/null; then
+        echo "🔄 Reiniciando $SERVICE para aplicar..."
+        sudo systemctl restart "$SERVICE"
+        echo "✅ Reiniciado."
+    fi
 fi

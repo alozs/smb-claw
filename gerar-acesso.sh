@@ -20,7 +20,12 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PANEL_URL=$(grep -s '^ADMIN_PANEL_URL=' "$SCRIPT_DIR/config.global" | cut -d= -f2-)
 if [ -z "$PANEL_URL" ]; then
-    IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    # Tenta obter IP externo (útil em Docker/NAT)
+    IP=$(curl -s --max-time 3 https://ifconfig.me 2>/dev/null \
+      || curl -s --max-time 3 https://api.ipify.org 2>/dev/null \
+      || curl -s --max-time 3 https://icanhazip.com 2>/dev/null)
+    # Fallback: IP local
+    [ -z "$IP" ] && IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     PANEL_URL="http://${IP}:8080"
 fi
 URL="${PANEL_URL}/?token=${TOKEN}"

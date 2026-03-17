@@ -2,45 +2,94 @@
 # Gerencia todos os bots Claude
 # Uso: ./gerenciar.sh [status|start|stop|restart|logs <bot>]
 
-BASE_DIR="$(cd "$(dirname "$0")" && pwd)/bots"
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+BOTS_DIR="$BASE_DIR/bots"
+
+# ── Detecção Docker ──────────────────────────────────────────────────────────
+IN_DOCKER=false
+if [ -f /.dockerenv ] || grep -q 'docker\|containerd' /proc/1/cgroup 2>/dev/null; then
+    IN_DOCKER=true
+fi
 
 list_bots() {
-    ls "$BASE_DIR" 2>/dev/null
+    ls "$BOTS_DIR" 2>/dev/null
+}
+
+start_bot() {
+    local bot="$1"
+    if [ "$IN_DOCKER" = true ]; then
+        local log_file="$BASE_DIR/logs/${bot}.log"
+        mkdir -p "$BASE_DIR/logs"
+        nohup python3 "$BASE_DIR/bot.py" --bot-dir "$BOTS_DIR/$bot" >> "$log_file" 2>&1 &
+        echo "✅ $bot iniciado (PID $!)"
+    else
+        sudo systemctl start "claude-bot-$bot" && echo "✅ $bot iniciado"
+    fi
+}
+
+stop_bot() {
+    local bot="$1"
+    if [ "$IN_DOCKER" = true ]; then
+        pkill -f "bot.py --bot-dir.*bots/$bot" 2>/dev/null && echo "⏹ $bot parado" || echo "⏹ $bot não estava rodando"
+    else
+        sudo systemctl stop "claude-bot-$bot" && echo "⏹ $bot parado"
+    fi
+}
+
+restart_bot() {
+    local bot="$1"
+    if [ "$IN_DOCKER" = true ]; then
+        pkill -f "bot.py --bot-dir.*bots/$bot" 2>/dev/null
+        sleep 1
+        local log_file="$BASE_DIR/logs/${bot}.log"
+        mkdir -p "$BASE_DIR/logs"
+        nohup python3 "$BASE_DIR/bot.py" --bot-dir "$BOTS_DIR/$bot" >> "$log_file" 2>&1 &
+        echo "🔄 $bot reiniciado (PID $!)"
+    else
+        sudo systemctl restart "claude-bot-$bot" && echo "🔄 $bot reiniciado"
+    fi
 }
 
 case "$1" in
     status)
         echo "=== Status dos Bots Claude ==="
         for bot in $(list_bots); do
-            service="claude-bot-$bot"
-            status=$(systemctl is-active "$service" 2>/dev/null || echo "inativo")
+            if [ "$IN_DOCKER" = true ]; then
+                if pgrep -f "bot.py --bot-dir.*bots/$bot" > /dev/null 2>&1; then
+                    status="active"
+                else
+                    status="inativo"
+                fi
+            else
+                status=$(systemctl is-active "claude-bot-$bot" 2>/dev/null || echo "inativo")
+            fi
             echo "  $bot → $status"
         done
         ;;
     start)
         if [ -n "$2" ]; then
-            sudo systemctl start "claude-bot-$2" && echo "✅ $2 iniciado"
+            start_bot "$2"
         else
             for bot in $(list_bots); do
-                sudo systemctl start "claude-bot-$bot" && echo "✅ $bot iniciado"
+                start_bot "$bot"
             done
         fi
         ;;
     stop)
         if [ -n "$2" ]; then
-            sudo systemctl stop "claude-bot-$2" && echo "⏹ $2 parado"
+            stop_bot "$2"
         else
             for bot in $(list_bots); do
-                sudo systemctl stop "claude-bot-$bot" && echo "⏹ $bot parado"
+                stop_bot "$bot"
             done
         fi
         ;;
     restart)
         if [ -n "$2" ]; then
-            sudo systemctl restart "claude-bot-$2" && echo "🔄 $2 reiniciado"
+            restart_bot "$2"
         else
             for bot in $(list_bots); do
-                sudo systemctl restart "claude-bot-$bot" && echo "🔄 $bot reiniciado"
+                restart_bot "$bot"
             done
         fi
         ;;
@@ -49,7 +98,17 @@ case "$1" in
             echo "Uso: $0 logs <nome-do-bot>"
             exit 1
         fi
-        sudo journalctl -u "claude-bot-$2" -f --no-pager
+        if [ "$IN_DOCKER" = true ]; then
+            local_log="$BASE_DIR/logs/$2.log"
+            if [ -f "$local_log" ]; then
+                tail -f "$local_log"
+            else
+                echo "Log não encontrado: $local_log"
+                exit 1
+            fi
+        else
+            sudo journalctl -u "claude-bot-$2" -f --no-pager
+        fi
         ;;
     list)
         echo "Bots disponíveis:"

@@ -62,25 +62,54 @@ git pull origin main --ff-only
 
 NEW_VERSION=$(cat "$BASE_DIR/VERSION" 2>/dev/null || echo "?")
 
+# ── Detecção Docker ──────────────────────────────────────────────────────────
+IN_DOCKER=false
+if [ -f /.dockerenv ] || grep -q 'docker\|containerd' /proc/1/cgroup 2>/dev/null; then
+    IN_DOCKER=true
+fi
+
 # ── Reinicia serviços um a um ───────────────────────────────────────────────
 echo "🔄 Reiniciando serviços..."
 RESTARTED=0
 for bot_dir in "$BASE_DIR"/bots/*/; do
     bot=$(basename "$bot_dir")
-    service="claude-bot-$bot"
-    if systemctl is-active "$service" > /dev/null 2>&1; then
-        sudo systemctl restart "$service"
-        echo "  ✅ $bot"
-        RESTARTED=$((RESTARTED + 1))
-        sleep 2
+    if [ "$IN_DOCKER" = true ]; then
+        if pgrep -f "bot.py --bot-dir.*bots/$bot" > /dev/null 2>&1; then
+            pkill -f "bot.py --bot-dir.*bots/$bot" 2>/dev/null
+            sleep 1
+            log_file="$BASE_DIR/logs/${bot}.log"
+            mkdir -p "$BASE_DIR/logs"
+            nohup python3 "$BASE_DIR/bot.py" --bot-dir "$bot_dir" >> "$log_file" 2>&1 &
+            echo "  ✅ $bot"
+            RESTARTED=$((RESTARTED + 1))
+            sleep 2
+        fi
+    else
+        service="claude-bot-$bot"
+        if systemctl is-active "$service" > /dev/null 2>&1; then
+            sudo systemctl restart "$service"
+            echo "  ✅ $bot"
+            RESTARTED=$((RESTARTED + 1))
+            sleep 2
+        fi
     fi
 done
 
 # Admin panel
-if systemctl is-active claude-bots-admin > /dev/null 2>&1; then
-    sudo systemctl restart claude-bots-admin
-    echo "  ✅ admin panel"
-    RESTARTED=$((RESTARTED + 1))
+if [ "$IN_DOCKER" = true ]; then
+    if pgrep -f "uvicorn.*admin" > /dev/null 2>&1; then
+        pkill -f "uvicorn.*admin" 2>/dev/null
+        sleep 1
+        nohup uvicorn admin.app:app --host 0.0.0.0 --port 8080 >> "$BASE_DIR/logs/admin.log" 2>&1 &
+        echo "  ✅ admin panel"
+        RESTARTED=$((RESTARTED + 1))
+    fi
+else
+    if systemctl is-active claude-bots-admin > /dev/null 2>&1; then
+        sudo systemctl restart claude-bots-admin
+        echo "  ✅ admin panel"
+        RESTARTED=$((RESTARTED + 1))
+    fi
 fi
 
 echo "✅ Update completo! v$OLD_VERSION → v$NEW_VERSION ($RESTARTED serviços reiniciados)"

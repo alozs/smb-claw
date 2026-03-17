@@ -142,7 +142,23 @@ def get_bot_errors(bot_name: str, since: str) -> list:
 # ── Journalctl ────────────────────────────────────────────────────────────────
 
 def get_journalctl_errors(bot_name: str) -> str:
-    """Get recent warning/error lines from journalctl for the bot service."""
+    """Get recent warning/error lines from journalctl (or log file in Docker)."""
+    in_docker = Path("/.dockerenv").exists() or bool(os.environ.get("IN_DOCKER"))
+
+    if in_docker:
+        log_file = BASE_DIR / "logs" / f"{bot_name}.log"
+        if not log_file.exists():
+            return "(sem logs — arquivo não encontrado)"
+        try:
+            all_lines = log_file.read_text(errors="replace").splitlines()
+            error_lines = [l for l in all_lines
+                           if any(kw in l.lower() for kw in ("error", "warning", "traceback", "exception"))]
+            if not error_lines:
+                return "(sem logs de erro recentes)"
+            return "\n".join(error_lines[-50:])
+        except Exception as e:
+            return f"(erro ao ler log file: {e})"
+
     service = f"claude-bot-{bot_name}"
     try:
         result = subprocess.run(
@@ -165,7 +181,16 @@ def get_journalctl_errors(bot_name: str) -> str:
 
 def build_prompt(bot_name: str, errors: list, journal_logs: str) -> str:
     """Build the Claude prompt for fixing a bot's errors."""
+    in_docker = Path("/.dockerenv").exists() or bool(os.environ.get("IN_DOCKER"))
     error_lines = "\n".join(f"  {ts}: {err}" for ts, err in errors[:20])
+
+    if in_docker:
+        restart_cmd = f'pkill -f "bot.py --bot-dir.*bots/{bot_name}" && sleep 2 && nohup python3 {BASE_DIR}/bot.py --bot-dir {BASE_DIR}/bots/{bot_name} >> {BASE_DIR}/logs/{bot_name}.log 2>&1 &'
+        check_cmd = f'pgrep -f "bot.py --bot-dir.*bots/{bot_name}"'
+    else:
+        restart_cmd = f"sudo systemctl restart claude-bot-{bot_name}"
+        check_cmd = f"systemctl is-active claude-bot-{bot_name}"
+
     return f"""Você é o Bug Fixer Agent do sistema SMB Claw.
 
 Bot: {bot_name}
@@ -174,15 +199,15 @@ Base: {BASE_DIR}/
 Erros detectados:
 {error_lines}
 
-Logs journalctl:
+Logs:
 {journal_logs}
 
 Tarefa:
 1. Leia os arquivos fonte relevantes (bot.py, db.py, scheduler.py, tools/)
 2. Identifique a causa raiz
 3. Faça a correção mínima necessária
-4. Reinicie: sudo systemctl restart claude-bot-{bot_name}
-5. Verifique: systemctl is-active claude-bot-{bot_name}
+4. Reinicie: {restart_cmd}
+5. Verifique: {check_cmd}
 6. Responda com: causa raiz | correção | arquivo(s) modificado(s) | status
 
 REGRAS:
