@@ -1329,6 +1329,157 @@ async def send_long(update_or_bot, text: str, chat_id: int = None) -> None:
             await update_or_bot.message.reply_text(chunk, parse_mode="HTML")
 
 
+def _format_weekdays(weekdays: str) -> str:
+    """Traduz string de weekdays para português legível."""
+    _map = {"mon": "seg", "tue": "ter", "wed": "qua", "thu": "qui",
+            "fri": "sex", "sat": "sáb", "sun": "dom"}
+    w = weekdays.strip().lower()
+    if w == "all" or w == "*":
+        return "todos os dias"
+    if w in ("mon,tue,wed,thu,fri", "mon,tue,wed,thu,fri"):
+        return "seg-sex"
+    if w in ("sat,sun", "sun,sat"):
+        return "sáb-dom"
+    parts = [_map.get(p.strip(), p.strip()) for p in w.split(",")]
+    return ",".join(parts)
+
+
+def _parse_cron_line(line: str):
+    """Parseia linha do crontab → (horário_brt, weekday_desc, nome_amigável) ou None."""
+    import os
+    line = line.strip()
+    if not line or line.startswith("#"):
+        return None
+    # Extrair comentário de tag ao final
+    tag = ""
+    if " # " in line:
+        line, tag = line.rsplit(" # ", 1)
+        tag = tag.strip()
+
+    parts = line.split()
+    if len(parts) < 6:
+        return None
+
+    minute_f, hour_f, _dom, _month, weekday_f = parts[:5]
+    command = " ".join(parts[5:])
+
+    # Converter hora para BRT (UTC-3)
+    try:
+        if "," in hour_f:
+            hours_brt = [(int(h) - 3) % 24 for h in hour_f.split(",")]
+            hour_str = ",".join(f"{h:02d}" for h in hours_brt)
+        elif hour_f == "*":
+            hour_str = "*"
+        else:
+            hour_str = f"{(int(hour_f) - 3) % 24:02d}"
+    except ValueError:
+        hour_str = hour_f
+
+    try:
+        min_str = f"{int(minute_f):02d}" if minute_f != "*" else "*"
+    except ValueError:
+        min_str = minute_f
+
+    horario = f"{hour_str}:{min_str}"
+
+    # Weekday
+    _wmap = {"0": "dom", "1": "seg", "2": "ter", "3": "qua",
+             "4": "qui", "5": "sex", "6": "sáb", "7": "dom"}
+    if weekday_f in ("*", ""):
+        weekday_desc = "todos os dias"
+    elif weekday_f == "1-5":
+        weekday_desc = "seg-sex"
+    elif weekday_f in ("6,0", "0,6"):
+        weekday_desc = "sáb-dom"
+    else:
+        wparts = [_wmap.get(w, w) for w in weekday_f.split(",")]
+        weekday_desc = ",".join(wparts)
+
+    # Nome amigável
+    if tag:
+        # Humanizar tag: underscores → espaço, capitalize
+        nome = tag.replace("_", " ").replace("-", " ").strip().capitalize()
+    else:
+        # Derivar do script: último token que termina em .sh/.py ou basename
+        script = command.split()[0] if command.split() else command
+        script = os.path.basename(script)
+        script = script.replace(".sh", "").replace(".py", "")
+        nome = script.replace("_", " ").replace("-", " ").strip().capitalize()
+
+    return (horario, weekday_desc, nome)
+
+
+def _build_tasks_and_schedules(user_id: int, status_filter: str = "all") -> str:
+    """Constrói HTML das seções Tarefas, Agendamentos e Crons."""
+    import subprocess as _sp
+    lines = [f"<b>📋 Tarefas e Agendamentos — {BOT_NAME}</b>\n"]
+
+    # ── Tarefas do agente ────────────────────────────────────────────────────
+    lines.append("<b>Tarefas do agente</b>")
+    lines.append("<i>Trabalhos que o agente está executando ou executou.</i>")
+    items = db.tasks_for_user(user_id) if status_filter == "all" else db.tasks_for_user(user_id, status=status_filter)
+    if items:
+        for t in items[:20]:
+            emoji = task_status_emoji(t["status"])
+            steps = t.get("steps", [])
+            si = f" [{t['current_step']+1}/{len(steps)}]" if steps else ""
+            title = t['title'].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            progress = (t.get("progress") or "")[:60].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            lines.append(f"{emoji} <code>{t['id']}</code> {title}{si}")
+            if progress:
+                lines.append(f"   → {progress}")
+    else:
+        lines.append("<i>Nenhuma tarefa.</i>")
+
+    # ── Agendamentos do bot ──────────────────────────────────────────────────
+    lines.append("")
+    lines.append("<b>Agendamentos do agente</b>")
+    lines.append("<i>Notificações automáticas configuradas pelo agente.</i>")
+    try:
+        schedules = db.schedule_list()
+    except Exception:
+        schedules = []
+    if schedules:
+        for s in schedules:
+            brt_hour = (s["hour"] - 3) % 24
+            weekday_label = _format_weekdays(s.get("weekdays", "all"))
+            # Nome: usar name se preenchido, senão truncar message como fallback
+            display_name = s.get("name") or s.get("message", "")[:40]
+            display_name = display_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            desc = s.get("description", "")
+            lines.append(f"• {brt_hour:02d}:{s['minute']:02d} ({weekday_label}) — {display_name}")
+            if desc:
+                desc_esc = desc.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                lines.append(f"   <i>{desc_esc}</i>")
+    else:
+        lines.append("<i>Nenhum agendamento.</i>")
+
+    # ── Crons do sistema ─────────────────────────────────────────────────────
+    lines.append("")
+    lines.append("<b>Crons do sistema</b>")
+    lines.append("<i>Tarefas automáticas rodando em segundo plano no servidor.</i>")
+    try:
+        r = _sp.run(["crontab", "-l"], capture_output=True, text=True, timeout=5)
+        raw_cron_lines = [l for l in r.stdout.splitlines() if l.strip()]
+    except Exception:
+        raw_cron_lines = []
+    parsed_crons = []
+    for cl in raw_cron_lines:
+        parsed = _parse_cron_line(cl)
+        if parsed:
+            parsed_crons.append(parsed)
+    if parsed_crons:
+        for horario, weekday_desc, nome in parsed_crons[:20]:
+            nome_esc = nome.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            lines.append(f"• {horario} ({weekday_desc}) — {nome_esc}")
+    else:
+        lines.append("<i>Nenhum cron.</i>")
+
+    lines.append("")
+    lines.append("<i>Para criar agendamentos, peça ao agente em linguagem natural.</i>")
+    return "\n".join(lines)
+
+
 def _build_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     """Monta o teclado inline do /menu conforme perfil do usuário."""
     user_rows = [
@@ -1398,38 +1549,7 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await context.bot.send_message(chat_id=chat_id, text=text, **kwargs)
 
     if action == "menu_tasks":
-        lines = [f"📋 *Tarefas e Agendamentos — {BOT_NAME}*\n"]
-        # Tarefas
-        lines.append("*Tarefas do agente*")
-        lines.append("_Trabalhos que o bot está executando ou executou\\._")
-        items = db.tasks_for_user(user_id)
-        if items:
-            for t in items[:20]:
-                emoji = task_status_emoji(t["status"])
-                steps = t.get("steps", [])
-                si = f" [{t['current_step']+1}/{len(steps)}]" if steps else ""
-                lines.append(f"{emoji} `{t['id']}` {t['title']}{si}")
-                if t.get("progress"):
-                    lines.append(f"   → {t['progress'][:60]}")
-        else:
-            lines.append("_Nenhuma tarefa\\._")
-        # Agendamentos
-        lines.append("")
-        lines.append("*Agendamentos ativos*")
-        lines.append("_Notificações automáticas em horários definidos\\._")
-        try:
-            schedules = db.schedule_list()
-        except Exception:
-            schedules = []
-        if schedules:
-            for s in schedules:
-                brt_hour = (s["hour"] - 3) % 24
-                lines.append(f"• {brt_hour:02d}:{s['minute']:02d} ({s['weekdays']}) → {s['message'][:60]}")
-        else:
-            lines.append("_Nenhum agendamento\\._")
-        lines.append("")
-        lines.append("_Para criar agendamentos, peça ao bot em linguagem natural\\._")
-        await reply("\n".join(lines), parse_mode="MarkdownV2")
+        await reply(_build_tasks_and_schedules(user_id), parse_mode="HTML")
 
     elif action == "menu_clear":
         user_lock = await _get_user_lock(user_id)
@@ -1883,38 +2003,9 @@ async def cmd_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     status_filter = context.args[0] if context.args else "all"
     if status_filter not in valid:
         await update.message.reply_text(f"Status inválido. Use: {', '.join(valid)}"); return
-    lines = [f"📋 *Tarefas e Agendamentos — {BOT_NAME}*\n"]
-    # Tarefas
-    lines.append("*Tarefas do agente*")
-    lines.append("_Trabalhos que o bot está executando ou executou._")
-    items = db.tasks_for_user(user.id) if status_filter == "all" else db.tasks_for_user(user.id, status=status_filter)
-    if items:
-        for t in items[:20]:
-            emoji = task_status_emoji(t["status"])
-            steps = t.get("steps", [])
-            si = f" [{t['current_step']+1}/{len(steps)}]" if steps else ""
-            lines.append(f"{emoji} `{t['id']}` {t['title']}{si}")
-            if t.get("progress"):
-                lines.append(f"   → {t['progress'][:60]}")
-    else:
-        lines.append("_Nenhuma tarefa._")
-    # Agendamentos
-    lines.append("")
-    lines.append("*Agendamentos ativos*")
-    lines.append("_Notificações automáticas em horários definidos._")
-    try:
-        schedules = db.schedule_list()
-    except Exception:
-        schedules = []
-    if schedules:
-        for s in schedules:
-            brt_hour = (s["hour"] - 3) % 24
-            lines.append(f"• {brt_hour:02d}:{s['minute']:02d} ({s['weekdays']}) → {s['message'][:60]}")
-    else:
-        lines.append("_Nenhum agendamento._")
-    lines.append("")
-    lines.append("_Para criar agendamentos, peça ao bot em linguagem natural._")
-    await send_long(update, "\n".join(lines))
+    html = _build_tasks_and_schedules(user.id, status_filter)
+    for chunk in _split_html(html):
+        await update.message.reply_text(chunk, parse_mode="HTML")
 
 
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

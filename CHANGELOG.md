@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.3 (2026-03-20)
+
+Nenhum commit foi fornecido para esta versão. Por favor, inclua a lista de commits no campo indicado para que eu possa gerar as notas de release.
+
 ## 0.7.2 (2026-03-20)
 
 Novas funcionalidades

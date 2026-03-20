@@ -64,6 +64,8 @@ class BotDB:
                     weekdays TEXT NOT NULL DEFAULT 'all',
                     day_of_month INTEGER NOT NULL DEFAULT 0,
                     message TEXT NOT NULL,
+                    name TEXT DEFAULT '',
+                    description TEXT DEFAULT '',
                     created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS analytics (
@@ -112,6 +114,13 @@ class BotDB:
                 );
                 CREATE INDEX IF NOT EXISTS idx_traces_bot_ts ON traces(bot_name, started_at);
             """)
+            # Migration: add name/description columns if they don't exist yet
+            for col, definition in [("name", "TEXT DEFAULT ''"), ("description", "TEXT DEFAULT ''")]:
+                try:
+                    c.execute(f"ALTER TABLE schedules ADD COLUMN {col} {definition}")
+                    c.commit()
+                except Exception:
+                    pass  # column already exists
 
     # ── Migração de JSON legado ──────────────────────────────────────────────
 
@@ -336,11 +345,12 @@ class BotDB:
     # ── Schedules ────────────────────────────────────────────────────────────
 
     def schedule_add(self, sid: str, user_id: int, hour: int, minute: int,
-                     weekdays: str, message: str, day_of_month: int = 0):
+                     weekdays: str, message: str, day_of_month: int = 0,
+                     name: str = "", description: str = ""):
         self._conn.execute(
-            "INSERT INTO schedules (id, user_id, hour, minute, weekdays, day_of_month, message, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (sid, user_id, hour, minute, weekdays, day_of_month, message, datetime.now().isoformat()),
+            "INSERT INTO schedules (id, user_id, hour, minute, weekdays, day_of_month, message, name, description, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (sid, user_id, hour, minute, weekdays, day_of_month, message, name, description, datetime.now().isoformat()),
         )
         self._conn.commit()
 

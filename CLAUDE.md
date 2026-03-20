@@ -121,7 +121,7 @@ Valor: lista separada por vírgula ou `none`.
 |---|---|---|---|
 | Memória | *(sempre ativa)* | — | `memory_write`, `memory_read`, `state_rw` |
 | Tarefas | *(sempre ativa)* | — | `task_create`, `task_update`, `task_list` |
-| Schedule | *(sempre ativa)* | — | Agendamentos de notificações proativas |
+| Schedule | *(sempre ativa)* | — | Agendamentos de notificações proativas. Campos: `hour`, `minute`, `weekdays`, `message`, `name` (nome curto legível, ex: "Briefing IA"), `description` (o que o agendamento faz). Sempre preencher `name` e `description` ao criar. |
 | Voz | *(sempre ativa)* | `ffmpeg` + `openai-whisper` instalados | Transcreve áudios/voz via Whisper `small` (pt) e processa como texto |
 | Shell | `shell` | — | Executa comandos na VPS (com denylist de segurança) |
 | Cron | `cron` | — | Gerencia cron jobs |
