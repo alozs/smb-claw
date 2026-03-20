@@ -92,6 +92,7 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 BOT_NAME           = os.environ.get("BOT_NAME", BOT_DIR.name)
 MODEL              = os.environ.get("MODEL", "claude-opus-4-6")
 MAX_HISTORY        = int(os.environ.get("MAX_HISTORY", "20"))
+DEBOUNCE_SECONDS   = float(os.environ.get("DEBOUNCE_SECONDS", "3"))
 COMPACTION_ENABLED = os.environ.get("COMPACTION_ENABLED", "false").lower() == "true"
 COMPACTION_MODEL   = os.environ.get("COMPACTION_MODEL", "google/gemini-2.0-flash-001")
 COMPACTION_KEEP    = int(os.environ.get("COMPACTION_KEEP", "10"))
@@ -602,6 +603,10 @@ _user_locks: dict[int, asyncio.Lock] = {}
 _locks_lock = asyncio.Lock()  # protege criação de novos user locks
 _bot_start_time = time.monotonic()
 
+# ── Debounce de mensagens de texto ────────────────────────────────────────────
+_debounce_buffer: dict[int, list[str]] = {}   # user_id → lista de textos acumulados
+_debounce_tasks:  dict[int, asyncio.Task] = {} # user_id → task do timer
+
 # ── Wizard de criação de agentes/sub-agentes ──────────────────────────────────
 _wizard_state: dict[int, dict] = {}  # uid → {"type", "step", "data": {...}}
 
@@ -613,6 +618,30 @@ async def _get_user_lock(user_id: int) -> asyncio.Lock:
             if user_id not in _user_locks:  # double-check
                 _user_locks[user_id] = asyncio.Lock()
     return _user_locks[user_id]
+
+
+async def _enqueue_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+    """Debounce de mensagens de texto: acumula por DEBOUNCE_SECONDS e processa como uma só."""
+    user = update.effective_user
+    conv_id = update.effective_chat.id if _is_group_chat(update) else user.id
+
+    # Acumula texto no buffer
+    _debounce_buffer.setdefault(conv_id, []).append(text)
+
+    # Cancela timer anterior (se existir)
+    existing = _debounce_tasks.get(conv_id)
+    if existing and not existing.done():
+        existing.cancel()
+
+    async def _fire():
+        await asyncio.sleep(DEBOUNCE_SECONDS)
+        parts = _debounce_buffer.pop(conv_id, [])
+        _debounce_tasks.pop(conv_id, None)
+        if parts:
+            combined = "\n\n".join(parts)
+            await _process_message(update, context, combined)
+
+    _debounce_tasks[conv_id] = asyncio.ensure_future(_fire())
 
 
 def _load_conversations_from_db():
@@ -3171,7 +3200,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if _is_group_chat(update):
         text = _strip_mention(text, context.bot.username or "")
         text = _group_prefix(update) + text
-    await _process_message(update, context, text)
+    await _enqueue_text(update, context, text)
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3613,7 +3642,7 @@ def main() -> None:
             if cmd in _known_commands:
                 return  # já tratado pelo CommandHandler dedicado
             text = update.message.text[1:]  # /radar → radar
-            await _process_message(update, context, text) if has_access(update.effective_user.id) else await request_access(update, context)
+            await _enqueue_text(update, context, text) if has_access(update.effective_user.id) else await request_access(update, context)
         else:
             await handle_message(update, context)
     app.add_handler(MessageHandler(filters.COMMAND, handle_unknown_command), group=1)
