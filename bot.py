@@ -1362,6 +1362,9 @@ def _build_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton("🔄 Reiniciar agente", callback_data="menu_restart"),
             InlineKeyboardButton("🔗 Painel Admin",     callback_data="menu_painel"),
         ],
+        [
+            InlineKeyboardButton("⬆️ Atualizar sistema", callback_data="menu_update"),
+        ],
     ]
     rows = user_rows + (admin_rows if is_admin(user_id) else [])
     return InlineKeyboardMarkup(rows)
@@ -1552,6 +1555,10 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             f"🔗 *Painel Admin* (30 min)\n\n`{link}`\n\n_Abra no navegador para acessar._",
             parse_mode="Markdown",
         )
+
+    elif action == "menu_update" and is_admin(user_id):
+        await query.answer()
+        await cmd_update(update, context)
 
     else:
         await reply("⚠️ Ação não reconhecida ou sem permissão.")
