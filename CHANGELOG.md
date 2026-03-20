@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.4 (2026-03-20)
+
+Não há commits novos ainda. As mudanças estão não commitadas (compactor.py, tracer.py, admin/app.py). Você forneceu a lista de commits vazia — sem conteúdo para redigir as notas.
+
+Duas opções:
+1. **Me passe os commits** (pode rodar `git log v0.7.3..HEAD --oneline` após commitar as mudanças)
+2. **Quero que eu analise os arquivos modificados** (`compactor.py`, `tracer.py`, `admin/app.py`) para inferir o que mudou e gerar as notas com base nisso?
+
 ## 0.7.3 (2026-03-20)
 
 Nenhum commit foi fornecido para esta versão. Por favor, inclua a lista de commits no campo indicado para que eu possa gerar as notas de release.

@@ -41,7 +41,7 @@ SYSTEM_GLOBAL_KEYS: dict[str, set[str]] = {
         "BUGFIXER_ENABLED", "BUGFIXER_TIMES_PER_DAY", "BUGFIXER_TELEGRAM_TOKEN",
         "ADMIN_PANEL_URL",
     },
-    "secrets.global": {"OPENROUTER_API_KEY"},
+    "secrets.global": set(),
 }
 
 app = FastAPI(title="Claude Bots Admin")
