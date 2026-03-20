@@ -1334,7 +1334,7 @@ def _build_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     user_rows = [
         [
             InlineKeyboardButton("📋 Tarefas",          callback_data="menu_tasks"),
-            InlineKeyboardButton("🧹 Limpar histórico", callback_data="menu_clear"),
+            InlineKeyboardButton("🆕 Nova conversa", callback_data="menu_clear"),
         ],
         [
             InlineKeyboardButton("ℹ️ Sobre o bot",      callback_data="menu_info"),
