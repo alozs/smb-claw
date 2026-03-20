@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.2 (2026-03-20)
+
+Novas funcionalidades
+
+• O menu de administração agora conta com um botão dedicado para atualizar o sistema diretamente pelo Telegram, sem necessidade de acesso ao servidor via terminal.
+
+Melhorias
+
+• O botão de reset de conversa foi renomeado de "Limpar histórico" para "Nova conversa", tornando sua função mais intuitiva para o usuário final.
+
 ## 0.7.1 (2026-03-20)
 
 Melhorias

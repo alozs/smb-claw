@@ -1333,7 +1333,7 @@ def _build_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     """Monta o teclado inline do /menu conforme perfil do usuário."""
     user_rows = [
         [
-            InlineKeyboardButton("📋 Tarefas",          callback_data="menu_tasks"),
+            InlineKeyboardButton("📋 Tarefas / Agendamentos", callback_data="menu_tasks"),
             InlineKeyboardButton("🆕 Nova conversa", callback_data="menu_clear"),
         ],
         [
@@ -1398,18 +1398,38 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await context.bot.send_message(chat_id=chat_id, text=text, **kwargs)
 
     if action == "menu_tasks":
+        lines = [f"📋 *Tarefas e Agendamentos — {BOT_NAME}*\n"]
+        # Tarefas
+        lines.append("*Tarefas do agente*")
+        lines.append("_Trabalhos que o bot está executando ou executou\\._")
         items = db.tasks_for_user(user_id)
-        if not items:
-            await reply("📋 Nenhuma tarefa encontrada."); return
-        lines = [f"📋 *Tarefas — {BOT_NAME}*\n"]
-        for t in items[:20]:
-            emoji = task_status_emoji(t["status"])
-            steps = t.get("steps", [])
-            si = f" [{t['current_step']+1}/{len(steps)}]" if steps else ""
-            lines.append(f"{emoji} `{t['id']}` {t['title']}{si}")
-            if t.get("progress"):
-                lines.append(f"   → {t['progress'][:60]}")
-        await reply("\n".join(lines), parse_mode="Markdown")
+        if items:
+            for t in items[:20]:
+                emoji = task_status_emoji(t["status"])
+                steps = t.get("steps", [])
+                si = f" [{t['current_step']+1}/{len(steps)}]" if steps else ""
+                lines.append(f"{emoji} `{t['id']}` {t['title']}{si}")
+                if t.get("progress"):
+                    lines.append(f"   → {t['progress'][:60]}")
+        else:
+            lines.append("_Nenhuma tarefa\\._")
+        # Agendamentos
+        lines.append("")
+        lines.append("*Agendamentos ativos*")
+        lines.append("_Notificações automáticas em horários definidos\\._")
+        try:
+            schedules = db.schedule_list()
+        except Exception:
+            schedules = []
+        if schedules:
+            for s in schedules:
+                brt_hour = (s["hour"] - 3) % 24
+                lines.append(f"• {brt_hour:02d}:{s['minute']:02d} ({s['weekdays']}) → {s['message'][:60]}")
+        else:
+            lines.append("_Nenhum agendamento\\._")
+        lines.append("")
+        lines.append("_Para criar agendamentos, peça ao bot em linguagem natural\\._")
+        await reply("\n".join(lines), parse_mode="MarkdownV2")
 
     elif action == "menu_clear":
         user_lock = await _get_user_lock(user_id)
@@ -1863,17 +1883,37 @@ async def cmd_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     status_filter = context.args[0] if context.args else "all"
     if status_filter not in valid:
         await update.message.reply_text(f"Status inválido. Use: {', '.join(valid)}"); return
+    lines = [f"📋 *Tarefas e Agendamentos — {BOT_NAME}*\n"]
+    # Tarefas
+    lines.append("*Tarefas do agente*")
+    lines.append("_Trabalhos que o bot está executando ou executou._")
     items = db.tasks_for_user(user.id) if status_filter == "all" else db.tasks_for_user(user.id, status=status_filter)
-    if not items:
-        await update.message.reply_text("📋 Nenhuma tarefa encontrada."); return
-    lines = [f"📋 *Tarefas — {BOT_NAME}*\n"]
-    for t in items[:20]:
-        emoji = task_status_emoji(t["status"])
-        steps = t.get("steps", [])
-        si = f" [{t['current_step']+1}/{len(steps)}]" if steps else ""
-        lines.append(f"{emoji} `{t['id']}` {t['title']}{si}")
-        if t.get("progress"):
-            lines.append(f"   → {t['progress'][:60]}")
+    if items:
+        for t in items[:20]:
+            emoji = task_status_emoji(t["status"])
+            steps = t.get("steps", [])
+            si = f" [{t['current_step']+1}/{len(steps)}]" if steps else ""
+            lines.append(f"{emoji} `{t['id']}` {t['title']}{si}")
+            if t.get("progress"):
+                lines.append(f"   → {t['progress'][:60]}")
+    else:
+        lines.append("_Nenhuma tarefa._")
+    # Agendamentos
+    lines.append("")
+    lines.append("*Agendamentos ativos*")
+    lines.append("_Notificações automáticas em horários definidos._")
+    try:
+        schedules = db.schedule_list()
+    except Exception:
+        schedules = []
+    if schedules:
+        for s in schedules:
+            brt_hour = (s["hour"] - 3) % 24
+            lines.append(f"• {brt_hour:02d}:{s['minute']:02d} ({s['weekdays']}) → {s['message'][:60]}")
+    else:
+        lines.append("_Nenhum agendamento._")
+    lines.append("")
+    lines.append("_Para criar agendamentos, peça ao bot em linguagem natural._")
     await send_long(update, "\n".join(lines))
 
 

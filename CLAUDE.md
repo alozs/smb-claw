@@ -196,7 +196,7 @@ Se não estiver instalada, PDFs recebem fallback graceful com nome+tamanho.
 | `/clear` | Limpa histórico de conversa |
 | `/info` | Exibe soul.md do bot |
 | `/id` | Retorna o Telegram ID do usuário |
-| `/tasks [status]` | Lista tarefas (filtros: all, in_progress, paused, completed, failed, cancelled) |
+| `/tasks [status]` | Lista tarefas do agente e agendamentos ativos (filtros de tarefas: all, in_progress, paused, completed, failed, cancelled) |
 | `/thinking [off\|low\|medium\|high]` | Define nível de raciocínio estendido por sessão. `off`=desativado (padrão), `low`=2k tokens, `medium`=6k tokens, `high`=16k tokens. Suportado nos providers `anthropic` e `claude-cli`. |
 
 ### Somente admin (ADMIN_ID)
