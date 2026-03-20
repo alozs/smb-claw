@@ -81,6 +81,15 @@ else
 fi
 RAW_LOG=$(echo "$RAW_LOG" | grep -v "^- release:" | grep -viE "^- (docs|chore|style|refactor).*index\.html|gitignore|\.gitignore|landing|page|secrets?\.env|credentials?|token|api.?key|password|passwd|auth|security fix|vulnerab|expose|leak|hardcod" || true)
 
+# Se não há commits mas há mudanças não commitadas, descreve os arquivos alterados
+if [ -z "$RAW_LOG" ]; then
+    UNCOMMITTED=$(git diff --name-only HEAD 2>/dev/null; git diff --cached --name-only 2>/dev/null)
+    UNCOMMITTED=$(echo "$UNCOMMITTED" | sort -u | grep -v "^$" || true)
+    if [ -n "$UNCOMMITTED" ]; then
+        RAW_LOG="Arquivos modificados nesta versão:"$'\n'"$(echo "$UNCOMMITTED" | sed 's/^/- /')"
+    fi
+fi
+
 DATE=$(date +%Y-%m-%d)
 
 # ── Gera texto de changelog com IA ──────────────────────────────────────────

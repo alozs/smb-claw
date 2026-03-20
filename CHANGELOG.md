@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.5 (2026-03-20)
+
+Os únicos arquivos modificados nesta versão (`VERSION` e `release.sh`) são arquivos de infraestrutura interna do processo de release — não há alterações funcionais relevantes para usuários finais do framework.
+
+Não há conteúdo válido para gerar notas de release seguindo as regras definidas (omitir seções vazias, ignorar itens técnicos internos).
+
+Deseja que eu gere mesmo assim com uma nota genérica, ou prefere revisar os commits incluídos nesta versão?
+
 ## 0.7.4 (2026-03-20)
 
 Não há commits novos ainda. As mudanças estão não commitadas (compactor.py, tracer.py, admin/app.py). Você forneceu a lista de commits vazia — sem conteúdo para redigir as notas.
