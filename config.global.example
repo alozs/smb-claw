@@ -43,6 +43,20 @@ BUGFIXER_TIMES_PER_DAY=1
 # Copie o TELEGRAM_TOKEN de qualquer bot em bots/<nome>/.env
 BUGFIXER_TELEGRAM_TOKEN=
 
+# ── Tracing detalhado ─────────────────────────────────────────────────────────
+# Registra cada chamada LLM e tool call com timing e tokens granulares.
+# Habilitado por padrão. Visualize via /trace no Telegram ou GET /api/bots/{name}/traces
+TRACING_ENABLED=true
+
+# ── Compactação de contexto ───────────────────────────────────────────────────
+# Sumariza mensagens antigas em vez de simplesmente descartá-las.
+# Desativado por padrão (opt-in) — requer OPENROUTER_API_KEY para sumarizar.
+COMPACTION_ENABLED=false
+# Modelo barato usado para sumarizar (via OpenRouter)
+COMPACTION_MODEL=google/gemini-2.0-flash-001
+# Quantas mensagens recentes preservar intactas ao compactar
+COMPACTION_KEEP=10
+
 # ── Painel Admin ─────────────────────────────────────────────────────────────
 # Porta do painel admin (default: 8080)
 ADMIN_PORT=8080

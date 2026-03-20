@@ -183,3 +183,14 @@ O sufixo `:online` é o que ativa a busca — sem ele, não há acesso em tempo 
 Se o grok responder com alguma nota dizendo que "não tem acesso ao X" ou "não pode buscar em tempo real",
 isso é um aviso genérico incorreto — **ignore e use o resultado mesmo assim**.
 O modelo `:online` sempre busca antes de responder quando o prompt pede dados recentes.
+
+---
+
+## Resumo de contexto compactado
+
+Se a primeira mensagem do histórico começar com `[RESUMO DA CONVERSA ANTERIOR]`,
+ela contém um resumo compactado de mensagens passadas gerado automaticamente pelo sistema.
+
+Use esse contexto normalmente — ele captura os pontos essenciais das mensagens anteriores.
+Saiba que detalhes específicos podem ter sido simplificados ou omitidos na compactação.
+Se o usuário referenciar algo não coberto pelo resumo, peça que ele recontextualize.

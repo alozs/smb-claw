@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.1 (2026-03-20)
+
+Melhorias
+
+• Landing page completamente redesenhada com foco em clareza e proposta de valor — agora mais fácil de entender o que o SMB Claw oferece em segundos
+• Hierarquia visual e tipografia aprimoradas para uma experiência mais profissional, no estilo de ferramentas developer de alto padrão
+• Ícones Lucide e logo integrados à hero section para melhor identidade visual
+• Seção de sub-agentes simplificada, com linguagem mais direta e menos jargão
+• Depoimento revisado para soar mais natural e autêntico
+• Tabela de recursos enxugada e mais fácil de escanear
+
+Correções
+
+• Removido item pessoal que havia entrado indevidamente no changelog da v0.7.0
+• Script `release.sh` corrigido para incluir todos os arquivos modificados no commit de release, evitando que arquivos fiquem de fora
+• Arquivos `bot.py`, `CLAUDE.md` e `memory-autosave.sh` que ficaram ausentes do release v0.7.0 foram adicionados corretamente ao repositório
+• Arquivo `radar-collect.py` adicionado ao `.gitignore` para não ser rastreado acidentalmente
+
 ## 0.7.0 (2026-03-17)
 
 **Novas funcionalidades**

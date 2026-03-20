@@ -46,6 +46,8 @@ from db import BotDB
 import tools as tool_registry
 from tools.tasks import task_status_emoji
 import scheduler as sched_mod
+import tracer
+from compactor import compact_history
 
 # ── Argumentos ────────────────────────────────────────────────────────────────
 
@@ -90,6 +92,10 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 BOT_NAME           = os.environ.get("BOT_NAME", BOT_DIR.name)
 MODEL              = os.environ.get("MODEL", "claude-opus-4-6")
 MAX_HISTORY        = int(os.environ.get("MAX_HISTORY", "20"))
+COMPACTION_ENABLED = os.environ.get("COMPACTION_ENABLED", "false").lower() == "true"
+COMPACTION_MODEL   = os.environ.get("COMPACTION_MODEL", "google/gemini-2.0-flash-001")
+COMPACTION_KEEP    = int(os.environ.get("COMPACTION_KEEP", "10"))
+TRACING_ENABLED    = os.environ.get("TRACING_ENABLED", "true").lower() == "true"
 ADMIN_ID           = 0 if os.environ.get("ADMIN_ID", "").strip() in ("", "0", "auto") else int(os.environ.get("ADMIN_ID"))
 ACCESS_MODE        = os.environ.get("ACCESS_MODE", "approval").lower()
 OPENAI_API_KEY     = os.environ.get("OPENAI_API_KEY", "")
@@ -444,7 +450,7 @@ def _extract_reply_context(message) -> str:
     return f'[Em resposta a "{name}": "{quoted}"]\n'
 
 
-def _extract_document_text(file_path: str, filename: str, max_chars: int = 8000) -> str:
+def _extract_document_text(file_path: str, filename: str, max_chars: int = 50000) -> str:
     """Extrai texto de um documento para injetar como contexto."""
     ext = Path(filename).suffix.lower()
     text_exts = {
@@ -489,6 +495,12 @@ def _extract_document_text(file_path: str, filename: str, max_chars: int = 8000)
 
 async def _describe_image_for_cli(image_path: str) -> str:
     """Descreve imagem via Anthropic ou OpenRouter (para provider claude-cli que não suporta visão direta)."""
+    _EXT_TO_MIME = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+        ".webp": "image/webp", ".gif": "image/gif", ".bmp": "image/bmp",
+        ".tiff": "image/tiff", ".tif": "image/tiff",
+    }
+    media_type = _EXT_TO_MIME.get(Path(image_path).suffix.lower(), "image/jpeg")
     try:
         with open(image_path, "rb") as f:
             img_data = base64.b64encode(f.read()).decode()
@@ -498,7 +510,7 @@ async def _describe_image_for_cli(image_path: str) -> str:
                 model="claude-haiku-4-5-20251001",
                 max_tokens=512,
                 messages=[{"role": "user", "content": [
-                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_data}},
+                    {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": img_data}},
                     {"type": "text", "text": "Descreva esta imagem em detalhes em português."},
                 ]}],
             )
@@ -507,13 +519,13 @@ async def _describe_image_for_cli(image_path: str) -> str:
             from openai import AsyncOpenAI
             if OPENROUTER_API_KEY:
                 oai_client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY, default_headers={"X-Title": f"SMBCLAW-{BOT_NAME}"})
-                vision_model = "google/gemini-2.0-flash"
+                vision_model = "google/gemini-2.0-flash-001"
             else:
                 oai_client = _make_codex_client()
                 vision_model = "gpt-5.1-codex-mini"
             if _is_codex_oauth() and not OPENROUTER_API_KEY:
                 vision_content = [
-                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{img_data}"},
+                    {"type": "input_image", "image_url": f"data:{media_type};base64,{img_data}"},
                     {"type": "input_text", "text": "Descreva esta imagem em detalhes em português."},
                 ]
                 stream = await oai_client.responses.create(
@@ -527,7 +539,7 @@ async def _describe_image_for_cli(image_path: str) -> str:
                 return vis_text or "[imagem]"
             else:
                 vision_content = [
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}},
+                    {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{img_data}"}},
                     {"type": "text", "text": "Descreva esta imagem em detalhes em português."},
                 ]
                 response = await oai_client.chat.completions.create(
@@ -678,11 +690,14 @@ async def _ask_anthropic(messages: list, user_id: int = 0, notify_fn=None) -> st
     t0 = time.monotonic()
     total_input = total_output = total_tool_calls = 0
     error_str = ""
+    _msg_content = messages[-1].get("content", "") if messages else ""
+    _msg_preview = (_msg_content if isinstance(_msg_content, str) else str(_msg_content))[:200]
+    _trace = tracer.start_trace(BOT_NAME, user_id, _msg_preview)
     try:
         _THINKING_BUDGETS = {"low": 2000, "medium": 6000, "high": 16000}
         _thinking_level = _thinking_levels.get(user_id, "off")
         _thinking_budget = _THINKING_BUDGETS.get(_thinking_level)
-        for _ in range(20):
+        for _iter in range(20):
             _max_tokens = 4096
             if _thinking_budget:
                 _max_tokens = _thinking_budget + 4096
@@ -692,12 +707,19 @@ async def _ask_anthropic(messages: list, user_id: int = 0, notify_fn=None) -> st
             if TOOL_DEFINITIONS:
                 kwargs["tools"] = TOOL_DEFINITIONS
             client = _make_async_client()
+            _llm_span = tracer.add_span(_trace, "llm:anthropic", f"iter={_iter}")
             response = await client.messages.create(**kwargs)
-            total_input += getattr(response.usage, "input_tokens", 0)
-            total_output += getattr(response.usage, "output_tokens", 0)
+            _tok_in = getattr(response.usage, "input_tokens", 0)
+            _tok_out = getattr(response.usage, "output_tokens", 0)
+            total_input += _tok_in
+            total_output += _tok_out
             if response.stop_reason == "end_turn":
-                return next((b.text for b in response.content if b.type == "text"), "")
+                _text = next((b.text for b in response.content if b.type == "text"), "")
+                tracer.end_span(_llm_span, _text[:200], tokens_in=_tok_in, tokens_out=_tok_out)
+                return _text
             if response.stop_reason == "tool_use":
+                _tool_names = [b.name for b in response.content if getattr(b, "type", "") == "tool_use"]
+                tracer.end_span(_llm_span, f"tool_use: {_tool_names}", tokens_in=_tok_in, tokens_out=_tok_out)
                 messages.append({"role": "assistant", "content": response.content})
                 results = []
                 for block in response.content:
@@ -709,6 +731,7 @@ async def _ask_anthropic(messages: list, user_id: int = 0, notify_fn=None) -> st
                                 await notify_fn(block.name, block.input)
                             except Exception:
                                 pass
+                        _tool_span = tracer.add_span(_trace, f"tool:{block.name}", json.dumps(block.input)[:200])
                         result = await tool_registry.execute(
                             block.name, block.input,
                             user_id=user_id, db=db, config=TOOL_CONFIG,
@@ -716,15 +739,19 @@ async def _ask_anthropic(messages: list, user_id: int = 0, notify_fn=None) -> st
                         _r = result if isinstance(result, str) else str(result)
                         if len(_r) > 12000:
                             _r = _r[:12000] + f"\n\n[...output truncado: {len(_r)} chars total]"
+                        tracer.end_span(_tool_span, _r[:200])
                         results.append({"type": "tool_result", "tool_use_id": block.id, "content": _r})
                 messages.append({"role": "user", "content": results})
                 continue
+            tracer.end_span(_llm_span, "", tokens_in=_tok_in, tokens_out=_tok_out)
             break
         return next((b.text for b in response.content if hasattr(b, "text")), "")
     except Exception as e:
         error_str = f"{type(e).__name__}: {e}"
+        _trace.error = error_str
         raise
     finally:
+        tracer.end_trace(_trace, db)
         latency = int((time.monotonic() - t0) * 1000)
         try:
             db.log_event(BOT_NAME, user_id, total_input, total_output,
@@ -747,18 +774,28 @@ async def _ask_openrouter(messages: list, user_id: int = 0, notify_fn=None) -> s
     t0 = time.monotonic()
     total_input = total_output = total_tool_calls = 0
     error_str = ""
+    _msg_content = messages[-1].get("content", "") if messages else ""
+    _msg_preview = (_msg_content if isinstance(_msg_content, str) else str(_msg_content))[:200]
+    _trace = tracer.start_trace(BOT_NAME, user_id, _msg_preview)
     try:
-        for _ in range(20):
+        for _iter in range(20):
             kwargs = dict(model=MODEL, messages=oai_messages, max_tokens=4096)
             if oai_tools:
                 kwargs["tools"] = oai_tools
+            _llm_span = tracer.add_span(_trace, "llm:openrouter", f"iter={_iter}")
             response = await client.chat.completions.create(**kwargs)
             choice = response.choices[0]
-            total_input += getattr(response.usage, "prompt_tokens", 0)
-            total_output += getattr(response.usage, "completion_tokens", 0)
+            _tok_in = getattr(response.usage, "prompt_tokens", 0)
+            _tok_out = getattr(response.usage, "completion_tokens", 0)
+            total_input += _tok_in
+            total_output += _tok_out
             if choice.finish_reason == "stop":
-                return choice.message.content or ""
+                _text = choice.message.content or ""
+                tracer.end_span(_llm_span, _text[:200], tokens_in=_tok_in, tokens_out=_tok_out)
+                return _text
             if choice.finish_reason == "tool_calls":
+                _tool_names = [tc.function.name for tc in (choice.message.tool_calls or [])]
+                tracer.end_span(_llm_span, f"tool_calls: {_tool_names}", tokens_in=_tok_in, tokens_out=_tok_out)
                 # Adiciona mensagem do assistente (com tool_calls) à conversa local
                 oai_messages.append(choice.message)
                 for tc in choice.message.tool_calls or []:
@@ -773,6 +810,7 @@ async def _ask_openrouter(messages: list, user_id: int = 0, notify_fn=None) -> s
                             await notify_fn(tc.function.name, tool_input)
                         except Exception:
                             pass
+                    _tool_span = tracer.add_span(_trace, f"tool:{tc.function.name}", json.dumps(tool_input)[:200])
                     result = await tool_registry.execute(
                         tc.function.name, tool_input,
                         user_id=user_id, db=db, config=TOOL_CONFIG,
@@ -780,18 +818,22 @@ async def _ask_openrouter(messages: list, user_id: int = 0, notify_fn=None) -> s
                     _r = result if isinstance(result, str) else str(result)
                     if len(_r) > 12000:
                         _r = _r[:12000] + f"\n\n[...output truncado: {len(_r)} chars total]"
+                    tracer.end_span(_tool_span, _r[:200])
                     oai_messages.append({
                         "role": "tool",
                         "tool_call_id": tc.id,
                         "content": _r,
                     })
                 continue
+            tracer.end_span(_llm_span, "", tokens_in=_tok_in, tokens_out=_tok_out)
             break
         return choice.message.content or ""
     except Exception as e:
         error_str = f"{type(e).__name__}: {e}"
+        _trace.error = error_str
         raise
     finally:
+        tracer.end_trace(_trace, db)
         latency = int((time.monotonic() - t0) * 1000)
         try:
             db.log_event(BOT_NAME, user_id, total_input, total_output,
@@ -828,11 +870,15 @@ async def _ask_codex_responses(messages: list, user_id: int = 0, notify_fn=None)
     total_input = total_output = total_tool_calls = 0
     error_str = ""
     _refreshed = False
+    _msg_content = messages[-1].get("content", "") if messages else ""
+    _msg_preview = (_msg_content if isinstance(_msg_content, str) else str(_msg_content))[:200]
+    _trace = tracer.start_trace(BOT_NAME, user_id, _msg_preview)
     try:
-        for _ in range(20):
+        for _iter in range(20):
             kwargs = dict(model=MODEL, instructions=system, input=resp_input, store=False, stream=True)
             if resp_tools:
                 kwargs["tools"] = resp_tools
+            _llm_span = tracer.add_span(_trace, "llm:codex-responses", f"iter={_iter}")
             try:
                 stream = await client.responses.create(**kwargs)
             except Exception as _api_err:
@@ -851,6 +897,7 @@ async def _ask_codex_responses(messages: list, user_id: int = 0, notify_fn=None)
             text_parts = []
             _cur_text = {}
             _final_output = []
+            _iter_tok_in = _iter_tok_out = 0
             async for event in stream:
                 ev_type = getattr(event, "type", "")
                 if ev_type == "response.output_text.delta":
@@ -862,8 +909,10 @@ async def _ask_codex_responses(messages: list, user_id: int = 0, notify_fn=None)
                 elif ev_type == "response.completed":
                     resp_obj = getattr(event, "response", None)
                     if resp_obj and hasattr(resp_obj, "usage"):
-                        total_input += getattr(resp_obj.usage, "input_tokens", 0)
-                        total_output += getattr(resp_obj.usage, "output_tokens", 0)
+                        _iter_tok_in = getattr(resp_obj.usage, "input_tokens", 0)
+                        _iter_tok_out = getattr(resp_obj.usage, "output_tokens", 0)
+                        total_input += _iter_tok_in
+                        total_output += _iter_tok_out
                     if resp_obj:
                         _final_output = getattr(resp_obj, "output", [])
 
@@ -874,7 +923,12 @@ async def _ask_codex_responses(messages: list, user_id: int = 0, notify_fn=None)
                     tool_calls.append(item)
 
             if not tool_calls:
-                return "\n".join(text_parts) or ""
+                _result_text = "\n".join(text_parts) or ""
+                tracer.end_span(_llm_span, _result_text[:200], tokens_in=_iter_tok_in, tokens_out=_iter_tok_out)
+                return _result_text
+
+            _tool_names = [getattr(tc, "name", "?") for tc in tool_calls]
+            tracer.end_span(_llm_span, f"tool_calls: {_tool_names}", tokens_in=_iter_tok_in, tokens_out=_iter_tok_out)
 
             # Adicionar output items e tool results ao input para próximo turno
             for item in _final_output:
@@ -907,6 +961,7 @@ async def _ask_codex_responses(messages: list, user_id: int = 0, notify_fn=None)
                         await notify_fn(tc.name, tool_input)
                     except Exception:
                         pass
+                _tool_span = tracer.add_span(_trace, f"tool:{tc.name}", json.dumps(tool_input)[:200])
                 result = await tool_registry.execute(
                     tc.name, tool_input,
                     user_id=user_id, db=db, config=TOOL_CONFIG,
@@ -915,6 +970,7 @@ async def _ask_codex_responses(messages: list, user_id: int = 0, notify_fn=None)
                 _MAX_TOOL_OUT = 12000
                 if len(_tool_out) > _MAX_TOOL_OUT:
                     _tool_out = _tool_out[:_MAX_TOOL_OUT] + f"\n\n[...output truncado: {len(_tool_out)} chars total]"
+                tracer.end_span(_tool_span, _tool_out[:200])
                 resp_input.append({
                     "type": "function_call_output",
                     "call_id": tc.call_id,
@@ -924,8 +980,10 @@ async def _ask_codex_responses(messages: list, user_id: int = 0, notify_fn=None)
         return "\n".join(text_parts) or ""
     except Exception as e:
         error_str = f"{type(e).__name__}: {e}"
+        _trace.error = error_str
         raise
     finally:
+        tracer.end_trace(_trace, db)
         latency = int((time.monotonic() - t0) * 1000)
         try:
             db.log_event(BOT_NAME, user_id, total_input, total_output,
@@ -950,18 +1008,28 @@ async def _ask_codex(messages: list, user_id: int = 0, notify_fn=None) -> str:
     t0 = time.monotonic()
     total_input = total_output = total_tool_calls = 0
     error_str = ""
+    _msg_content = messages[-1].get("content", "") if messages else ""
+    _msg_preview = (_msg_content if isinstance(_msg_content, str) else str(_msg_content))[:200]
+    _trace = tracer.start_trace(BOT_NAME, user_id, _msg_preview)
     try:
-        for _ in range(20):
+        for _iter in range(20):
             kwargs = dict(model=MODEL, messages=oai_messages, max_tokens=4096)
             if oai_tools:
                 kwargs["tools"] = oai_tools
+            _llm_span = tracer.add_span(_trace, "llm:codex", f"iter={_iter}")
             response = await client.chat.completions.create(**kwargs)
             choice = response.choices[0]
-            total_input += getattr(response.usage, "prompt_tokens", 0)
-            total_output += getattr(response.usage, "completion_tokens", 0)
+            _tok_in = getattr(response.usage, "prompt_tokens", 0)
+            _tok_out = getattr(response.usage, "completion_tokens", 0)
+            total_input += _tok_in
+            total_output += _tok_out
             if choice.finish_reason == "stop":
-                return choice.message.content or ""
+                _text = choice.message.content or ""
+                tracer.end_span(_llm_span, _text[:200], tokens_in=_tok_in, tokens_out=_tok_out)
+                return _text
             if choice.finish_reason == "tool_calls":
+                _tool_names = [tc.function.name for tc in (choice.message.tool_calls or [])]
+                tracer.end_span(_llm_span, f"tool_calls: {_tool_names}", tokens_in=_tok_in, tokens_out=_tok_out)
                 oai_messages.append(choice.message)
                 for tc in choice.message.tool_calls or []:
                     total_tool_calls += 1
@@ -970,6 +1038,7 @@ async def _ask_codex(messages: list, user_id: int = 0, notify_fn=None) -> str:
                     except Exception:
                         tool_input = {}
                     logger.info(f"[tool/codex] {tc.function.name} {json.dumps(tool_input)[:120]}")
+                    _tool_span = tracer.add_span(_trace, f"tool:{tc.function.name}", json.dumps(tool_input)[:200])
                     result = await tool_registry.execute(
                         tc.function.name, tool_input,
                         user_id=user_id, db=db, config=TOOL_CONFIG,
@@ -977,18 +1046,22 @@ async def _ask_codex(messages: list, user_id: int = 0, notify_fn=None) -> str:
                     _r = result if isinstance(result, str) else str(result)
                     if len(_r) > 12000:
                         _r = _r[:12000] + f"\n\n[...output truncado: {len(_r)} chars total]"
+                    tracer.end_span(_tool_span, _r[:200])
                     oai_messages.append({
                         "role": "tool",
                         "tool_call_id": tc.id,
                         "content": _r,
                     })
                 continue
+            tracer.end_span(_llm_span, "", tokens_in=_tok_in, tokens_out=_tok_out)
             break
         return choice.message.content or ""
     except Exception as e:
         error_str = f"{type(e).__name__}: {e}"
+        _trace.error = error_str
         raise
     finally:
+        tracer.end_trace(_trace, db)
         latency = int((time.monotonic() - t0) * 1000)
         try:
             db.log_event(BOT_NAME, user_id, total_input, total_output,
@@ -1014,6 +1087,8 @@ async def _ask_cli(messages: list, user_id: int = 0, notify_fn=None) -> str:
     session_id = _cli_sessions.get(user_id)
     t0 = time.monotonic()
     error_str = ""
+    _trace = tracer.start_trace(BOT_NAME, user_id, last_user[:200])
+    _cli_span = tracer.add_span(_trace, "llm:claude-cli", last_user[:200])
     try:
         env = {
             **os.environ,
@@ -1135,11 +1210,15 @@ async def _ask_cli(messages: list, user_id: int = 0, notify_fn=None) -> str:
         if proc.returncode != 0 and not result_text:
             raise RuntimeError(f"claude CLI saiu com código {proc.returncode}: {stderr_text[:300]}")
 
+        tracer.end_span(_cli_span, result_text[:200])
         return result_text
     except Exception as e:
         error_str = f"{type(e).__name__}: {e}"
+        _trace.error = error_str
+        tracer.end_span(_cli_span, "", error=error_str[:200])
         raise
     finally:
+        tracer.end_trace(_trace, db)
         _cli_procs.pop(user_id, None)
         latency = int((time.monotonic() - t0) * 1000)
         try:
@@ -1250,6 +1329,234 @@ async def send_long(update_or_bot, text: str, chat_id: int = None) -> None:
             await update_or_bot.message.reply_text(chunk, parse_mode="HTML")
 
 
+def _build_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    """Monta o teclado inline do /menu conforme perfil do usuário."""
+    user_rows = [
+        [
+            InlineKeyboardButton("📋 Tarefas",          callback_data="menu_tasks"),
+            InlineKeyboardButton("🧹 Limpar histórico", callback_data="menu_clear"),
+        ],
+        [
+            InlineKeyboardButton("ℹ️ Sobre o bot",      callback_data="menu_info"),
+            InlineKeyboardButton("🆔 Meu ID",           callback_data="menu_id"),
+        ],
+        [
+            InlineKeyboardButton("🤔 Raciocínio",       callback_data="menu_thinking"),
+            InlineKeyboardButton("❌ Cancelar operação", callback_data="menu_cancel"),
+        ],
+    ]
+    admin_rows = [
+        [
+            InlineKeyboardButton("📊 Stats",      callback_data="menu_stats"),
+            InlineKeyboardButton("🧠 Memória",    callback_data="menu_memory"),
+        ],
+        [
+            InlineKeyboardButton("👥 Usuários",   callback_data="menu_users"),
+            InlineKeyboardButton("⏳ Pendentes",  callback_data="menu_pending"),
+        ],
+        [
+            InlineKeyboardButton("🔍 Trace",      callback_data="menu_trace"),
+            InlineKeyboardButton("⚙️ Config",     callback_data="menu_config"),
+        ],
+        [
+            InlineKeyboardButton("🔄 Reiniciar agente", callback_data="menu_restart"),
+            InlineKeyboardButton("🔗 Painel Admin",     callback_data="menu_painel"),
+        ],
+    ]
+    rows = user_rows + (admin_rows if is_admin(user_id) else [])
+    return InlineKeyboardMarkup(rows)
+
+
+async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Exibe o menu interativo com botões clicáveis."""
+    user = update.effective_user
+    if not has_access(user.id): return
+    await update.message.reply_text(
+        f"*Menu — {BOT_NAME}*\nEscolha uma opção:",
+        parse_mode="Markdown",
+        reply_markup=_build_menu_keyboard(user.id),
+    )
+
+
+async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Trata cliques nos botões do /menu. Usa send_message direto pois update.message é None em callbacks."""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    chat_id = query.message.chat_id
+    action = query.data
+
+    try:
+        await query.delete_message()
+    except Exception:
+        pass
+
+    async def reply(text, **kwargs):
+        await context.bot.send_message(chat_id=chat_id, text=text, **kwargs)
+
+    if action == "menu_tasks":
+        items = db.tasks_for_user(user_id)
+        if not items:
+            await reply("📋 Nenhuma tarefa encontrada."); return
+        lines = [f"📋 *Tarefas — {BOT_NAME}*\n"]
+        for t in items[:20]:
+            emoji = task_status_emoji(t["status"])
+            steps = t.get("steps", [])
+            si = f" [{t['current_step']+1}/{len(steps)}]" if steps else ""
+            lines.append(f"{emoji} `{t['id']}` {t['title']}{si}")
+            if t.get("progress"):
+                lines.append(f"   → {t['progress'][:60]}")
+        await reply("\n".join(lines), parse_mode="Markdown")
+
+    elif action == "menu_clear":
+        user_lock = await _get_user_lock(user_id)
+        async with user_lock:
+            if conversations.get(user_id):
+                db.archive_conversation(user_id, conversations[user_id], BOT_NAME)
+            conversations[user_id] = []
+            db.clear_conversation(user_id)
+            _cli_sessions.pop(user_id, None)
+        await reply("🗑️ Histórico limpo!")
+
+    elif action == "menu_info":
+        soul = _read_file_safe(BOT_DIR / "soul.md")
+        text = f"*{BOT_NAME}*\n\n{soul or '(soul.md não encontrado)'}"
+        for chunk in _split_html(_md_to_html(text)):
+            await context.bot.send_message(chat_id=chat_id, text=chunk, parse_mode="HTML")
+
+    elif action == "menu_id":
+        await reply(f"🆔 Seu ID Telegram: `{user_id}`", parse_mode="Markdown")
+
+    elif action == "menu_thinking":
+        current = _thinking_levels.get(user_id, "off")
+        await reply(
+            f"🤔 *Raciocínio estendido*\nNível atual: `{current}`\n\n"
+            "Use `/thinking off|low|medium|high` para alterar.\n"
+            "• off — desativado\n• low — 2k tokens\n• medium — 6k tokens\n• high — 16k tokens",
+            parse_mode="Markdown",
+        )
+
+    elif action == "menu_cancel":
+        proc = _cli_procs.get(user_id)
+        if proc:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            await reply("🛑 Operação cancelada.")
+        else:
+            await reply("✅ Nenhuma operação em andamento.")
+
+    elif action == "menu_stats" and is_admin(user_id):
+        s = db.get_summary(1)
+        await reply(
+            f"📊 *Analytics — {BOT_NAME}*\n📅 Hoje\n\n"
+            f"💬 Mensagens: {s['msgs']}\n"
+            f"📥 Input tokens: {s['input_tokens']:,}\n"
+            f"📤 Output tokens: {s['output_tokens']:,}\n"
+            f"🔧 Tool calls: {s['tool_calls']}\n"
+            f"❌ Erros: {s['errors']}\n"
+            f"💰 Custo estimado: ${s['cost_usd']:.4f}",
+            parse_mode="Markdown",
+        )
+
+    elif action == "menu_memory" and is_admin(user_id):
+        today = date.today().isoformat()
+        days = sorted(MEM_DIR.glob("*.md"), reverse=True)
+        mem_long = (BOT_DIR / "MEMORY.md").exists()
+        mem_today = (MEM_DIR / f"{today}.md").exists()
+        lines = [
+            f"🧠 *Memória — {BOT_NAME}*\n",
+            f"📚 MEMORY.md: {'✅' if mem_long else '❌ (vazio)'}",
+            f"📅 Hoje ({today}): {'✅' if mem_today else '❌ (vazio)'}",
+            f"📁 Dias registrados: {len(days)}",
+            "\nÚltimos dias:",
+        ] + [f"  • {d.stem}" for d in days[:7]]
+        await reply("\n".join(lines), parse_mode="Markdown")
+
+    elif action == "menu_users" and is_admin(user_id):
+        if not approved_users:
+            await reply("Nenhum usuário aprovado."); return
+        lines = [f"👥 *Aprovados — {BOT_NAME}*\n"]
+        for uid, info in list(approved_users.items())[:30]:
+            lines.append(f"• {info.get('name','?')} {info.get('username','')} — `{uid}`")
+        await reply("\n".join(lines), parse_mode="Markdown")
+
+    elif action == "menu_pending" and is_admin(user_id):
+        if not pending:
+            await reply("Nenhuma solicitação pendente."); return
+        lines = [f"⏳ *Pendentes — {BOT_NAME}*\n"]
+        for uid, info in pending.items():
+            lines.append(f"• {info['name']} {info['username']} — `{uid}`")
+        await reply("\n".join(lines), parse_mode="Markdown")
+
+    elif action == "menu_trace" and is_admin(user_id):
+        traces = db.get_traces(bot_name=BOT_NAME, limit=10)
+        if not traces:
+            await reply("📭 Nenhum trace registrado ainda."); return
+        lines = [f"🔍 *Traces recentes — {BOT_NAME}*\n"]
+        for t in traces:
+            tid = t.get("id", "?")
+            latency = t.get("total_latency_ms", 0)
+            tools = t.get("total_tool_calls", 0)
+            tok = (t.get("total_input_tokens", 0) or 0) + (t.get("total_output_tokens", 0) or 0)
+            started = (t.get("started_at") or "")[:19].replace("T", " ")
+            err = " ❌" if t.get("error") else ""
+            lines.append(f"`{tid}`{err} | {latency/1000:.1f}s | {tools}🔧 | {tok:,}tok | {started}")
+        await reply("\n".join(lines), parse_mode="Markdown")
+
+    elif action == "menu_config" and is_admin(user_id):
+        await reply(
+            "⚙️ *Configurações*\n\n"
+            "Use o painel admin para gerenciar configurações:\n\n"
+            "👉 Use /painel para gerar um link de acesso",
+            parse_mode="Markdown",
+        )
+
+    elif action == "menu_restart" and is_admin(user_id):
+        service = f"claude-bot-{BOT_DIR.name}"
+        await reply(f"🔄 Reiniciando *{BOT_NAME}*...", parse_mode="Markdown")
+        _RESTART_FLAG.write_text(str(user_id))
+        import subprocess as _sp
+        def _do_restart():
+            result = _sp.run(["sudo", "systemctl", "restart", service], capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"[restart] Falha: {result.stderr.strip()}")
+        asyncio.get_event_loop().call_later(0.5, _do_restart)
+
+    elif action == "menu_painel" and is_admin(user_id):
+        import urllib.request, json as _json
+        admin_port = os.environ.get("ADMIN_PORT", "8080")
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{admin_port}/api/gen-token",
+                data=_json.dumps({"ttl": 1800}).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = _json.loads(resp.read())
+            token = data["token"]
+        except Exception as e:
+            await reply(f"❌ Erro ao gerar link: {e}"); return
+        panel_url = os.environ.get("ADMIN_PANEL_URL", "").rstrip("/")
+        if not panel_url:
+            import subprocess as _sp2
+            try:
+                ip = _sp2.check_output(["hostname", "-I"], text=True).split()[0]
+                panel_url = f"http://{ip}:{admin_port}"
+            except Exception:
+                panel_url = f"http://localhost:{admin_port}"
+        link = f"{panel_url}/?token={token}"
+        await reply(
+            f"🔗 *Painel Admin* (30 min)\n\n`{link}`\n\n_Abra no navegador para acessar._",
+            parse_mode="Markdown",
+        )
+
+    else:
+        await reply("⚠️ Ação não reconhecida ou sem permissão.")
+
+
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global ADMIN_ID
     user = update.effective_user
@@ -1304,7 +1611,11 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "/clear — limpa histórico\n/cancel — cancela operação em andamento\n/info — quem sou eu\n/id — seu ID\n/tasks — minhas tarefas\n/thinking — raciocínio estendido"
             f"{admin_extra}"
         )
-    await update.message.reply_text(welcome_msg, parse_mode="Markdown")
+    await update.message.reply_text(
+        welcome_msg,
+        parse_mode="Markdown",
+        reply_markup=_build_menu_keyboard(user.id),
+    )
     _append_daily_log(f"Sessão iniciada por {user.full_name} (id:{user.id})")
 
 
@@ -1464,16 +1775,22 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 async def cmd_restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not is_admin(update.effective_user.id): return
-    await update.message.reply_text("🔄 Reiniciando...")
-    _RESTART_FLAG.write_text(str(update.effective_user.id))
+    service = f"claude-bot-{BOT_DIR.name}"
     in_docker = Path("/.dockerenv").exists() or os.environ.get("IN_DOCKER")
+    await update.message.reply_text(f"🔄 Reiniciando *{BOT_NAME}*...", parse_mode="Markdown")
+    _RESTART_FLAG.write_text(str(update.effective_user.id))
     if in_docker:
         asyncio.get_event_loop().call_later(0.5, lambda: sys.exit(0))
     else:
-        service = f"claude-bot-{BOT_DIR.name}"
-        asyncio.get_event_loop().call_later(
-            0.5, lambda: __import__("subprocess").run(["sudo", "systemctl", "restart", service])
-        )
+        import subprocess
+        def _do_restart():
+            result = subprocess.run(
+                ["sudo", "systemctl", "restart", service],
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                logger.error(f"[restart] Falha: {result.stderr.strip()}")
+        asyncio.get_event_loop().call_later(0.5, _do_restart)
 
 
 async def cmd_version(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1577,6 +1894,35 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"💰 Custo estimado: ${s['cost_usd']:.4f}",
         parse_mode="Markdown",
     )
+
+
+async def cmd_trace(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Exibe traces recentes do loop agêntico (somente admin)."""
+    if not is_admin(update.effective_user.id): return
+    trace_id = context.args[0] if context.args else None
+    if trace_id:
+        t = db.get_trace(trace_id)
+        if not t:
+            await update.message.reply_text(f"❌ Trace `{trace_id}` não encontrado.", parse_mode="Markdown")
+            return
+        msg = tracer.format_trace_message(t)
+        await send_long(update, msg)
+        return
+    traces = db.get_traces(bot_name=BOT_NAME, limit=10)
+    if not traces:
+        await update.message.reply_text("📭 Nenhum trace registrado ainda.")
+        return
+    lines = [f"🔍 *Traces recentes — {BOT_NAME}*\n"]
+    for t in traces:
+        tid = t.get("id", "?")
+        latency = t.get("total_latency_ms", 0)
+        tools = t.get("total_tool_calls", 0)
+        tok = (t.get("total_input_tokens", 0) or 0) + (t.get("total_output_tokens", 0) or 0)
+        started = (t.get("started_at") or "")[:19].replace("T", " ")
+        err = " ❌" if t.get("error") else ""
+        lines.append(f"`{tid}`{err} | {latency/1000:.1f}s | {tools}🔧 | {tok:,}tok | {started}")
+    lines.append(f"\nUse `/trace <id>` para detalhes de um trace específico.")
+    await send_long(update, "\n".join(lines))
 
 
 async def callback_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1915,11 +2261,6 @@ async def _wizard_handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE
     uid = update.effective_user.id
     wtype = wizard["type"]
 
-    # Config wizard — delega para handler dedicado
-    if wtype == "config":
-        await _cfg_handle_text(update, context, wizard)
-        return
-
     if step == "name":
         if not re.match(r"^[a-zA-Z0-9_-]{2,32}$", text):
             await update.message.reply_text(
@@ -2173,19 +2514,10 @@ async def cmd_cancelar_wizard(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# COMANDO /config — Gerenciamento de agentes via Telegram
+# COMANDO /config — redireciona ao painel web admin
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Variáveis que NÃO podem ser editadas via /config
-_CFG_BLACKLIST = {"TELEGRAM_TOKEN", "WORK_DIR"}
-
-# Variáveis "conhecidas" do .env dos bots (tudo fora disso é custom)
-_CFG_KNOWN_BOT_VARS = {
-    "TELEGRAM_TOKEN", "BOT_NAME", "MAX_HISTORY", "TOOLS", "WORK_DIR",
-    "MODEL", "ACCESS_MODE", "PROVIDER", "GROUP_MODE", "DESCRIPTION",
-}
-
-# Variáveis conhecidas do config.global
+# Variáveis conhecidas do config.global (usado pelo painel admin)
 _CFG_KNOWN_GLOBAL_VARS = {
     "PROVIDER", "ADMIN_ID", "MODEL", "ACCESS_MODE",
     "BUGFIXER_ENABLED", "BUGFIXER_TIMES_PER_DAY", "BUGFIXER_TELEGRAM_TOKEN",
@@ -2234,589 +2566,16 @@ def _remove_env_key(path: Path, key: str) -> None:
     path.write_text("\n".join(result) + "\n", encoding="utf-8")
 
 
-def _get_custom_vars(env_dict: dict) -> dict:
-    """Retorna variáveis fora do set conhecido (custom do usuário)."""
-    return {k: v for k, v in env_dict.items() if k not in _CFG_KNOWN_BOT_VARS}
-
-
-def _cfg_target_keyboard() -> InlineKeyboardMarkup:
-    """Lista agentes disponíveis + opção global."""
-    bots_dir = BASE_DIR / "bots"
-    bots = sorted(d.name for d in bots_dir.iterdir() if d.is_dir()) if bots_dir.exists() else []
-    rows = []
-    for b in bots:
-        rows.append([InlineKeyboardButton(f"🤖 {b}", callback_data=f"cfg_agent_{b}")])
-    rows.append([InlineKeyboardButton("🌐 Config Global", callback_data="cfg_global")])
-    rows.append([InlineKeyboardButton("❌ Fechar", callback_data="cfg_cancel")])
-    return InlineKeyboardMarkup(rows)
-
-
-def _cfg_agent_menu_keyboard(bot_name: str, env_dict: dict) -> InlineKeyboardMarkup:
-    """Menu principal de um agente com valores atuais."""
-    def _btn(label, key, callback_key=None):
-        val = env_dict.get(key, "—")
-        display = _mask_value(key, val) if val != "—" else "—"
-        # Trunca display para caber no botão
-        if len(display) > 25:
-            display = display[:22] + "..."
-        return InlineKeyboardButton(
-            f"{label}: {display}", callback_data=f"cfg_var_{callback_key or key}"
-        )
-
-    rows = [
-        [_btn("Nome", "BOT_NAME"), _btn("Provedor", "PROVIDER")],
-        [_btn("Modelo", "MODEL"), _btn("Acesso", "ACCESS_MODE")],
-        [_btn("Grupo", "GROUP_MODE"), _btn("Histórico", "MAX_HISTORY")],
-        [InlineKeyboardButton("🔧 Ferramentas", callback_data="cfg_tools")],
-        [_btn("Descrição", "DESCRIPTION")],
-    ]
-    custom = _get_custom_vars(env_dict)
-    rows.append([InlineKeyboardButton(
-        f"📦 Variáveis customizadas ({len(custom)})", callback_data="cfg_custom"
-    )])
-    rows.append([
-        InlineKeyboardButton("📝 soul.md", callback_data="cfg_file_soul.md"),
-        InlineKeyboardButton("👤 USER.md", callback_data="cfg_file_USER.md"),
-    ])
-    rows.append([InlineKeyboardButton("<< Voltar", callback_data="cfg_back_main")])
-    return InlineKeyboardMarkup(rows)
-
-
-def _cfg_global_menu_keyboard(global_dict: dict) -> InlineKeyboardMarkup:
-    """Menu de config global."""
-    def _btn(label, key):
-        val = global_dict.get(key, "—")
-        display = _mask_value(key, val) if val != "—" else "—"
-        if len(display) > 25:
-            display = display[:22] + "..."
-        return InlineKeyboardButton(
-            f"{label}: {display}", callback_data=f"cfg_gvar_{key}"
-        )
-
-    rows = [
-        [_btn("Provedor", "PROVIDER"), _btn("Modelo", "MODEL")],
-        [_btn("Admin ID", "ADMIN_ID"), _btn("Acesso", "ACCESS_MODE")],
-        [_btn("BugFixer", "BUGFIXER_ENABLED"), _btn("BugFixer freq", "BUGFIXER_TIMES_PER_DAY")],
-        [InlineKeyboardButton("📄 context.global", callback_data="cfg_file_context.global")],
-        [InlineKeyboardButton("<< Voltar", callback_data="cfg_back_main")],
-    ]
-    return InlineKeyboardMarkup(rows)
-
-
-def _cfg_tools_keyboard(selected: list) -> InlineKeyboardMarkup:
-    """Toggle de ferramentas com prefixo cfg_tool_."""
-    rows = []
-    for key, label in WIZARD_TOOLS.items():
-        mark = "✅" if key in selected else "○"
-        rows.append([InlineKeyboardButton(f"{mark} {label}", callback_data=f"cfg_tool_{key}")])
-    rows.append([
-        InlineKeyboardButton("💾 Salvar", callback_data="cfg_tools_done"),
-        InlineKeyboardButton("<< Voltar", callback_data="cfg_back_agent"),
-    ])
-    return InlineKeyboardMarkup(rows)
-
-
-def _cfg_custom_vars_keyboard(custom_dict: dict) -> InlineKeyboardMarkup:
-    """Sub-menu de variáveis customizadas."""
-    rows = []
-    for key, val in custom_dict.items():
-        display = _mask_value(key, val)
-        if len(display) > 20:
-            display = display[:17] + "..."
-        rows.append([
-            InlineKeyboardButton(f"✏️ {key}={display}", callback_data=f"cfg_cust_e_{key}"),
-            InlineKeyboardButton("🗑️", callback_data=f"cfg_cust_d_{key}"),
-        ])
-    rows.append([InlineKeyboardButton("➕ Adicionar variável", callback_data="cfg_cust_add")])
-    rows.append([InlineKeyboardButton("<< Voltar", callback_data="cfg_back_agent")])
-    return InlineKeyboardMarkup(rows)
-
-
-def _cfg_file_keyboard(file_name: str) -> InlineKeyboardMarkup:
-    """Botões para ver/editar arquivo."""
-    back = "cfg_back_agent" if file_name != "context.global" else "cfg_back_global"
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("✏️ Editar", callback_data=f"cfg_file_edit_{file_name}")],
-        [InlineKeyboardButton("<< Voltar", callback_data=back)],
-    ])
-
-
 async def cmd_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Entry point do /config — lista alvos."""
-    uid = update.effective_user.id
-    if not is_admin(uid):
+    """Redireciona ao painel web admin para configurações."""
+    if not is_admin(update.effective_user.id):
         return
-    kb = _cfg_target_keyboard()
     await update.message.reply_text(
-        "⚙️ *Configuração*\n\nSelecione o que deseja configurar:",
+        "⚙️ *Configurações*\n\n"
+        "Use o painel admin para gerenciar configurações:\n\n"
+        "👉 Use /painel para gerar um link de acesso",
         parse_mode="Markdown",
-        reply_markup=kb,
     )
-
-
-async def _cfg_handle_callback(query, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Dispatcher de callbacks cfg_."""
-    uid = query.from_user.id
-    data_cb = query.data
-    await query.answer()
-
-    if not is_admin(uid):
-        return
-
-    # ── Cancel ──
-    if data_cb == "cfg_cancel":
-        _wizard_state.pop(uid, None)
-        await query.edit_message_text("⚙️ Configuração fechada.")
-        return
-
-    # ── Selecionar agente ──
-    if data_cb.startswith("cfg_agent_"):
-        bot_name = data_cb[len("cfg_agent_"):]
-        env_path = BASE_DIR / "bots" / bot_name / ".env"
-        if not env_path.exists():
-            await query.edit_message_text(f"❌ Agente '{bot_name}' não encontrado.")
-            return
-        env_dict = _read_env_as_dict(env_path)
-        _wizard_state[uid] = {
-            "type": "config", "step": "agent_menu",
-            "data": {"target": "agent", "bot_name": bot_name, "msg_id": query.message.message_id},
-        }
-        await query.edit_message_text(
-            f"⚙️ *Configuração — {bot_name}*",
-            parse_mode="Markdown",
-            reply_markup=_cfg_agent_menu_keyboard(bot_name, env_dict),
-        )
-        return
-
-    # ── Selecionar global ──
-    if data_cb == "cfg_global":
-        global_dict = _read_env_as_dict(BASE_DIR / "config.global")
-        _wizard_state[uid] = {
-            "type": "config", "step": "global_menu",
-            "data": {"target": "global", "msg_id": query.message.message_id},
-        }
-        await query.edit_message_text(
-            "⚙️ *Configuração Global*",
-            parse_mode="Markdown",
-            reply_markup=_cfg_global_menu_keyboard(global_dict),
-        )
-        return
-
-    # ── Back navigation ──
-    if data_cb == "cfg_back_main":
-        _wizard_state.pop(uid, None)
-        await query.edit_message_text(
-            "⚙️ *Configuração*\n\nSelecione o que deseja configurar:",
-            parse_mode="Markdown",
-            reply_markup=_cfg_target_keyboard(),
-        )
-        return
-
-    # Precisa de wizard state a partir daqui
-    wizard = _wizard_state.get(uid)
-    if not wizard or wizard.get("type") != "config":
-        await query.edit_message_text("⚠️ Sessão expirada. Use /config para recomeçar.")
-        return
-
-    wdata = wizard["data"]
-
-    if data_cb == "cfg_back_agent":
-        bot_name = wdata["bot_name"]
-        env_dict = _read_env_as_dict(BASE_DIR / "bots" / bot_name / ".env")
-        wizard["step"] = "agent_menu"
-        wdata.pop("editing_key", None)
-        wdata.pop("editing_file", None)
-        wdata.pop("custom_key", None)
-        await query.edit_message_text(
-            f"⚙️ *Configuração — {bot_name}*",
-            parse_mode="Markdown",
-            reply_markup=_cfg_agent_menu_keyboard(bot_name, env_dict),
-        )
-        return
-
-    if data_cb == "cfg_back_global":
-        global_dict = _read_env_as_dict(BASE_DIR / "config.global")
-        wizard["step"] = "global_menu"
-        wdata.pop("editing_key", None)
-        wdata.pop("editing_file", None)
-        await query.edit_message_text(
-            "⚙️ *Configuração Global*",
-            parse_mode="Markdown",
-            reply_markup=_cfg_global_menu_keyboard(global_dict),
-        )
-        return
-
-    # ── Editar variável de agente ──
-    if data_cb.startswith("cfg_var_"):
-        key = data_cb[len("cfg_var_"):]
-        if key in _CFG_BLACKLIST:
-            await query.answer(f"❌ {key} não pode ser editado.", show_alert=True)
-            return
-        bot_name = wdata["bot_name"]
-        env_dict = _read_env_as_dict(BASE_DIR / "bots" / bot_name / ".env")
-        current = env_dict.get(key, "(não definido)")
-        display = _mask_value(key, current)
-        wizard["step"] = "edit_var"
-        wdata["editing_key"] = key
-        await query.edit_message_text(
-            f"✏️ *Editar {key}*\n\n"
-            f"Valor atual: `{display}`\n\n"
-            "Digite o novo valor:",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("<< Voltar", callback_data="cfg_back_agent")]
-            ]),
-        )
-        return
-
-    # ── Editar variável global ──
-    if data_cb.startswith("cfg_gvar_"):
-        key = data_cb[len("cfg_gvar_"):]
-        global_dict = _read_env_as_dict(BASE_DIR / "config.global")
-        current = global_dict.get(key, "(não definido)")
-        display = _mask_value(key, current)
-        wizard["step"] = "edit_var"
-        wdata["editing_key"] = key
-        await query.edit_message_text(
-            f"✏️ *Editar {key} (global)*\n\n"
-            f"Valor atual: `{display}`\n\n"
-            "Digite o novo valor:",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("<< Voltar", callback_data="cfg_back_global")]
-            ]),
-        )
-        return
-
-    # ── Ferramentas ──
-    if data_cb == "cfg_tools":
-        bot_name = wdata["bot_name"]
-        env_dict = _read_env_as_dict(BASE_DIR / "bots" / bot_name / ".env")
-        tools_raw = env_dict.get("TOOLS", "none").lower()
-        selected = [] if tools_raw == "none" else [t.strip() for t in tools_raw.split(",")]
-        wdata["tools_selected"] = selected
-        wizard["step"] = "tools_toggle"
-        await query.edit_message_text(
-            f"🔧 *Ferramentas — {bot_name}*\n\nToque para marcar/desmarcar:",
-            parse_mode="Markdown",
-            reply_markup=_cfg_tools_keyboard(selected),
-        )
-        return
-
-    if data_cb.startswith("cfg_tool_"):
-        tool = data_cb[len("cfg_tool_"):]
-        selected = wdata.get("tools_selected", [])
-        if tool in selected:
-            selected.remove(tool)
-        else:
-            selected.append(tool)
-        wdata["tools_selected"] = selected
-        await query.edit_message_reply_markup(reply_markup=_cfg_tools_keyboard(selected))
-        return
-
-    if data_cb == "cfg_tools_done":
-        bot_name = wdata["bot_name"]
-        selected = wdata.get("tools_selected", [])
-        tools_val = ",".join(selected) if selected else "none"
-        env_path = BASE_DIR / "bots" / bot_name / ".env"
-        _write_bot_env(env_path, {"TOOLS": tools_val})
-        _append_daily_log(f"[config] {bot_name} TOOLS={tools_val}")
-        env_dict = _read_env_as_dict(env_path)
-        wizard["step"] = "agent_menu"
-        wdata.pop("tools_selected", None)
-        # Perguntar restart
-        wizard["step"] = "ask_restart"
-        await query.edit_message_text(
-            f"✅ Ferramentas atualizadas: `{tools_val}`\n\n"
-            f"Reiniciar *{bot_name}* para aplicar?",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔄 Sim, reiniciar", callback_data="cfg_restart_yes"),
-                 InlineKeyboardButton("Não", callback_data="cfg_restart_no")],
-            ]),
-        )
-        return
-
-    # ── Variáveis customizadas ──
-    if data_cb == "cfg_custom":
-        bot_name = wdata["bot_name"]
-        env_dict = _read_env_as_dict(BASE_DIR / "bots" / bot_name / ".env")
-        custom = _get_custom_vars(env_dict)
-        wizard["step"] = "custom_vars"
-        await query.edit_message_text(
-            f"📦 *Variáveis customizadas — {bot_name}*\n\n"
-            f"{len(custom)} variável(is) encontrada(s).",
-            parse_mode="Markdown",
-            reply_markup=_cfg_custom_vars_keyboard(custom),
-        )
-        return
-
-    if data_cb == "cfg_cust_add":
-        wizard["step"] = "custom_add_key"
-        await query.edit_message_text(
-            "➕ *Nova variável*\n\nDigite o nome da variável (ex: `API_KEY_3`):",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("<< Voltar", callback_data="cfg_custom")]
-            ]),
-        )
-        return
-
-    if data_cb.startswith("cfg_cust_e_"):
-        key = data_cb[len("cfg_cust_e_"):]
-        bot_name = wdata["bot_name"]
-        env_dict = _read_env_as_dict(BASE_DIR / "bots" / bot_name / ".env")
-        current = env_dict.get(key, "(não definido)")
-        display = _mask_value(key, current)
-        wizard["step"] = "custom_edit_val"
-        wdata["custom_key"] = key
-        await query.edit_message_text(
-            f"✏️ *Editar {key}*\n\nValor atual: `{display}`\n\nDigite o novo valor:",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("<< Voltar", callback_data="cfg_custom")]
-            ]),
-        )
-        return
-
-    if data_cb.startswith("cfg_cust_d_"):
-        key = data_cb[len("cfg_cust_d_"):]
-        bot_name = wdata["bot_name"]
-        env_path = BASE_DIR / "bots" / bot_name / ".env"
-        _remove_env_key(env_path, key)
-        _append_daily_log(f"[config] {bot_name} removeu variável: {key}")
-        env_dict = _read_env_as_dict(env_path)
-        custom = _get_custom_vars(env_dict)
-        await query.edit_message_text(
-            f"🗑️ Variável `{key}` removida.\n\n"
-            f"📦 *Variáveis customizadas — {bot_name}*",
-            parse_mode="Markdown",
-            reply_markup=_cfg_custom_vars_keyboard(custom),
-        )
-        return
-
-    # ── Arquivos (soul.md, USER.md, context.global) ──
-    if data_cb.startswith("cfg_file_") and not data_cb.startswith("cfg_file_edit_"):
-        file_name = data_cb[len("cfg_file_"):]
-        if file_name == "context.global":
-            file_path = BASE_DIR / "context.global"
-        else:
-            bot_name = wdata["bot_name"]
-            file_path = BASE_DIR / "bots" / bot_name / file_name
-        content = _read_file_safe(file_path, max_chars=3000)
-        if not content:
-            content = "(arquivo vazio ou inexistente)"
-        wizard["step"] = "view_file"
-        wdata["editing_file"] = file_name
-        # Trunca para caber na mensagem Telegram (4096 chars)
-        preview = content[:2500]
-        if len(content) > 2500:
-            preview += "\n... (truncado)"
-        await query.edit_message_text(
-            f"📄 *{file_name}*\n\n```\n{preview}\n```",
-            parse_mode="Markdown",
-            reply_markup=_cfg_file_keyboard(file_name),
-        )
-        return
-
-    if data_cb.startswith("cfg_file_edit_"):
-        file_name = data_cb[len("cfg_file_edit_"):]
-        wizard["step"] = "edit_file"
-        wdata["editing_file"] = file_name
-        await query.edit_message_text(
-            f"✏️ *Editar {file_name}*\n\n"
-            "Envie o conteúdo completo do arquivo.\n"
-            "_(O conteúdo atual será substituído integralmente)_",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("<< Voltar",
-                    callback_data=f"cfg_file_{file_name}")]
-            ]),
-        )
-        return
-
-    # ── Restart ──
-    if data_cb == "cfg_restart_yes":
-        bot_name = wdata.get("bot_name", "")
-        is_self = (bot_name == BOT_DIR.name)
-        await _cfg_do_restart(query, bot_name, is_self)
-        _wizard_state.pop(uid, None)
-        return
-
-    if data_cb == "cfg_restart_no":
-        target = wdata.get("target")
-        if target == "global":
-            global_dict = _read_env_as_dict(BASE_DIR / "config.global")
-            wizard["step"] = "global_menu"
-            await query.edit_message_text(
-                "⚙️ *Configuração Global*",
-                parse_mode="Markdown",
-                reply_markup=_cfg_global_menu_keyboard(global_dict),
-            )
-        else:
-            bot_name = wdata["bot_name"]
-            env_dict = _read_env_as_dict(BASE_DIR / "bots" / bot_name / ".env")
-            wizard["step"] = "agent_menu"
-            await query.edit_message_text(
-                f"⚙️ *Configuração — {bot_name}*",
-                parse_mode="Markdown",
-                reply_markup=_cfg_agent_menu_keyboard(bot_name, env_dict),
-            )
-        return
-
-
-async def _cfg_handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE, wizard: dict) -> None:
-    """Processa texto nos states de edição do /config."""
-    step = wizard["step"]
-    wdata = wizard["data"]
-    text = (update.message.text or "").strip()
-    uid = update.effective_user.id
-    target = wdata.get("target", "agent")
-
-    if step == "edit_var":
-        key = wdata.get("editing_key", "")
-        if not key:
-            return
-        if target == "global":
-            env_path = BASE_DIR / "config.global"
-            label = "global"
-        else:
-            bot_name = wdata["bot_name"]
-            env_path = BASE_DIR / "bots" / bot_name / ".env"
-            label = bot_name
-        _write_bot_env(env_path, {key: text})
-        _append_daily_log(f"[config] {label} {key} alterado via /config")
-        # Perguntar restart
-        wizard["step"] = "ask_restart"
-        await update.message.reply_text(
-            f"✅ `{key}` atualizado.\n\n"
-            f"Reiniciar *{wdata.get('bot_name', 'serviço')}* para aplicar?",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔄 Sim, reiniciar", callback_data="cfg_restart_yes"),
-                 InlineKeyboardButton("Não", callback_data="cfg_restart_no")],
-            ]),
-        )
-        return
-
-    if step == "custom_add_key":
-        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", text):
-            await update.message.reply_text(
-                "⚠️ Nome inválido. Use letras, números e underscore (ex: `MY_VAR`).",
-                parse_mode="Markdown",
-            )
-            return
-        wdata["custom_key"] = text.upper()
-        wizard["step"] = "custom_add_val"
-        await update.message.reply_text(
-            f"📝 Agora digite o valor para `{text.upper()}`:",
-            parse_mode="Markdown",
-        )
-        return
-
-    if step == "custom_add_val":
-        key = wdata.get("custom_key", "")
-        if not key:
-            return
-        bot_name = wdata["bot_name"]
-        env_path = BASE_DIR / "bots" / bot_name / ".env"
-        _write_bot_env(env_path, {key: text})
-        _append_daily_log(f"[config] {bot_name} nova variável: {key}")
-        env_dict = _read_env_as_dict(env_path)
-        custom = _get_custom_vars(env_dict)
-        wizard["step"] = "custom_vars"
-        await update.message.reply_text(
-            f"✅ `{key}` adicionada.\n\n📦 *Variáveis customizadas — {bot_name}*",
-            parse_mode="Markdown",
-            reply_markup=_cfg_custom_vars_keyboard(custom),
-        )
-        return
-
-    if step == "custom_edit_val":
-        key = wdata.get("custom_key", "")
-        if not key:
-            return
-        bot_name = wdata["bot_name"]
-        env_path = BASE_DIR / "bots" / bot_name / ".env"
-        _write_bot_env(env_path, {key: text})
-        _append_daily_log(f"[config] {bot_name} variável editada: {key}")
-        env_dict = _read_env_as_dict(env_path)
-        custom = _get_custom_vars(env_dict)
-        wizard["step"] = "custom_vars"
-        await update.message.reply_text(
-            f"✅ `{key}` atualizada.\n\n📦 *Variáveis customizadas — {bot_name}*",
-            parse_mode="Markdown",
-            reply_markup=_cfg_custom_vars_keyboard(custom),
-        )
-        return
-
-    if step == "edit_file":
-        file_name = wdata.get("editing_file", "")
-        if not file_name:
-            return
-        if file_name == "context.global":
-            file_path = BASE_DIR / "context.global"
-        else:
-            bot_name = wdata["bot_name"]
-            file_path = BASE_DIR / "bots" / bot_name / file_name
-        file_path.write_text(text, encoding="utf-8")
-        _append_daily_log(f"[config] {file_name} editado via /config")
-        back_cb = "cfg_back_global" if file_name == "context.global" else "cfg_back_agent"
-        await update.message.reply_text(
-            f"✅ `{file_name}` salvo ({len(text)} chars).",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("<< Voltar", callback_data=back_cb)]
-            ]),
-        )
-        wizard["step"] = "view_file"
-        return
-
-    # State que espera inline keyboard
-    await update.message.reply_text("👆 Use os botões acima para continuar.")
-
-
-async def _cfg_do_restart(query, bot_name: str, is_self: bool) -> None:
-    """Reinicia o agente (ou a si mesmo)."""
-    import subprocess as _sp
-    in_docker = Path("/.dockerenv").exists() or os.environ.get("IN_DOCKER")
-
-    if is_self:
-        await query.edit_message_text(f"🔄 Reiniciando *{bot_name}*...", parse_mode="Markdown")
-        _RESTART_FLAG.write_text(str(query.from_user.id))
-        if in_docker:
-            # Em Docker: exit para o orchestrator reiniciar
-            asyncio.get_event_loop().call_later(0.5, lambda: sys.exit(0))
-        else:
-            svc = f"claude-bot-{BOT_DIR.name}"
-            asyncio.get_event_loop().call_later(
-                0.5, lambda: _sp.run(["sudo", "systemctl", "restart", svc])
-            )
-    else:
-        await query.edit_message_text(f"🔄 Reiniciando *{bot_name}*...", parse_mode="Markdown")
-        svc = f"claude-bot-{bot_name}"
-        try:
-            if in_docker:
-                # Em Docker: tenta kill + nohup
-                pid_result = _sp.run(
-                    ["pgrep", "-f", "--", f"--bot-dir.*bots/{bot_name}"],
-                    capture_output=True, text=True, timeout=5,
-                )
-                if pid_result.stdout.strip():
-                    for pid in pid_result.stdout.strip().split("\n"):
-                        _sp.run(["kill", pid.strip()], timeout=5)
-                # Assume que o supervisor reinicia automaticamente
-            else:
-                _sp.run(["sudo", "systemctl", "restart", svc], timeout=30, capture_output=True)
-            await query.edit_message_text(
-                f"✅ *{bot_name}* reiniciado.",
-                parse_mode="Markdown",
-            )
-        except Exception as e:
-            await query.edit_message_text(
-                f"❌ Erro ao reiniciar *{bot_name}*: `{e}`",
-                parse_mode="Markdown",
-            )
 
 
 async def cmd_painel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3101,11 +2860,15 @@ async def _process_message(update: Update, context: ContextTypes.DEFAULT_TYPE, c
         history = conversations.setdefault(conv_id, [])
         history.append({"role": "user", "content": content})
         if len(history) > MAX_HISTORY:
-            overflow = history[:-MAX_HISTORY]
-            if overflow:
-                db.archive_conversation(conv_id, overflow, BOT_NAME)
-            conversations[conv_id] = history[-MAX_HISTORY:]
-            history = conversations[conv_id]
+            if COMPACTION_ENABLED:
+                history = await compact_history(history, MAX_HISTORY, BOT_NAME, db)
+                conversations[conv_id] = history
+            else:
+                overflow = history[:-MAX_HISTORY]
+                if overflow:
+                    db.archive_conversation(conv_id, overflow, BOT_NAME)
+                conversations[conv_id] = history[-MAX_HISTORY:]
+                history = conversations[conv_id]
 
         await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
         snapshot = list(history)
@@ -3338,6 +3101,8 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     fname = doc.file_name or "arquivo"
     ext = Path(fname).suffix.lower() or ".bin"
 
+    _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".tif", ".heic", ".heif"}
+
     await context.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp_path = tmp.name
@@ -3345,9 +3110,34 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         tg_file = await context.bot.get_file(doc.file_id)
         await tg_file.download_to_drive(tmp_path)
 
-        file_content = await asyncio.to_thread(_extract_document_text, tmp_path, fname)
         caption = update.message.caption or ""
         reply_prefix = _extract_reply_context(update.message)
+
+        # Imagens enviadas como arquivo — tratamento idêntico ao handle_photo
+        if ext in _IMAGE_EXTS:
+            media_type = {
+                ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+                ".webp": "image/webp", ".gif": "image/gif", ".bmp": "image/bmp",
+                ".tiff": "image/tiff", ".tif": "image/tiff",
+                ".heic": "image/heic", ".heif": "image/heif",
+            }.get(ext, "image/jpeg")
+            if PROVIDER == "claude-cli":
+                description = await _describe_image_for_cli(tmp_path)
+                label = f"[Imagem: {fname}" + (f" — {caption}" if caption else "") + "]"
+                text = (reply_prefix or "") + label + "\n" + description
+                await _process_message(update, context, text)
+            else:
+                with open(tmp_path, "rb") as fh:
+                    img_data = base64.b64encode(fh.read()).decode()
+                text_part = (f"{caption}\n" if caption else "") + (reply_prefix or f"[Imagem: {fname}]")
+                content = [
+                    {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": img_data}},
+                    {"type": "text", "text": text_part},
+                ]
+                await _process_message(update, context, content)
+            return
+
+        file_content = await asyncio.to_thread(_extract_document_text, tmp_path, fname)
 
         parts = []
         if reply_prefix:
@@ -3473,29 +3263,10 @@ async def post_init(application: Application) -> None:
     # Registra menu de comandos no Telegram (botão ao lado do input)
     from telegram import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
     user_commands = [
-        BotCommand("start",  "Iniciar / reiniciar conversa"),
-        BotCommand("clear",  "Limpar histórico"),
-        BotCommand("cancel", "Cancelar operação em andamento"),
-        BotCommand("info",   "Quem sou eu"),
-        BotCommand("id",     "Seu ID Telegram"),
-        BotCommand("tasks",  "Minhas tarefas"),
+        BotCommand("start", "Iniciar / reiniciar conversa"),
+        BotCommand("menu",  "Abrir menu"),
     ]
-    admin_commands = user_commands + [
-        BotCommand("users",           "Usuários aprovados"),
-        BotCommand("pending",         "Solicitações pendentes"),
-        BotCommand("revoke",          "Revogar acesso"),
-        BotCommand("memory",          "Status da memória"),
-        BotCommand("stats",           "Analytics de uso"),
-        BotCommand("version",         "Versão atual"),
-        BotCommand("update",          "Atualizar e reiniciar"),
-        BotCommand("restart",         "Reiniciar o bot"),
-        BotCommand("criar_agente",    "Criar novo agente (wizard)"),
-        BotCommand("criar_subagente", "Criar novo sub-agente (wizard)"),
-        BotCommand("config",           "Configurar agentes"),
-        BotCommand("painel",           "Link temporário do painel admin"),
-        BotCommand("apagar_agente",   "Apagar um agente existente"),
-        BotCommand("cancelar_wizard", "Cancelar wizard em andamento"),
-    ]
+    admin_commands = user_commands
     try:
         await application.bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
         if ADMIN_ID:
@@ -3666,6 +3437,8 @@ def main() -> None:
     app.add_handler(CommandHandler("tasks",   cmd_tasks))
     app.add_handler(CommandHandler("memory",  cmd_memory))
     app.add_handler(CommandHandler("stats",   cmd_stats))
+    app.add_handler(CommandHandler("trace",   cmd_trace))
+    app.add_handler(CommandHandler("menu",    cmd_menu))
     app.add_handler(CommandHandler("users",   cmd_users))
     app.add_handler(CommandHandler("pending", cmd_pending))
     app.add_handler(CommandHandler("revoke",   cmd_revoke))
@@ -3680,10 +3453,7 @@ def main() -> None:
     app.add_handler(CommandHandler("painel",           cmd_painel))
     app.add_handler(CommandHandler("apagar_agente",   cmd_apagar_agente))
     app.add_handler(CallbackQueryHandler(callback_del_agent, pattern=r"^del_agent_"))
-    app.add_handler(CallbackQueryHandler(
-        lambda u, c: _cfg_handle_callback(u.callback_query, c),
-        pattern=r"^cfg_",
-    ))
+    app.add_handler(CallbackQueryHandler(callback_menu,     pattern=r"^menu_"))
     app.add_handler(CallbackQueryHandler(callback_approval, pattern=r"^(approve|deny):\d+$"))
     app.add_handler(CallbackQueryHandler(callback_task,     pattern=r"^(retomar|cancelar):.+$"))
     app.add_handler(CallbackQueryHandler(
@@ -3693,8 +3463,17 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     # Comandos não registrados (ex: /radar, /hoje, /carteira) são passados para a IA como texto
     # O '/' é removido para evitar que provedores cli (claude-cli, codex) interpretem como slash command
+    _known_commands = {
+        "start", "menu", "clear", "cancel", "thinking", "info", "id", "tasks",
+        "memory", "stats", "trace", "users", "pending", "revoke", "restart",
+        "status", "version", "update", "criar_agente", "criar_subagente",
+        "cancelar_wizard", "config", "painel", "apagar_agente",
+    }
     async def handle_unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if update.message and update.message.text and update.message.text.startswith("/"):
+            cmd = update.message.text[1:].split()[0].split("@")[0].lower()
+            if cmd in _known_commands:
+                return  # já tratado pelo CommandHandler dedicado
             text = update.message.text[1:]  # /radar → radar
             await _process_message(update, context, text) if has_access(update.effective_user.id) else await request_access(update, context)
         else:

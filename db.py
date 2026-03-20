@@ -94,6 +94,23 @@ class BotDB:
                 CREATE INDEX IF NOT EXISTS idx_analytics_ts ON analytics(ts);
                 CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
                 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+                CREATE TABLE IF NOT EXISTS traces (
+                    id TEXT PRIMARY KEY,
+                    bot_name TEXT NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    started_at TEXT NOT NULL,
+                    ended_at TEXT,
+                    total_spans INTEGER DEFAULT 0,
+                    total_tool_calls INTEGER DEFAULT 0,
+                    total_llm_calls INTEGER DEFAULT 0,
+                    total_input_tokens INTEGER DEFAULT 0,
+                    total_output_tokens INTEGER DEFAULT 0,
+                    total_latency_ms INTEGER DEFAULT 0,
+                    error TEXT,
+                    spans TEXT,
+                    metadata TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_traces_bot_ts ON traces(bot_name, started_at);
             """)
 
     # ── Migração de JSON legado ──────────────────────────────────────────────
@@ -347,6 +364,56 @@ class BotDB:
              output_tokens, tool_calls, latency_ms, error),
         )
         self._conn.commit()
+
+    # ── Traces ───────────────────────────────────────────────────────────────
+
+    def save_trace(self, trace_id: str, bot_name: str, user_id: int,
+                   started_at: str, total_spans: int, total_tool_calls: int,
+                   total_llm_calls: int, total_input_tokens: int,
+                   total_output_tokens: int, total_latency_ms: int,
+                   error: str | None, spans: str, metadata: str):
+        ended_at = datetime.now().isoformat()
+        self._conn.execute(
+            "INSERT OR REPLACE INTO traces "
+            "(id, bot_name, user_id, started_at, ended_at, total_spans, total_tool_calls, "
+            "total_llm_calls, total_input_tokens, total_output_tokens, total_latency_ms, "
+            "error, spans, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (trace_id, bot_name, user_id, started_at, ended_at, total_spans,
+             total_tool_calls, total_llm_calls, total_input_tokens, total_output_tokens,
+             total_latency_ms, error, spans, metadata),
+        )
+        self._conn.commit()
+
+    def get_traces(self, bot_name: str = "", user_id: int = 0, limit: int = 20) -> list[dict]:
+        if bot_name and user_id:
+            rows = self._conn.execute(
+                "SELECT * FROM traces WHERE bot_name = ? AND user_id = ? "
+                "ORDER BY started_at DESC LIMIT ?",
+                (bot_name, user_id, limit),
+            ).fetchall()
+        elif bot_name:
+            rows = self._conn.execute(
+                "SELECT * FROM traces WHERE bot_name = ? ORDER BY started_at DESC LIMIT ?",
+                (bot_name, limit),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT * FROM traces ORDER BY started_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_trace(self, trace_id: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT * FROM traces WHERE id = ?", (trace_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def delete_old_traces(self, keep_days: int = 7):
+        cutoff = (datetime.now() - timedelta(days=keep_days)).isoformat()
+        cur = self._conn.execute("DELETE FROM traces WHERE started_at < ?", (cutoff,))
+        self._conn.commit()
+        return cur.rowcount
 
     # ── Approved Users ──────────────────────────────────────────────────────
 

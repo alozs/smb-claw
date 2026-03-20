@@ -771,6 +771,68 @@ async def analytics(name: str, days: int = 1):
     return get_analytics(name, days)
 
 
+# ── Routes: Traces ────────────────────────────────────────────────────────────
+
+@app.get("/api/bots/{name}/traces")
+async def get_traces(name: str, limit: int = 20, user_id: int = 0):
+    validate_bot_name(name)
+    db_path = BOTS_DIR / name / "bot_data.db"
+    if not db_path.exists():
+        return {"traces": []}
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.row_factory = sqlite3.Row
+    try:
+        if user_id:
+            rows = conn.execute(
+                "SELECT id, bot_name, user_id, started_at, ended_at, total_spans, "
+                "total_tool_calls, total_llm_calls, total_input_tokens, total_output_tokens, "
+                "total_latency_ms, error FROM traces WHERE bot_name = ? AND user_id = ? "
+                "ORDER BY started_at DESC LIMIT ?",
+                (name, user_id, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, bot_name, user_id, started_at, ended_at, total_spans, "
+                "total_tool_calls, total_llm_calls, total_input_tokens, total_output_tokens, "
+                "total_latency_ms, error FROM traces WHERE bot_name = ? "
+                "ORDER BY started_at DESC LIMIT ?",
+                (name, limit),
+            ).fetchall()
+        traces = [dict(r) for r in rows]
+    finally:
+        conn.close()
+    return {"traces": traces}
+
+
+@app.get("/api/bots/{name}/traces/{trace_id}")
+async def get_trace_detail(name: str, trace_id: str):
+    validate_bot_name(name)
+    db_path = BOTS_DIR / name / "bot_data.db"
+    if not db_path.exists():
+        return {}
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute("SELECT * FROM traces WHERE id = ? AND bot_name = ?", (trace_id, name)).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Trace not found")
+        result = dict(row)
+        # Parse JSON fields for API response
+        import json as _json
+        for field in ("spans", "metadata"):
+            if result.get(field):
+                try:
+                    result[field] = _json.loads(result[field])
+                except Exception:
+                    pass
+    finally:
+        conn.close()
+    return result
+
+
 # ── Routes: Schedules ─────────────────────────────────────────────────────────
 
 @app.get("/api/bots/{name}/schedules")

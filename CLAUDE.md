@@ -9,7 +9,9 @@ Este arquivo é lido pelo Claude Code antes de qualquer modificação no projeto
 
 ```
 bot.py          — Core: config, Telegram handlers, main loop
-db.py           — Persistência SQLite (WAL mode) — conversations, tasks, schedules, analytics, approved_users
+db.py           — Persistência SQLite (WAL mode) — conversations, tasks, schedules, analytics, approved_users, traces
+tracer.py       — Tracing granular: Trace/Span por invocação de ask_*, persistido em traces
+compactor.py    — Compactação inteligente de contexto via sumarização (opt-in)
 security.py     — Shell safety, path traversal, output sanitization
 scheduler.py    — Loop background de notificações proativas
 tools/          — Ferramentas modulares
@@ -76,6 +78,7 @@ Toda persistência usa `db.py` (classe `BotDB`). O banco é `bots/<nome>/bot_dat
 |---|---|---|
 | `conversations` | conversations.json | Histórico de conversas ativo (sessão atual) por user |
 | `sessions_archive` | — | Histórico completo de sessões arquivadas no /start e /clear |
+| `traces` | — | Traces detalhados por invocação LLM (spans, tokens, latência por tool call) |
 | `tasks` | tasks.json | Tarefas persistentes |
 | `schedules` | schedules.json | Agendamentos proativos |
 | `analytics` | analytics.jsonl | Log de uso (tokens, latência, erros) |
@@ -204,10 +207,11 @@ Se não estiver instalada, PDFs recebem fallback graceful com nome+tamanho.
 | `/revoke <id>` | Revoga acesso de um usuário |
 | `/memory` | Mostra status dos arquivos de memória |
 | `/stats [período]` | Analytics: tokens, custo, mensagens (hoje/semana/mes/N) |
+| `/trace [id]` | Lista traces recentes ou detalha trace específico (LLM calls, tool calls, timings) |
 | `/version` | Mostra versão atual e se há atualizações pendentes |
 | `/update` | Puxa atualizações do remote e reinicia todos os serviços |
 | `/painel [min]` | Gera link temporário de acesso ao painel admin (default: 30 min) |
-| `/config` | Configurar agentes e config global via menus inline |
+| `/config` | Redireciona ao painel web admin para gerenciar configurações |
 | `/criar_agente` | Abre wizard passo a passo para criar novo agente Telegram |
 | `/criar_subagente` | Abre wizard passo a passo para criar novo sub-agente |
 | `/cancelar_wizard` | Cancela wizard em andamento |
@@ -242,6 +246,10 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 | `TELEGRAM_TOKEN` | sim | — | Token do @BotFather |
 | `BOT_NAME` | sim | nome da pasta | Nome do bot |
 | `MAX_HISTORY` | — | `20` | Máx. mensagens no histórico |
+| `COMPACTION_ENABLED` | — | `false` | Sumariza mensagens antigas em vez de descartar (requer OPENROUTER_API_KEY) |
+| `COMPACTION_MODEL` | — | `google/gemini-2.0-flash-001` | Modelo OpenRouter para sumarização |
+| `COMPACTION_KEEP` | — | `10` | Mensagens recentes preservadas ao compactar |
+| `TRACING_ENABLED` | — | `true` | Habilita tracing granular por LLM call + tool call |
 | `TOOLS` | — | `none` | Ferramentas ativas |
 | `WORK_DIR` | — | `<bot>/workspace` | Sandbox do file tool |
 | `MODEL` | — | do config.global | Override do modelo (opcional) |
