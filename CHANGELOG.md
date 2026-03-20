@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.6 (2026-03-20)
+
+• Melhorias internas e correções de estabilidade.
+
 ## 0.7.5 (2026-03-20)
 
 Os únicos arquivos modificados nesta versão (`VERSION` e `release.sh`) são arquivos de infraestrutura interna do processo de release — não há alterações funcionais relevantes para usuários finais do framework.
