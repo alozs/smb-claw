@@ -79,7 +79,7 @@ if [ -n "$LAST_TAG" ]; then
 else
     RAW_LOG=$(git log --pretty=format:"- %s" 2>/dev/null)
 fi
-RAW_LOG=$(echo "$RAW_LOG" | grep -v "^- release:" || true)
+RAW_LOG=$(echo "$RAW_LOG" | grep -v "^- release:" | grep -viE "^- (docs|chore|style|refactor).*index\.html|gitignore|\.gitignore|landing|page|secrets?\.env|credentials?|token|api.?key|password|passwd|auth|security fix|vulnerab|expose|leak|hardcod" || true)
 
 DATE=$(date +%Y-%m-%d)
 
@@ -98,7 +98,9 @@ Regras:
 - Cada item começa com bullet • e descreve o valor para o usuário (não detalhes técnicos internos)
 - Máximo 250 palavras
 - Não inclua título, número de versão nem data — só o corpo
-- Não use markdown pesado (sem **, sem ##), apenas bullets simples"
+- Não use markdown pesado (sem **, sem ##), apenas bullets simples
+- IGNORE completamente commits relacionados a: landing page, index.html, site, documentação pública, .gitignore, arquivos de configuração interna, credenciais, tokens, secrets, segurança, correções de vazamento de dados, itens pessoais ou acidentais
+- Mencione APENAS melhorias e funcionalidades relevantes para usuários finais do framework de bots"
 
     # 1. Claude CLI (OAuth)
     CLAUDE_BIN=$(which claude 2>/dev/null || echo "/home/ubuntu/.npm-global/bin/claude")
