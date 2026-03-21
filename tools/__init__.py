@@ -14,7 +14,7 @@ logger = logging.getLogger("tools")
 
 
 def build_definitions(enabled_tools: set, work_dir, base_dir=None, bot_name: str = "",
-                      for_subagent: bool = False) -> list[dict]:
+                      for_subagent: bool = False, guardrails_mode: str = "") -> list[dict]:
     """Constrói lista de tool definitions baseado nos tools habilitados.
 
     for_subagent: quando True, não inclui ferramentas "sempre ativas" (tasks, memory, schedule).
@@ -47,11 +47,23 @@ def build_definitions(enabled_tools: set, work_dir, base_dir=None, bot_name: str
         from tools import agent as agent_tool
         from pathlib import Path
         defs.extend(agent_tool.build_definitions(Path(base_dir), bot_name))
+    # request_approval — disponível quando GUARDRAILS_MODE=confirm
+    if guardrails_mode == "confirm" and not for_subagent:
+        from guardrails import REQUEST_APPROVAL_DEFINITION
+        defs.append(REQUEST_APPROVAL_DEFINITION)
     return defs
 
 
 def _execute_sync(name: str, inp: dict, *, user_id: int = 0, db, config: dict) -> str:
     """Dispatcher síncrono — roda dentro de to_thread."""
+    # request_approval (guardrails confirm mode)
+    if name == "request_approval":
+        from guardrails import execute_request_approval
+        # Marca que approval foi concedido neste turno
+        _approval = config.get("_approval_granted")
+        if isinstance(_approval, dict):
+            _approval[user_id] = True
+        return execute_request_approval(inp)
     # Tarefas (sempre disponíveis)
     if name in ("task_create", "task_update", "task_list"):
         return tasks.execute(name, inp, user_id=user_id, db=db, config=config)
@@ -87,8 +99,49 @@ def _execute_sync(name: str, inp: dict, *, user_id: int = 0, db, config: dict) -
     return f"Ferramenta desconhecida: {name}"
 
 
-async def execute(name: str, inp: dict, *, user_id: int = 0, db, config: dict) -> str:
-    """Dispatcher async — roda tools em thread separada para não bloquear o event loop."""
+async def execute(name: str, inp: dict, *, user_id: int = 0, db, config: dict,
+                  on_action=None) -> str:
+    """Dispatcher async — roda tools em thread separada para não bloquear o event loop.
+
+    on_action: async callable(alert_msg: str) para notificar admin (guardrails).
+    """
+    # ── Guardrails ────────────────────────────────────────────────────────────
+    if config.get("GUARDRAILS_ENABLED") == "true":
+        try:
+            from guardrails import (classify_action, should_notify, should_block,
+                                    format_alert, format_block_result)
+            classification = classify_action(name, inp)
+            mode = config.get("GUARDRAILS_MODE", "notify")
+            min_level = config.get("GUARDRAILS_LEVEL", "dangerous")
+            approved = config.get("_approval_granted", {})
+            is_approved = isinstance(approved, dict) and approved.get(user_id, False)
+
+            # Log TODAS as ações para calibração
+            if db:
+                try:
+                    db.log_action(user_id, name, str(inp)[:200], classification)
+                except Exception:
+                    pass
+
+            # ── Bloqueio real (confirm sem approval, ou block mode) ───────────
+            if name != "request_approval" and should_block(classification, mode, is_approved):
+                user_name = str(config.get("_user_name", ""))
+                if on_action:
+                    asyncio.create_task(on_action(
+                        format_alert(user_id, user_name, name, inp, classification, blocked=True)
+                    ))
+                logger.warning(f"[guardrails] BLOCKED {name} (mode={mode}, user={user_id})")
+                return format_block_result(name, mode)
+
+            # ── Notificar admin se >= nível configurado ───────────────────────
+            if should_notify(classification, min_level) and on_action:
+                user_name = str(config.get("_user_name", ""))
+                asyncio.create_task(on_action(
+                    format_alert(user_id, user_name, name, inp, classification)
+                ))
+        except Exception as e:
+            logger.warning(f"[guardrails] Erro na classificação de {name}: {e}")
+
     try:
         return await asyncio.to_thread(
             _execute_sync, name, inp, user_id=user_id, db=db, config=config,

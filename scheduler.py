@@ -13,13 +13,19 @@ logger = logging.getLogger(__name__)
 
 DAY_MAP = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 
+# Horário do cleanup diário (UTC) — roda uma vez por dia ao redor da meia-noite
+_CLEANUP_HOUR_UTC = 0
+_cleanup_done_day = ""
+
 
 async def scheduler_loop(application, db, ask_claude_fn, conversations: dict,
-                         save_conv_fn, admin_id: int, get_user_lock=None):
+                         save_conv_fn, admin_id: int, get_user_lock=None,
+                         injection_threshold: float = 0.0):
     """Background loop — verifica agendamentos a cada 60s.
     get_user_lock: async fn(user_id) -> Lock para serializar com handle_message.
     """
     fired_key = ""
+    global _cleanup_done_day
     while True:
         try:
             await asyncio.sleep(60)
@@ -27,6 +33,17 @@ async def scheduler_loop(application, db, ask_claude_fn, conversations: dict,
             current_key = now.strftime("%Y-%m-%d %H:%M")
             if current_key == fired_key:
                 continue
+
+            # ── Cleanup diário do action_log ──────────────────────────────────
+            today_str = now.strftime("%Y-%m-%d")
+            if now.hour == _CLEANUP_HOUR_UTC and _cleanup_done_day != today_str:
+                _cleanup_done_day = today_str
+                try:
+                    deleted = db.cleanup_old_action_logs(keep_days=30)
+                    if deleted:
+                        logger.info(f"[scheduler] action_log cleanup: {deleted} registros removidos")
+                except Exception as e:
+                    logger.warning(f"[scheduler] Falha no cleanup do action_log: {e}")
 
             schedules = db.schedule_list()
             if not schedules:
@@ -49,7 +66,35 @@ async def scheduler_loop(application, db, ask_claude_fn, conversations: dict,
                 logger.info(f"[scheduler] Disparando: {s['id']} para user {user_id}")
 
                 try:
-                    prompt = f"[Agendamento automático — {s['id']}] {s['message']}"
+                    schedule_msg = s["message"]
+                    # ── Detecção de injection na mensagem do agendamento ──────
+                    if injection_threshold > 0:
+                        try:
+                            from security import detect_injection
+                            _flagged, _reason, _score = detect_injection(schedule_msg, injection_threshold)
+                            if _flagged:
+                                logger.warning(
+                                    f"[scheduler] Injection detectada em {s['id']} "
+                                    f"(score={_score}, padrões={_reason})"
+                                )
+                                if admin_id:
+                                    try:
+                                        await application.bot.send_message(
+                                            chat_id=admin_id,
+                                            text=(
+                                                f"🚨 *Injection em agendamento*\n\n"
+                                                f"ID: `{s['id']}`\n"
+                                                f"Score: `{_score}` · Padrões: `{_reason}`\n"
+                                                f"Msg: `{schedule_msg[:200]}`"
+                                            ),
+                                            parse_mode="Markdown",
+                                        )
+                                    except Exception:
+                                        pass
+                        except Exception as ie:
+                            logger.warning(f"[scheduler] Erro na detecção de injection: {ie}")
+
+                    prompt = f"[Agendamento automático — {s['id']}] {schedule_msg}"
 
                     # Envia indicador visual antes de processar
                     status_msg = None

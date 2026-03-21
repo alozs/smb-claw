@@ -40,6 +40,14 @@ echo "Criando bot '$BOT_NAME'..."
 mkdir -p "$BOT_DIR"/{memory,workspace}
 chmod 700 "$BOT_DIR"
 
+# ── BEHAVIOR.md ───────────────────────────────────────────────────────────────
+
+cat > "$BOT_DIR/BEHAVIOR.md" << EOF
+# Perfil Comportamental
+<!-- Auto-gerado pelo behavior-extract.sh — não edite manualmente. -->
+EOF
+chmod 600 "$BOT_DIR/BEHAVIOR.md"
+
 # ── .env ──────────────────────────────────────────────────────────────────────
 
 cat > "$BOT_DIR/.env" << EOF
@@ -54,6 +62,18 @@ WORK_DIR=$BOT_DIR/workspace
 # Overrides opcionais (herdam do config.global se não definidos)
 # MODEL=claude-opus-4-6
 # ACCESS_MODE=approval
+
+# Guardrails leves (notificação de ações de risco ao admin)
+# GUARDRAILS_ENABLED=false
+# GUARDRAILS_MODE=notify        # notify | confirm
+# GUARDRAILS_LEVEL=dangerous    # moderate | dangerous
+
+# Detecção de prompt injection (score 0.0 = desabilitado)
+# INJECTION_THRESHOLD=0.7
+
+# Aprendizado comportamental (requer behavior-extract.sh no cron)
+# BEHAVIOR_LEARNING_ENABLED=false
+# BEHAVIOR_MAX_CHARS=2000
 
 # Provedor de IA:
 #   anthropic  -> Claude via Anthropic API / OAuth Claude Code (padrao)
@@ -184,6 +204,7 @@ echo "  ├── secrets.env   ← DB, git, APIs (preencher via configurar-secr
 echo "  ├── soul.md       ← personalidade (EDITE ESTE)"
 echo "  ├── USER.md       ← perfil do usuário"
 echo "  ├── MEMORY.md     ← memória longo prazo (auto-preenchida)"
+echo "  ├── BEHAVIOR.md   ← perfil comportamental (auto-gerado pelo behavior-extract.sh)"
 echo "  ├── memory/       ← diários diários (auto-gerados)"
 echo "  └── workspace/    ← arquivos do bot"
 echo ""

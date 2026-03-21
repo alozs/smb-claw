@@ -113,6 +113,16 @@ class BotDB:
                     metadata TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_traces_bot_ts ON traces(bot_name, started_at);
+                CREATE TABLE IF NOT EXISTS action_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    tool_name TEXT,
+                    tool_input_preview TEXT,
+                    classification TEXT,
+                    score REAL DEFAULT 0,
+                    timestamp TEXT DEFAULT (datetime('now'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_action_log_ts ON action_log(timestamp);
             """)
             # Migration: add name/description columns if they don't exist yet
             for col, definition in [("name", "TEXT DEFAULT ''"), ("description", "TEXT DEFAULT ''")]:
@@ -418,6 +428,23 @@ class BotDB:
             "SELECT * FROM traces WHERE id = ?", (trace_id,)
         ).fetchone()
         return dict(row) if row else None
+
+    # ── Action Log ───────────────────────────────────────────────────────────
+
+    def log_action(self, user_id: int, tool_name: str, tool_input_preview: str,
+                   classification: str, score: float = 0.0):
+        self._conn.execute(
+            "INSERT INTO action_log (user_id, tool_name, tool_input_preview, classification, score) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (user_id, tool_name, tool_input_preview[:200], classification, score),
+        )
+        self._conn.commit()
+
+    def cleanup_old_action_logs(self, keep_days: int = 30) -> int:
+        cutoff = (datetime.now() - timedelta(days=keep_days)).isoformat()
+        cur = self._conn.execute("DELETE FROM action_log WHERE timestamp < ?", (cutoff,))
+        self._conn.commit()
+        return cur.rowcount
 
     def delete_old_traces(self, keep_days: int = 7):
         cutoff = (datetime.now() - timedelta(days=keep_days)).isoformat()

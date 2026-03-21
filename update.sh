@@ -62,6 +62,10 @@ git pull origin main --ff-only
 
 NEW_VERSION=$(cat "$BASE_DIR/VERSION" 2>/dev/null || echo "?")
 
+# ── Migração de .env (adiciona variáveis novas aos bots existentes) ──────────
+echo "🔧 Migrando variáveis de configuração..."
+bash "$BASE_DIR/migrate-env.sh"
+
 # ── Detecção Docker ──────────────────────────────────────────────────────────
 IN_DOCKER=false
 if [ -f /.dockerenv ] || grep -q 'docker\|containerd' /proc/1/cgroup 2>/dev/null; then

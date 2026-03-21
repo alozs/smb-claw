@@ -9,11 +9,12 @@ Este arquivo é lido pelo Claude Code antes de qualquer modificação no projeto
 
 ```
 bot.py          — Core: config, Telegram handlers, main loop
-db.py           — Persistência SQLite (WAL mode) — conversations, tasks, schedules, analytics, approved_users, traces
+db.py           — Persistência SQLite (WAL mode) — conversations, tasks, schedules, analytics, approved_users, traces, action_log
 tracer.py       — Tracing granular: Trace/Span por invocação de ask_*, persistido em traces
 compactor.py    — Compactação inteligente de contexto via sumarização (opt-in)
-security.py     — Shell safety, path traversal, output sanitization
-scheduler.py    — Loop background de notificações proativas
+security.py     — Shell safety, path traversal, output sanitization, detect_injection()
+scheduler.py    — Loop background de notificações proativas + cleanup diário do action_log
+guardrails.py   — Classificação de risco de ações (safe/moderate/dangerous) + tool request_approval
 tools/          — Ferramentas modulares
   __init__.py   — Registry + dispatcher central
   memory.py     — memory_write, memory_read, state_rw
@@ -44,11 +45,13 @@ subagents/      — NOVO: diretório de sub-agentes especializados
 | `context.global` | Instruções globais injetadas no system prompt de todos os bots |
 | `memory-autosave.sh` | Destila memória diária → MEMORY.md (cron 23:50). Fallback de provedor: Claude OAuth → Codex OAuth → OPENROUTER_API_KEY → OPENAI_API_KEY. Salva estado em `.memory_autosave_state`. |
 | `memory-cleanup.sh` | Remove diários antigos (cron domingo 02:00) |
+| `behavior-extract.sh` | Extrai/atualiza BEHAVIOR.md com perfil comportamental (cron 23:55). Substitui documento inteiro com merge inteligente. Respeita `BEHAVIOR_MAX_CHARS`. Só roda bots com `BEHAVIOR_LEARNING_ENABLED=true`. |
 | `bugfixer.py` | Bug Fixer Agent — detecta erros via analytics + journalctl, invoca Claude para corrigir, notifica admin via Telegram |
 | `VERSION` | Versão atual do sistema (semver: MAJOR.MINOR.PATCH) |
 | `CHANGELOG.md` | Histórico de mudanças por versão (auto-gerado pelo `release.sh`) |
 | `release.sh` | Bump de versão, changelog, commit, tag, push e notificação Telegram |
-| `update.sh` | Pull do remote + restart de serviços um a um |
+| `update.sh` | Pull do remote + **migrate-env.sh** + restart de serviços um a um |
+| `migrate-env.sh` | Adiciona variáveis novas ao `.env` de cada bot existente (idempotente). Chamado automaticamente pelo `update.sh`. Respeita valores já definidos (inclusive comentados). |
 | `check-update.sh` | Cron diário: verifica se origin/main tem commits novos e notifica admin |
 
 ---
@@ -64,8 +67,9 @@ bots/<nome>/
 ├── MEMORY.md         ← memória de longo prazo destilada
 ├── memory/           ← diários diários YYYY-MM-DD.md
 │   └── YYYY-MM-DD.md
+├── BEHAVIOR.md       ← perfil comportamental (auto-gerado pelo behavior-extract.sh, opt-in)
 ├── workspace/        ← sandbox do file tool
-└── bot_data.db       ← SQLite: conversations, tasks, schedules, analytics, approved_users
+└── bot_data.db       ← SQLite: conversations, tasks, schedules, analytics, approved_users, action_log
 ```
 
 ---
@@ -83,6 +87,7 @@ Toda persistência usa `db.py` (classe `BotDB`). O banco é `bots/<nome>/bot_dat
 | `schedules` | schedules.json | Agendamentos proativos |
 | `analytics` | analytics.jsonl | Log de uso (tokens, latência, erros) |
 | `approved_users` | approved_users.json | Usuários aprovados |
+| `action_log` | — | Log de auditoria de tool calls com classificação de risco (guardrails). Cleanup automático: 30 dias. |
 
 **Migração automática:** No boot, `db.migrate_from_json()` importa arquivos JSON legados (se existirem) e renomeia para `.bak`.
 
@@ -107,6 +112,7 @@ Toda persistência usa `db.py` (classe `BotDB`). O banco é `bots/<nome>/bot_dat
 | Longo prazo | `MEMORY.md` | Sempre |
 | Hoje | `memory/YYYY-MM-DD.md` | Sempre |
 | Ontem | `memory/YYYY-MM-DD.md` | Sempre (continuidade) |
+| Comportamental | `BEHAVIOR.md` | Quando `BEHAVIOR_LEARNING_ENABLED=true` (truncado em `BEHAVIOR_MAX_CHARS`) |
 
 O system prompt é **reconstruído a cada mensagem** — mudanças nos arquivos de memória têm efeito imediato.
 
@@ -122,6 +128,7 @@ Valor: lista separada por vírgula ou `none`.
 | Memória | *(sempre ativa)* | — | `memory_write`, `memory_read`, `state_rw` |
 | Tarefas | *(sempre ativa)* | — | `task_create`, `task_update`, `task_list` |
 | Schedule | *(sempre ativa)* | — | Agendamentos de notificações proativas. Campos: `hour`, `minute`, `weekdays`, `message`, `name` (nome curto legível, ex: "Briefing IA"), `description` (o que o agendamento faz). Sempre preencher `name` e `description` ao criar. |
+| Aprovação | *(auto — confirm mode)* | — | `request_approval` — pede confirmação ao usuário antes de ação sensível. Ativo quando `GUARDRAILS_MODE=confirm`. |
 | Voz | *(sempre ativa)* | `ffmpeg` + `openai-whisper` instalados | Transcreve áudios/voz via Whisper `small` (pt) e processa como texto |
 | Shell | `shell` | — | Executa comandos na VPS (com denylist de segurança) |
 | Cron | `cron` | — | Gerencia cron jobs |
@@ -168,6 +175,18 @@ Se não estiver instalada, PDFs recebem fallback graceful com nome+tamanho.
 - [ ] `configurar-secrets.sh` — se precisar de credencial nova, adicionar o `read_secret` correspondente
 - [ ] `CLAUDE.md` (este arquivo) — adicionar linha na tabela de ferramentas acima
 - [ ] `config.global` — se houver novo valor global, adicionar lá
+
+## Checklist: ao adicionar variáveis de configuração novas (`.env` por bot)
+
+- [ ] `bot.py` — ler a variável com `os.environ.get("MINHA_VAR", "default_conservador")`
+- [ ] `migrate-env.sh` — adicionar no array `MIGRATIONS` com comentário de bloco e default conservador
+- [ ] `criar-bot.sh` — adicionar comentada no template do `.env` (com explicação)
+- [ ] `CLAUDE.md` — adicionar linha na tabela "Variáveis do .env"
+
+> **Regras do migrate-env.sh:**
+> - Default sempre conservador (`false`, `0`, valor mais silencioso)
+> - Nunca remover entradas antigas do array — idempotência depende disso
+> - Comentário de bloco obrigatório antes de cada grupo novo
 
 ## Checklist: ao adicionar novo arquivo de contexto/memória
 
@@ -256,6 +275,12 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 | `ACCESS_MODE` | — | do config.global | Override do modo de acesso (opcional) |
 | `PROVIDER` | — | do config.global | Override do provedor: `anthropic`, `openrouter`, `codex` ou `claude-cli` |
 | `GROUP_MODE` | — | `always` | Comportamento em grupos: `always` (responde tudo) ou `mention_only` (só quando marcado com @bot ou reply) |
+| `GUARDRAILS_ENABLED` | — | `true` | Habilita guardrails: classifica ações e notifica admin |
+| `GUARDRAILS_MODE` | — | `notify` | `notify` = alerta admin, executa normal; `confirm` = **bloqueia** dangerous sem `request_approval` prévio; `block` = **sempre bloqueia** dangerous |
+| `GUARDRAILS_LEVEL` | — | `dangerous` | Nível mínimo para alertas ao admin: `moderate` ou `dangerous` |
+| `INJECTION_THRESHOLD` | — | `0.7` | Score mínimo para flag de injection (0.0 = desabilitado). Scoring multi-padrão: 0.3 por padrão fraco, 0.5 por padrão forte |
+| `BEHAVIOR_LEARNING_ENABLED` | — | `false` | Carrega BEHAVIOR.md no system prompt e habilita extração pelo behavior-extract.sh |
+| `BEHAVIOR_MAX_CHARS` | — | `2000` | Tamanho máximo do perfil comportamental no contexto |
 
 ## Variáveis do config.global
 
@@ -313,6 +338,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 | Schedule | Script | Descrição |
 |---|---|---|
 | `50 23 * * *` | `memory-autosave.sh` | Destila memória diária → MEMORY.md. Usa fallback automático de provedor (Claude OAuth → Codex OAuth → OpenRouter → OpenAI). Status visível no painel admin aba Sistema. |
+| `55 23 * * *` | `behavior-extract.sh` | Extrai perfil comportamental → BEHAVIOR.md (5 min após memory-autosave). Só processa bots com `BEHAVIOR_LEARNING_ENABLED=true`. |
 | `0 2 * * 0` | `memory-cleanup.sh 30` | Remove diários com mais de 30 dias |
 | dinâmico (`# smb-bugfixer`) | `bugfixer.py` | Bug Fixer Agent — gerado automaticamente pelo painel admin conforme `BUGFIXER_TIMES_PER_DAY` |
 | `0 8 * * *` | `check-update.sh` | Verifica se origin/main tem commits novos e notifica admin |

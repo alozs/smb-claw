@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0 (2026-03-21)
+
+• Melhorias internas e correções de estabilidade.
+
 ## 0.8.0 (2026-03-20)
 
 • Melhorias internas e correções de estabilidade.
