@@ -79,7 +79,7 @@ if [ -n "$LAST_TAG" ]; then
 else
     RAW_LOG=$(git log --pretty=format:"- %s" 2>/dev/null)
 fi
-RAW_LOG=$(echo "$RAW_LOG" | grep -v "^- release:" | grep -viE "^- (docs|chore|style|refactor).*index\.html|gitignore|\.gitignore|landing|page|secrets?\.env|credentials?|token|api.?key|password|passwd|auth|security fix|vulnerab|expose|leak|hardcod" || true)
+RAW_LOG=$(echo "$RAW_LOG" | grep -v "^- release:" | grep -viE "^- (docs|chore|style|refactor).*(index\.html|landing|landing.?page|readme|changelog)|\.gitignore|gitignore|secrets?\.env|credentials?\.json|api.?key\s*=|hardcod" || true)
 
 DATE=$(date +%Y-%m-%d)
 
@@ -135,12 +135,17 @@ Regras:
 }
 
 echo "🤖 Gerando changelog com IA..."
+INTERNAL_FALLBACK="• Melhorias internas e correções de estabilidade."
 if [ -z "$RAW_LOG" ]; then
-    AI_NOTES="• Melhorias internas e correções de estabilidade."
+    AI_NOTES="$INTERNAL_FALLBACK"
 else
     AI_NOTES=$(generate_ai_notes "$RAW_LOG" "$NEW_VERSION")
-    [ -z "$AI_NOTES" ] && AI_NOTES="• Melhorias internas e correções de estabilidade."
+    [ -z "$AI_NOTES" ] && AI_NOTES="$INTERNAL_FALLBACK"
 fi
+
+# Detecta se o release não tem nada notável para exibir na landing page
+INTERNAL_ONLY=false
+[ "$AI_NOTES" = "$INTERNAL_FALLBACK" ] && INTERNAL_ONLY=true
 
 # ── Atualiza CHANGELOG.md ────────────────────────────────────────────────────
 CHANGELOG="$BASE_DIR/CHANGELOG.md"
@@ -158,7 +163,9 @@ echo "📝 CHANGELOG.md atualizado"
 
 # ── Atualiza seção changelog do index.html ───────────────────────────────────
 INDEX="$BASE_DIR/index.html"
-if [ -f "$INDEX" ] && grep -q "CHANGELOG_START" "$INDEX"; then
+if $INTERNAL_ONLY; then
+    echo "⏭️  Release interno — index.html não atualizado (sem novidades para exibir)"
+elif [ -f "$INDEX" ] && grep -q "CHANGELOG_START" "$INDEX"; then
     # Converte o texto AI em itens HTML
     HTML_ITEMS=$(python3 - "$AI_NOTES" "$NEW_VERSION" "$DATE" << 'PYEOF'
 import sys, re, html
@@ -270,6 +277,9 @@ new_content = (
 open(index_file, "w", encoding="utf-8").write(new_content)
 print("🌐 index.html atualizado")
 PYEOF
+
+    # Atualiza versão no título da seção de novidades
+    sed -i "s|<!-- CHANGELOG_VERSION -->v[^<]*<!-- /CHANGELOG_VERSION -->|<!-- CHANGELOG_VERSION -->v$NEW_VERSION<!-- /CHANGELOG_VERSION -->|" "$INDEX"
 
 fi
 

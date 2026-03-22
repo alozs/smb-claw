@@ -2,35 +2,50 @@
 
 ## 0.9.0 (2026-03-21)
 
-• Melhorias internas e correções de estabilidade.
+Novas funcionalidades
+
+• Guardrails leves com três modos operacionais: notify (alerta o admin sem bloquear), confirm (exige aprovação via request_approval antes de ações perigosas) e block (sempre bloqueia ações classificadas como perigosas).
+• Classificação automática de ações em três níveis — seguro, moderado e perigoso — cobrindo todas as ferramentas do framework.
+• Tool request_approval: o LLM pode solicitar confirmação do usuário antes de executar ações sensíveis, com fluxo integrado ao chat.
+• Detecção de prompt injection por scoring: 25+ padrões em português e inglês, threshold configurável. Injeta aviso automático no system prompt quando score ultrapassa o limite.
+• Aprendizado comportamental opt-in: arquivo BEHAVIOR.md gerado e atualizado toda noite por LLM, carregado no contexto para o agente antecipar necessidades do usuário.
+• Auditoria completa de ações: tabela action_log registra todas as chamadas de ferramentas com classificação e score, limpeza automática após 30 dias.
+• migrate-env.sh: novas variáveis de configuração são adicionadas automaticamente aos bots existentes após cada atualização via update.sh.
+
+Melhorias
+
+• 185 testes automatizados cobrindo guardrails, detecção de injection, configuração e analytics.
 
 ## 0.8.0 (2026-03-20)
 
-• Melhorias internas e correções de estabilidade.
+Novas funcionalidades
+
+• Debounce de mensagens: mensagens enviadas em rápida sucessão são consolidadas em uma única requisição ao LLM, reduzindo chamadas desnecessárias à API. Intervalo configurável via variável DEBOUNCE_SECONDS.
 
 ## 0.7.6 (2026-03-20)
 
-• Melhorias internas e correções de estabilidade.
+Correções
+
+• Melhorias no processo de release: script release.sh mais robusto, com geração de changelog mais precisa.
 
 ## 0.7.5 (2026-03-20)
 
-Os únicos arquivos modificados nesta versão (`VERSION` e `release.sh`) são arquivos de infraestrutura interna do processo de release — não há alterações funcionais relevantes para usuários finais do framework.
+Correções
 
-Não há conteúdo válido para gerar notas de release seguindo as regras definidas (omitir seções vazias, ignorar itens técnicos internos).
-
-Deseja que eu gere mesmo assim com uma nota genérica, ou prefere revisar os commits incluídos nesta versão?
+• Correções no script release.sh para inclusão correta de todos os arquivos no commit de release.
 
 ## 0.7.4 (2026-03-20)
 
-Não há commits novos ainda. As mudanças estão não commitadas (compactor.py, tracer.py, admin/app.py). Você forneceu a lista de commits vazia — sem conteúdo para redigir as notas.
+Melhorias
 
-Duas opções:
-1. **Me passe os commits** (pode rodar `git log v0.7.3..HEAD --oneline` após commitar as mudanças)
-2. **Quero que eu analise os arquivos modificados** (`compactor.py`, `tracer.py`, `admin/app.py`) para inferir o que mudou e gerar as notas com base nisso?
+• Correções e melhorias internas no painel admin.
 
 ## 0.7.3 (2026-03-20)
 
-Nenhum commit foi fornecido para esta versão. Por favor, inclua a lista de commits no campo indicado para que eu possa gerar as notas de release.
+Melhorias
+
+• Comando /tasks aprimorado: agendamentos ativos agora aparecem na listagem com horário convertido para BRT e dias da semana em português.
+• Suporte a grupos melhorado: comportamento configurável via GROUP_MODE (always ou mention_only).
 
 ## 0.7.2 (2026-03-20)
 

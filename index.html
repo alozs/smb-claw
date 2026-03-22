@@ -316,6 +316,7 @@
         <li><a href="#story">Origem</a></li>
         <li><a href="#comparativo">Comparativo</a></li>
         <li><a href="#destaques">Destaques</a></li>
+        <li><a href="#seguranca">Segurança</a></li>
       </ul>
       <a href="https://github.com/alozs/smb-claw" class="logo-link" style="font-size: 0.8125rem; opacity: 0.8;">
         <i data-lucide="github" style="width: 18px;"></i>
@@ -331,7 +332,7 @@
 
     <p class="sub-intro">
       <strong>Ultra leve</strong> • ~75 MB idle por agente • 50 agentes rodando na mesma VPS de R$&nbsp;25–50/mês<br>
-      Sem Kubernetes. Sem Docker complicado. Sem portas expostas por padrão.<br>
+      Guardrails nativos • Detecção de injection • Aprendizado comportamental<br>
       Só <code>bash setup.sh</code> e você já tem agentes profissionais no Telegram.
     </p>
 
@@ -404,7 +405,7 @@
 
   <section id="comparativo" class="section container">
     <h2>SMB Claw vs OpenClaw</h2>
-    <p style="color: var(--zinc-400); margin-bottom: 32px; font-size: 1.125rem;">Comparação real atualizada em março de 2026.</p>
+    <p style="color: var(--zinc-400); margin-bottom: 32px; font-size: 1.125rem;">Comparação real atualizada em março de 2026 · v0.9.0.</p>
 
     <div class="table-container">
       <table class="comp-table">
@@ -448,8 +449,18 @@
           </tr>
           <tr>
             <td>Segurança</td>
-            <td class="hl">Sandbox + Denylist + Token HMAC</td>
+            <td class="hl">Sandbox + Denylist + Token HMAC + Guardrails + Detecção de Injection</td>
             <td>512 vulnerabilidades documentadas<sup>[2]</sup></td>
+          </tr>
+          <tr>
+            <td>Proteção contra manipulação</td>
+            <td class="hl">Detecção de prompt injection por scoring (25+ padrões pt+en)</td>
+            <td>Sem proteção nativa</td>
+          </tr>
+          <tr>
+            <td>Testes automatizados</td>
+            <td class="hl">185 testes (guardrails, injection, config, analytics)</td>
+            <td>Depende de plugins de terceiros</td>
           </tr>
           <tr>
             <td>Memória</td>
@@ -511,27 +522,35 @@
     <div class="bento">
       <div class="bento-card">
         <h4><i data-lucide="users"></i> Criação de sub-agentes</h4>
-        <p>Delegue tarefas complexas para agentes especializados.</p>
+        <p>Delegue tarefas complexas para agentes especializados com ferramentas e personalidade próprias, criados via wizard no Telegram.</p>
       </div>
       <div class="bento-card">
         <h4><i data-lucide="layers"></i> Memória em camadas</h4>
-        <p>Gestão técnica de contexto: Soul (regras), USER.md (perfil) e MEMORY.md (destilado). Curto, médio e longo prazo.</p>
+        <p>Gestão técnica de contexto: Soul (regras), USER.md (perfil), MEMORY.md (destilado) e BEHAVIOR.md (perfil comportamental). Curto, médio e longo prazo.</p>
+      </div>
+      <div class="bento-card">
+        <h4><i data-lucide="shield-alert"></i> Guardrails de segurança <span class="cl-badge">Novo</span></h4>
+        <p>Classifica automaticamente cada ação em seguro, moderado ou perigoso. Três modos: <strong>notify</strong> (alerta silencioso), <strong>confirm</strong> (exige aprovação antes de executar) e <strong>block</strong> (bloqueia ações perigosas incondicionalmente).</p>
+      </div>
+      <div class="bento-card">
+        <h4><i data-lucide="scan-search"></i> Detecção de injection <span class="cl-badge">Novo</span></h4>
+        <p>Sistema de scoring com 25+ padrões em português e inglês detecta tentativas de manipulação do agente. Injeta aviso automático no contexto e notifica o admin. Threshold configurável por bot.</p>
+      </div>
+      <div class="bento-card">
+        <h4><i data-lucide="brain"></i> Aprendizado comportamental <span class="cl-badge">Novo</span></h4>
+        <p>BEHAVIOR.md atualizado toda noite via LLM com base nas conversas do dia. Mantém padrões confirmados, descarta ruído. O agente aprende seus hábitos e antecipa necessidades ao longo do tempo.</p>
       </div>
       <div class="bento-card">
         <h4><i data-lucide="cpu"></i> Bug fixer automático</h4>
-        <p>Agente dedicado que monitora logs, analisa falhas e sugere correções de forma autônoma.</p>
+        <p>Agente dedicado que monitora logs, analisa falhas e sugere correções de forma autônoma. Roda até 3x por dia via cron.</p>
       </div>
       <div class="bento-card">
         <h4><i data-lucide="shield-check"></i> Painel web seguro</h4>
         <p>FastAPI + token HMAC temporário de 30 minutos. Zero portas expostas desnecessariamente.</p>
       </div>
       <div class="bento-card">
-        <h4><i data-lucide="refresh-cw"></i> Autosave constante</h4>
-        <p>Persistência contínua que garante que o contexto e a memória nunca sejam perdidos.</p>
-      </div>
-      <div class="bento-card">
-        <h4><i data-lucide="send"></i> Telegram nativo</h4>
-        <p>100% focado no Telegram, zero overhead de integrações extras. Privacidade máxima, latência mínima.</p>
+        <h4><i data-lucide="refresh-cw"></i> Memória persistente</h4>
+        <p>SQLite com WAL mode garante que contexto, tarefas e memória sobrevivem a crashes e restarts. Destilação automática toda noite.</p>
       </div>
     </div>
   </section>
@@ -539,20 +558,32 @@
   <section id="seguranca" class="section container">
     <h2>Segurança por padrão</h2>
     <p style="color: var(--zinc-400); max-width: 800px; margin-bottom: 48px; font-size: 1.125rem;">
-      Diferente de projetos que expõem portas WebSocket por padrão e permitem execução arbitrária de shell sem restrições sérias, o SMB Claw:
+      Diferente de projetos que expõem portas WebSocket por padrão e permitem execução arbitrária de shell sem restrições sérias, o SMB Claw tem múltiplas camadas de proteção:
     </p>
     <div class="bento" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
       <div class="bento-card" style="padding: 32px;">
         <h4 style="font-size: 1.1rem;"><i data-lucide="lock" style="width: 18px; color: var(--green);"></i> Sandbox Isolado</h4>
-        <p style="font-size: 0.9rem;">Executa tudo em ambiente controlado para proteger o host.</p>
+        <p style="font-size: 0.9rem;">Executa tudo em ambiente controlado para proteger o host. File tool sandboxado com path traversal bloqueado.</p>
       </div>
       <div class="bento-card" style="padding: 32px;">
         <h4 style="font-size: 1.1rem;"><i data-lucide="slash" style="width: 18px; color: var(--green);"></i> Denylist de Comandos</h4>
-        <p style="font-size: 0.9rem;">Bloqueia path traversal e comandos perigosos nativamente.</p>
+        <p style="font-size: 0.9rem;">Bloqueia comandos destrutivos (rm -rf, dd, curl|bash) e leitura de credenciais via shell nativamente.</p>
       </div>
       <div class="bento-card" style="padding: 32px;">
         <h4 style="font-size: 1.1rem;"><i data-lucide="key" style="width: 18px; color: var(--green);"></i> Token HMAC</h4>
-        <p style="font-size: 0.9rem;">Acesso administrativo efêmero que expira em 30 minutos.</p>
+        <p style="font-size: 0.9rem;">Acesso administrativo efêmero que expira em 30 minutos. Gerado via Telegram ou CLI, nunca exposto em config.</p>
+      </div>
+      <div class="bento-card" style="padding: 32px;">
+        <h4 style="font-size: 1.1rem;"><i data-lucide="shield-alert" style="width: 18px; color: var(--green);"></i> Guardrails <span class="cl-badge">Novo</span></h4>
+        <p style="font-size: 0.9rem;">Classifica cada ação do agente (seguro / moderado / perigoso). Modos notify, confirm e block configuráveis por bot. Ativado por padrão.</p>
+      </div>
+      <div class="bento-card" style="padding: 32px;">
+        <h4 style="font-size: 1.1rem;"><i data-lucide="scan-search" style="width: 18px; color: var(--green);"></i> Anti-Injection <span class="cl-badge">Novo</span></h4>
+        <p style="font-size: 0.9rem;">Scoring de prompt injection com 25+ padrões pt+en. Cenários como "ignore all instructions" ou urgência + destruição são detectados e bloqueados.</p>
+      </div>
+      <div class="bento-card" style="padding: 32px;">
+        <h4 style="font-size: 1.1rem;"><i data-lucide="file-text" style="width: 18px; color: var(--green);"></i> Auditoria Completa <span class="cl-badge">Novo</span></h4>
+        <p style="font-size: 0.9rem;">Tabela action_log registra cada chamada de ferramenta com classificação de risco e score. Histórico de 30 dias consultável pelo admin.</p>
       </div>
     </div>
   </section>
@@ -560,37 +591,64 @@
   <!-- Novidades — movido para antes do CTA final -->
   <section id="changelog" class="changelog container">
     <h2 style="text-align: center; font-size: 2.25rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 48px; color: var(--white);">
-      Novidades v0.7.0 <span class="cl-badge">Novo</span>
+      Novidades <!-- CHANGELOG_VERSION -->v0.9.0<!-- /CHANGELOG_VERSION --> <span class="cl-badge">Novo</span>
     </h2>
-    <div class="cl-entry">
-      <div class="cl-header">
-        <span class="cl-version">v0.7.0</span>
-        <span class="cl-date">2026-03-17</span>
-      </div>
-      <div class="cl-body">
-        • <strong style="color: var(--zinc-100);">Raciocínio estendido:</strong> comando <code>/thinking</code> para níveis de pensamento profundo (até 16k tokens).<br>
-        • <strong style="color: var(--zinc-100);">Truncate automático</strong> de outputs longos (&gt;12k chars) para proteger o contexto.<br>
-        • Arquivamento automático de mensagens excedentes no banco de dados SQLite.
-      </div>
-    </div>
-    <div class="cl-entry">
-      <div class="cl-header">
-        <span class="cl-version">v0.6.16</span>
-        <span class="cl-date">2026-03-17</span>
-      </div>
-      <div class="cl-body">
-        • Git: Resolução dinâmica de tokens diretamente de <code>secrets.env</code> para repositórios privados.
-      </div>
-    </div>
-    <div class="cl-entry">
-      <div class="cl-header">
-        <span class="cl-version">v0.6.15</span>
-        <span class="cl-date">2026-03-17</span>
-      </div>
-      <div class="cl-body">
-        • Feedback visual: Indicador de ferramenta ativa funcionando em todos os provedores suportados.
-      </div>
-    </div>
+    <!-- CHANGELOG_START -->
+        <div class="cl-entry">
+          <div class="cl-header">
+            <span class="cl-version">v0.9.0</span>
+            <span class="cl-date">2026-03-21</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Novas funcionalidades</strong></p>
+            <ul>
+              <li><strong style="color: var(--zinc-100);">Guardrails de segurança</strong> com 3 modos: <em>notify</em> (alerta silencioso ao admin), <em>confirm</em> (exige aprovação antes de ações perigosas) e <em>block</em> (bloqueia incondicionalmente). Ativado por padrão em todos os bots.</li>
+              <li><strong style="color: var(--zinc-100);">Detecção de prompt injection</strong> por scoring: 25+ padrões em português e inglês, threshold configurável. Injeta aviso automático no sistema quando uma tentativa de manipulação é detectada.</li>
+              <li><strong style="color: var(--zinc-100);">Aprendizado comportamental</strong> opt-in: arquivo BEHAVIOR.md gerado toda noite por LLM com base nas conversas do dia. O agente aprende seus hábitos e antecipa necessidades ao longo do tempo.</li>
+              <li><strong style="color: var(--zinc-100);">Tool request_approval:</strong> o agente pode solicitar confirmação explícita do usuário antes de executar ações sensíveis, com fluxo integrado ao chat.</li>
+              <li><strong style="color: var(--zinc-100);">Auditoria de ações:</strong> tabela action_log registra cada chamada de ferramenta com classificação de risco e score. Histórico de 30 dias com limpeza automática.</li>
+              <li><strong style="color: var(--zinc-100);">migrate-env.sh:</strong> novas variáveis de configuração são adicionadas automaticamente nos bots existentes a cada <code>./update.sh</code>.</li>
+            </ul>
+            <p><strong>Melhorias</strong></p>
+            <ul>
+              <li>185 testes automatizados cobrindo guardrails, detecção de injection, configuração e analytics.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
+            <span class="cl-version">v0.8.0</span>
+            <span class="cl-date">2026-03-20</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Novas funcionalidades</strong></p>
+            <ul>
+              <li><strong style="color: var(--zinc-100);">Debounce de mensagens:</strong> mensagens enviadas em rápida sucessão são consolidadas numa única requisição ao LLM, reduzindo chamadas desnecessárias à API. Intervalo configurável via <code>DEBOUNCE_SECONDS</code>.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-header">
+            <span class="cl-version">v0.7.x</span>
+            <span class="cl-date">2026-03-17 – 20</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Novas funcionalidades</strong></p>
+            <ul>
+              <li><strong style="color: var(--zinc-100);">Raciocínio estendido:</strong> comando <code>/thinking</code> ativa pensamento profundo em 4 níveis (off, low, medium, high) com até 16k tokens de raciocínio interno. Suportado nos provedores Anthropic e Claude-CLI.</li>
+              <li><strong style="color: var(--zinc-100);">Atualização pelo Telegram:</strong> novo botão no menu admin permite executar <code>/update</code> diretamente pelo chat, sem acesso ao servidor via terminal.</li>
+              <li><strong style="color: var(--zinc-100);">Suporte a grupos aprimorado:</strong> variável <code>GROUP_MODE</code> controla se o agente responde a todas as mensagens (<em>always</em>) ou apenas quando mencionado (<em>mention_only</em>).</li>
+            </ul>
+            <p><strong>Melhorias</strong></p>
+            <ul>
+              <li><code>/tasks</code> agora exibe agendamentos ativos com horário convertido para BRT e dias da semana em português, na mesma listagem das tarefas.</li>
+              <li>Outputs de ferramentas longos (&gt;12k chars) são truncados automaticamente, protegendo o contexto e evitando erros silenciosos.</li>
+              <li>Mensagens que ultrapassam <code>MAX_HISTORY</code> são arquivadas no SQLite em vez de descartadas — histórico completo preservado.</li>
+              <li>memory-autosave.sh alerta o modelo para compactar <code>MEMORY.md</code> quando ultrapassa 6 KB, evitando crescimento indefinido.</li>
+            </ul>
+          </div>
+        </div>
+    <!-- CHANGELOG_END -->
   </section>
 
   <section class="section container" style="text-align: center;">
