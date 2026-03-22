@@ -606,7 +606,7 @@
               <li><strong style="color: var(--zinc-100);">Detecção de prompt injection</strong> por scoring: 25+ padrões em português e inglês, threshold configurável. Injeta aviso automático no sistema quando uma tentativa de manipulação é detectada.</li>
               <li><strong style="color: var(--zinc-100);">Aprendizado comportamental</strong> opt-in: arquivo BEHAVIOR.md gerado toda noite por LLM com base nas conversas do dia. O agente aprende seus hábitos e antecipa necessidades ao longo do tempo.</li>
               <li><strong style="color: var(--zinc-100);">Tool request_approval:</strong> o agente pode solicitar confirmação explícita do usuário antes de executar ações sensíveis, com fluxo integrado ao chat.</li>
-              <li><strong style="color: var(--zinc-100);">Auditoria de ações:</strong> tabela action_log registra cada chamada de ferramenta com classificação de risco e score. Histórico de 30 dias com limpeza automática.</li>
+              <li><strong style="color: var(--zinc-100);">Auditoria de ações:</strong> tabela action_log registra cada chamada de ferramenta com classificação de risco e score, com limpeza automática após 30 dias.</li>
               <li><strong style="color: var(--zinc-100);">migrate-env.sh:</strong> novas variáveis de configuração são adicionadas automaticamente nos bots existentes a cada <code>./update.sh</code>.</li>
             </ul>
             <p><strong>Melhorias</strong></p>
