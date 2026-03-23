@@ -136,6 +136,7 @@ Valor: lista separada por vírgula ou `none`.
 | HTTP | `http` | — | Requisições a APIs externas |
 | Git | `git` | `GIT_TOKEN`, `GIT_USER`, `GIT_EMAIL` | Clone/push/pull com token injetado |
 | GitHub | `github` | `GITHUB_TOKEN` (ou `GIT_TOKEN`) | API do GitHub: PRs, issues, reviews, CI checks |
+| Notion | `notion` | `NOTION_API_KEY` | Buscar, ler e criar páginas e databases no Notion |
 | Database | `database` | `DB_URL` | Queries SQL (PostgreSQL, MySQL, SQLite) |
 | Sub-agentes | *(auto-descoberto)* | — | Delegação para sub-agentes em `subagents/`. Ferramentas `agent_<nome>` geradas automaticamente. Configurar via `subagents/<nome>/.env` e `soul.md`. Sub-agentes recebem **apenas** as ferramentas declaradas no seu `TOOLS` (sem ferramentas "sempre ativas" como tasks/memory/schedule). Analytics de sub-agentes são logados com bot `<bot>/sub:<agent_name>`. |
 
@@ -322,6 +323,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 | `GIT_USER` | `git` | Username git |
 | `GIT_EMAIL` | `git` | Email git |
 | `GITHUB_TOKEN` | `github` | Token GitHub (fallback: `GIT_TOKEN`) |
+| `NOTION_API_KEY` | `notion` | Token de integração Notion |
 | `API_KEY_1` | livre | Chave de API extra |
 | `API_KEY_2` | livre | Chave de API extra |
 

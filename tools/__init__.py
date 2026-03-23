@@ -8,7 +8,7 @@ Todas as execuções rodam via asyncio.to_thread() para não bloquear o event lo
 import asyncio
 import logging
 
-from tools import memory, tasks, shell, github_tool, git, http, database, schedule, telegram_file
+from tools import memory, tasks, shell, github_tool, git, http, database, schedule, telegram_file, notion
 
 logger = logging.getLogger("tools")
 
@@ -42,6 +42,8 @@ def build_definitions(enabled_tools: set, work_dir, base_dir=None, bot_name: str
         defs.extend(github_tool.DEFINITIONS)
     if "database" in enabled_tools:
         defs.extend(database.DEFINITIONS)
+    if "notion" in enabled_tools:
+        defs.extend(notion.DEFINITIONS)
     # Sub-agentes (apenas quando base_dir é fornecido — evita recursão em sub-agentes)
     if base_dir is not None:
         from tools import agent as agent_tool
@@ -85,6 +87,9 @@ def _execute_sync(name: str, inp: dict, *, user_id: int = 0, db, config: dict) -
     # GitHub
     if name == "github":
         return github_tool.execute(inp, config=config)
+    # Notion
+    if name == "notion":
+        return notion.execute(inp, config=config)
     # Database
     if name == "db_query":
         return database.execute(inp, config=config)

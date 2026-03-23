@@ -55,7 +55,7 @@ TELEGRAM_TOKEN=SEU_TOKEN_AQUI
 BOT_NAME=$BOT_NAME
 MAX_HISTORY=20
 
-# Ferramentas: none | shell,cron,files,http,git,github,database
+# Ferramentas: none | shell,cron,files,http,git,github,notion,database
 TOOLS=shell,cron,files,http,git,github,database
 WORK_DIR=$BOT_DIR/workspace
 

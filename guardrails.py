@@ -102,6 +102,14 @@ def classify_action(tool_name: str, tool_input: dict) -> str:
             return "dangerous"
         return "moderate"
 
+    if tool_name == "notion":
+        action = str(tool_input.get("action", ""))
+        if action in ("search", "get_page", "get_database", "query_database", "get_blocks"):
+            return "safe"
+        if action == "delete_block":
+            return "dangerous"
+        return "moderate"  # create_page, update_page, append_blocks
+
     if tool_name.startswith("agent_"):
         return "dangerous"
 

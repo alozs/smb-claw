@@ -215,6 +215,38 @@
   </div>
 </div>
 
+<!-- ── Credential Modal ──────────────────────────────────────────────────── -->
+<div x-show="credentialModal.show" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-[60] flex items-center justify-center p-4" style="background:rgba(0,0,0,0.55);backdrop-filter:blur(4px)"
+  @keydown.escape.window="if(credentialModal.show) saveCredentialModal()"
+  @keydown.enter.window="if(credentialModal.show) saveCredentialModal()">
+  <div x-show="credentialModal.show" x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="bg-white rounded-2xl w-full max-w-md overflow-hidden" style="box-shadow:0 20px 60px -10px rgba(0,0,0,0.35)"
+    @click.outside="saveCredentialModal()">
+    <div class="px-6 pt-6 pb-4">
+      <div class="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center mb-4">
+        <svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+      </div>
+      <h2 class="text-lg font-700 text-slate-900 mb-1">Configurar <span x-text="credentialModal.toolLabel"></span></h2>
+      <p class="text-sm text-slate-400 mb-5">Insira as credenciais para ativar esta ferramenta. Você pode configurar depois nas Credenciais do agente.</p>
+      <div class="space-y-4">
+        <template x-for="(s, idx) in credentialModal.secrets" :key="s.key">
+          <div>
+            <label class="block text-xs font-600 text-slate-700 mb-1.5" x-text="s.label"></label>
+            <input :type="s.password ? 'password' : 'text'" x-model="credentialModal.secrets[idx].value"
+              :placeholder="s.key"
+              @keydown.enter.prevent="saveCredentialModal()"
+              class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow"/>
+            <p x-show="s.hint" x-text="s.hint" class="text-[10px] text-slate-400 mt-1"></p>
+          </div>
+        </template>
+      </div>
+    </div>
+    <div class="px-6 pb-6 flex gap-3">
+      <button @click="credentialModal.show=false" class="flex-1 py-2.5 rounded-xl border border-surface-border text-sm font-600 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">Pular</button>
+      <button @click="saveCredentialModal()" class="flex-1 py-2.5 rounded-xl bg-brand text-white text-sm font-600 hover:bg-brand-hover transition-colors cursor-pointer">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Confirm Modal ────────────────────────────────────────────────────── -->
 <div x-show="confirmModal.show" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-[60] flex items-center justify-center p-4" style="background:rgba(0,0,0,0.55); backdrop-filter:blur(4px)" @keydown.escape.window="if(confirmModal.show){confirmModal.show=false; if(confirmModal.resolver) confirmModal.resolver(false)}">
   <div x-show="confirmModal.show" x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="bg-white rounded-2xl w-full max-w-sm overflow-hidden" style="box-shadow:0 20px 60px -10px rgba(0,0,0,0.35)">
@@ -1327,12 +1359,25 @@
             rows="22" x-model="globalFiles['context.global']"></textarea>
         </div>
 
-        <!-- Configuração unificada (config.global + secrets.global) -->
-        <div x-show="globalTab==='config'" class="space-y-6">
+        <!-- Configuração (config.global + secrets.global) -->
+        <div x-show="globalTab==='config'" class="space-y-5">
 
-          <!-- Header -->
+          <!-- Sub-tab bar + restart -->
           <div class="flex items-center justify-between">
-            <p class="text-xs text-slate-500">Variáveis globais aplicadas a todos os agentes. Reinicie os agentes após salvar.</p>
+            <div class="flex gap-1 bg-zinc-100 border border-zinc-200 rounded-xl p-1">
+              <button @click="globalConfigSubTab='behavior'; globalEnvFile='config.global'; parseGlobalEnv()"
+                :class="globalConfigSubTab==='behavior' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
+                class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-600 transition cursor-pointer">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                Credenciais Padrão
+              </button>
+              <button @click="globalConfigSubTab='apikeys'"
+                :class="globalConfigSubTab==='apikeys' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
+                class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-600 transition cursor-pointer">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                Credenciais Globais
+              </button>
+            </div>
             <button @click="restartAllBots()" :disabled="restartingAll"
               class="flex items-center gap-2 px-4 py-2 text-sm font-600 bg-warn/10 text-warn border border-warn/30 rounded-xl hover:bg-warn/20 transition disabled:opacity-50 cursor-pointer">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -1340,17 +1385,19 @@
             </button>
           </div>
 
-          <!-- config.global section -->
-          <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden"
-            x-data="{showRaw:false}" x-init="globalEnvFile='config.global'; parseGlobalEnv()">
-            <div class="px-5 py-3.5 bg-slate-50 border-b border-surface-border flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-                <span class="text-sm font-700 text-slate-700">Configuração Geral</span>
-                <span class="text-[10px] font-mono text-slate-400">config.global</span>
+          <!-- Sub-tab: Comportamento (config.global) -->
+          <div x-show="globalConfigSubTab==='behavior'"
+            x-data="{showRaw:false}" x-init="globalEnvFile='config.global'; parseGlobalEnv()"
+            class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
+            <div class="px-5 py-4 border-b border-surface-border">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h3 class="text-sm font-700 text-slate-800">Credenciais Padrão</h3>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Define provider, modelo e modo de acesso para todos os agentes. Cada agente pode sobrescrever individualmente — as Credenciais Globais e as do próprio agente sempre prevalecem.</p>
+                </div>
+                <button @click="showRaw=!showRaw" class="text-[10px] font-600 text-slate-400 hover:text-slate-600 cursor-pointer flex-shrink-0 mt-0.5"
+                  x-text="showRaw ? 'Tabela' : 'Raw'"></button>
               </div>
-              <button @click="showRaw=!showRaw" class="text-[10px] font-600 text-slate-400 hover:text-slate-600 cursor-pointer"
-                x-text="showRaw ? 'Tabela' : 'Raw'"></button>
             </div>
             <!-- Table view -->
             <div x-show="!showRaw">
@@ -1419,17 +1466,19 @@
             </div>
           </div>
 
-          <!-- secrets.global section -->
-          <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden"
-            x-data="{showRaw:false, secretVars:[], newSecret:{key:'',value:''}}">
-            <div class="px-5 py-3.5 bg-slate-50 border-b border-surface-border flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-                <span class="text-sm font-700 text-slate-700">Credenciais</span>
-                <span class="text-[10px] font-mono text-slate-400">secrets.global</span>
+          <!-- Sub-tab: Chaves de API (secrets.global) -->
+          <div x-show="globalConfigSubTab==='apikeys'"
+            x-data="{showRaw:false, secretVars:[], newSecret:{key:'',value:''}}"
+            class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
+            <div class="px-5 py-4 border-b border-surface-border">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h3 class="text-sm font-700 text-slate-800">Credenciais Globais</h3>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Chaves de API compartilhadas por todos os agentes (Anthropic, OpenRouter, Notion…). Sobrescreve as Credenciais Padrão. As credenciais configuradas individualmente em cada agente prevalecem sobre estas.</p>
+                </div>
+                <button @click="showRaw=!showRaw" class="text-[10px] font-600 text-slate-400 hover:text-slate-600 cursor-pointer flex-shrink-0 mt-0.5"
+                  x-text="showRaw ? 'Tabela' : 'Raw'"></button>
               </div>
-              <button @click="showRaw=!showRaw" class="text-[10px] font-600 text-slate-400 hover:text-slate-600 cursor-pointer"
-                x-text="showRaw ? 'Tabela' : 'Raw'"></button>
             </div>
             <template x-effect="
               secretVars = (globalFiles['secrets.global']||'').split('\n')
@@ -1442,7 +1491,7 @@
               <table class="w-full text-sm">
                 <tbody class="divide-y divide-surface-border">
                   <template x-if="secretVars.length === 0">
-                    <tr><td colspan="3" class="px-5 py-6 text-center text-sm text-slate-400">Nenhuma credencial configurada</td></tr>
+                    <tr><td colspan="3" class="px-5 py-6 text-center text-sm text-slate-400">Nenhuma chave configurada</td></tr>
                   </template>
                   <template x-for="(v, idx) in secretVars" :key="v.key">
                     <tr class="hover:bg-slate-50/60 transition-colors">
@@ -1472,7 +1521,7 @@
                           </template>
                           <template x-if="!(systemGlobalKeys['secrets.global']||[]).includes(v.key)">
                             <button @click="
-                              showConfirm({title:'Deletar',message:'Deletar credencial '+v.key+'?',confirmText:'Deletar',type:'danger'}).then(ok=>{
+                              showConfirm({title:'Deletar',message:'Deletar chave '+v.key+'?',confirmText:'Deletar',type:'danger'}).then(ok=>{
                                 if(!ok) return;
                                 globalFiles['secrets.global']=globalFiles['secrets.global'].split('\n').filter(l=>!l.startsWith(v.key+'=')).join('\n');
                                 saveGlobalFile('secrets.global');
@@ -1480,7 +1529,7 @@
                             " class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Deletar</button>
                           </template>
                           <template x-if="(systemGlobalKeys['secrets.global']||[]).includes(v.key)">
-                            <span class="inline-flex items-center gap-1 text-xs font-600 text-slate-400 border border-slate-200 px-2 py-1 rounded-lg" title="Credencial de sistema — somente leitura">
+                            <span class="inline-flex items-center gap-1 text-xs font-600 text-slate-400 border border-slate-200 px-2 py-1 rounded-lg" title="Chave de sistema — somente leitura">
                               <i data-lucide="lock" class="w-3 h-3 flex-shrink-0"></i>Sistema
                             </span>
                           </template>
@@ -1493,15 +1542,15 @@
               <!-- Add row -->
               <div class="px-5 py-3 border-t border-surface-border bg-slate-50/50">
                 <div class="flex gap-2 items-center">
-                  <input x-model="newSecret.key" type="text" placeholder="CHAVE" class="w-48 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
-                  <input x-model="newSecret.value" type="password" placeholder="valor sensível" class="flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+                  <input x-model="newSecret.key" type="text" placeholder="NOME_DA_CHAVE" class="w-48 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
+                  <input x-model="newSecret.value" type="password" placeholder="valor da chave" class="flex-1 border border-surface-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
                   <button @click="
                     if(!newSecret.key.trim()){toast('Nome obrigatório','error');return;}
                     const content = globalFiles['secrets.global']||'';
                     globalFiles['secrets.global'] = (content.endsWith('\n')?content:content+'\n') + newSecret.key.trim()+'='+newSecret.value;
                     saveGlobalFile('secrets.global');
                     newSecret={key:'',value:''};
-                    toast('Credencial adicionada!');
+                    toast('Chave adicionada!');
                   " class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
                     <i data-lucide="plus" class="w-3 h-3 flex-shrink-0"></i>Adicionar
                   </button>
@@ -2383,7 +2432,7 @@
                         :class="configForm.TOOLS_ARRAY.includes(tool.key) ? 'bg-brand/5 border-brand/30 shadow-sm' : 'border-surface-border hover:border-slate-300 hover:bg-slate-50/80'">
                         <div class="flex items-center justify-between">
                           <span class="text-slate-800 font-700 text-xs" x-text="tool.label"></span>
-                          <input type="checkbox" :value="tool.key" x-model="configForm.TOOLS_ARRAY" class="rounded text-brand w-3.5 h-3.5 cursor-pointer flex-shrink-0" />
+                          <input type="checkbox" :value="tool.key" x-model="configForm.TOOLS_ARRAY" @change="if(configForm.TOOLS_ARRAY.includes(tool.key)) promptToolCredential(tool.key, currentBot)" class="rounded text-brand w-3.5 h-3.5 cursor-pointer flex-shrink-0" />
                         </div>
                         <span class="text-slate-400 font-400 text-[10px] leading-snug" x-text="tool.desc"></span>
                       </label>
@@ -2418,7 +2467,7 @@
                     x-text="showRaw ? 'Tabela' : 'Raw'"></button>
                 </div>
                 <p class="px-5 py-2.5 text-[10px] text-slate-400 bg-slate-50/50 border-b border-surface-border">
-                  Credenciais exclusivas deste agente (DB_URL, GIT_TOKEN, APIs). Credenciais compartilhadas ficam em <span class="font-600">Configurações</span> <span class="font-mono">&rarr; secrets.global</span>.
+                  Credenciais exclusivas deste agente. Prevalecem sobre as Credenciais Globais e as Credenciais Padrão. Credenciais compartilhadas entre todos os agentes ficam em <span class="font-600">Configurações Globais</span> <span class="font-600">&rarr;</span> <span class="font-600">Credenciais Globais</span>.
                 </p>
                 <!-- Table view -->
                 <div x-show="!showRaw">
@@ -2449,8 +2498,15 @@
                             <div class="flex items-center justify-end gap-1.5">
                               <button @click="saveBotSecret(idx)"
                                 class="text-xs font-600 text-brand hover:bg-brand/10 border border-brand/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Salvar</button>
-                              <button @click="deleteBotSecret(idx)"
-                                class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Deletar</button>
+                              <template x-if="!isSecretRequired(v.key)">
+                                <button @click="deleteBotSecret(idx)"
+                                  class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-2.5 py-1 rounded-lg transition cursor-pointer">Deletar</button>
+                              </template>
+                              <template x-if="isSecretRequired(v.key)">
+                                <span class="text-xs font-600 text-slate-300 border border-slate-200 px-2.5 py-1 rounded-lg flex items-center gap-1" title="Requerida pela ferramenta ativa">
+                                  <i data-lucide="lock" class="w-3 h-3"></i>
+                                </span>
+                              </template>
                             </div>
                           </td>
                         </tr>
@@ -2967,6 +3023,17 @@
 </div>
 
 <script>
+const TOOL_REQUIRED_SECRETS = {
+  'notion':   [{ key:'NOTION_API_KEY', label:'Token Notion', hint:'Crie em notion.so/my-integrations. Para acesso amplo: Settings → Connections → Add connection', password:true }],
+  'github':   [{ key:'GITHUB_TOKEN', label:'Token GitHub', hint:'Personal access token com permissão de repo', password:true }],
+  'git':      [
+    { key:'GIT_TOKEN', label:'Token Git', hint:'Token GitHub/GitLab para push/pull', password:true },
+    { key:'GIT_USER', label:'Username Git', hint:'', password:false },
+    { key:'GIT_EMAIL', label:'Email Git', hint:'', password:false },
+  ],
+  'database': [{ key:'DB_URL', label:'URL de conexão', hint:'postgresql://user:pass@host:5432/db', password:true }],
+};
+
 const MODELS_BY_PROVIDER = {
   'anthropic': ['claude-opus-4-6','claude-sonnet-4-6','claude-haiku-4-5-20251001'],
   'claude-cli': ['claude-opus-4-6','claude-sonnet-4-6','claude-haiku-4-5-20251001'],
@@ -3023,8 +3090,10 @@ function adminApp() {
     modelsByProvider: MODELS_BY_PROVIDER,
     showDeleteModal: false, deleteConfirmName: '', deletingBot: false,
     configForm: { BOT_NAME:'', DESCRIPTION:'', TELEGRAM_TOKEN:'', PROVIDER:'claude-cli', MODEL:'claude-opus-4-6', MODEL_CUSTOM:'', ACCESS_MODE:'approval', MAX_HISTORY:20, GROUP_MODE:'always', TOOLS_ARRAY:[] },
+    globalConfigSubTab: 'behavior',
     configSubTab: 'settings',
     botSecretsRaw: '', botSecrets: [], newBotSecret: {key:'', value:''},
+    credentialModal: { show:false, toolLabel:'', secrets:[], botName:'' },
     showToken: false,
     currentModelOptions: MODELS_BY_PROVIDER['claude-cli'],
     personaContent: '', personaPreview: false,
@@ -3076,6 +3145,7 @@ function adminApp() {
       {key:'http',     label:'Requisições HTTP', desc:'Acessar APIs externas'},
       {key:'git',      label:'Git',              desc:'Controle de versão'},
       {key:'github',   label:'GitHub',           desc:'Issues, PRs e code reviews'},
+      {key:'notion',   label:'Notion',           desc:'Buscar, ler e criar páginas e databases'},
       {key:'database', label:'Banco de Dados',   desc:'Consultas SQL'},
     ],
 
@@ -3171,6 +3241,53 @@ function adminApp() {
         .filter(l => l.trim() && !l.trim().startsWith('#'))
         .map(l => { const [k,...v] = l.split('='); return {key:k.trim(), value:v.join('=').trim(), showVal:false}; })
         .filter(v => v.key);
+    },
+
+    isSecretRequired(key) {
+      return this.configForm.TOOLS_ARRAY.some(tool =>
+        (TOOL_REQUIRED_SECRETS[tool] || []).some(s => s.key === key)
+      );
+    },
+
+    async promptToolCredential(toolKey, botName) {
+      const toolInfo = TOOL_REQUIRED_SECRETS[toolKey];
+      if (!toolInfo) return;
+      const tool = this.toolOptions.find(t => t.key === toolKey);
+      // Só pede secrets que ainda não têm valor
+      const missing = toolInfo.filter(s => !this.botSecrets.find(b => b.key === s.key && b.value));
+      if (missing.length === 0) return;
+      this.credentialModal = {
+        show: true,
+        toolLabel: tool?.label || toolKey,
+        secrets: missing.map(s => ({ ...s, value:'' })),
+        botName,
+      };
+      // Retorna promise que resolve quando o modal fecha
+      return new Promise(resolve => {
+        const check = () => { if (!this.credentialModal.show) { resolve(); } else { requestAnimationFrame(check); } };
+        requestAnimationFrame(check);
+      });
+    },
+
+    async saveCredentialModal() {
+      const filled = this.credentialModal.secrets.filter(s => s.value.trim());
+      if (filled.length === 0) { this.credentialModal.show = false; return; }
+      const res = await fetch(`/api/bots/${this.credentialModal.botName}/file/secrets.env`);
+      let raw = res.ok ? (await res.json()).content || '' : '';
+      for (const s of filled) {
+        const line = `${s.key}=${s.value}`;
+        const regex = new RegExp(`^${s.key}=.*$`, 'm');
+        if (regex.test(raw)) { raw = raw.replace(regex, line); }
+        else { raw = (raw.endsWith('\n') ? raw : raw + '\n') + line + '\n'; }
+      }
+      const r = await fetch(`/api/bots/${this.credentialModal.botName}/file/secrets.env`, {
+        method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:raw})
+      });
+      if (r.ok) {
+        this.toast('Credenciais salvas!');
+        if (this.currentBot === this.credentialModal.botName) { this.botSecretsRaw = raw; this.parseBotSecrets(); }
+      } else { this.toast('Erro ao salvar credenciais','error'); }
+      this.credentialModal.show = false;
     },
 
     async saveBotSecret(idx) {
@@ -3609,9 +3726,18 @@ function adminApp() {
         const payload = {...this.newBot};
         const r = await fetch('/api/bots', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
         if (r.ok) {
+          const createdName = this.newBot.name;
+          const createdTools = [...this.newBot.tools];
           this.showNewBotModal = false;
           this.toast(`Agente "${this.newBot.display_name}" criado!`);
-          await this.loadBots(); await this.selectBot(this.newBot.name);
+          await this.loadBots(); await this.selectBot(createdName);
+          await this.loadConfig();
+          // Solicitar credenciais para cada ferramenta que precisar
+          for (const toolKey of createdTools) {
+            if (TOOL_REQUIRED_SECRETS[toolKey]) {
+              await this.promptToolCredential(toolKey, createdName);
+            }
+          }
         } else { const d = await r.json(); this.newBotError = d.detail || 'Erro ao criar agente.'; }
       } catch(e) { this.newBotError = 'Erro de conexão.'; }
       finally { this.creatingBot = false; }

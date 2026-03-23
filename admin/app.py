@@ -32,7 +32,10 @@ IN_DOCKER = Path("/.dockerenv").exists() or bool(os.environ.get("IN_DOCKER"))
 FILE_WHITELIST = {"soul.md", "USER.md", "MEMORY.md", "welcome.md", "secrets.env"}
 GLOBAL_WHITELIST = {"context.global", "config.global", "secrets.global"}
 
-SENSITIVE_KEYS = {"ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY"}
+SENSITIVE_KEYS = {"ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY", "NOTION_API_KEY"}
+
+# Chaves que sempre aparecem como placeholder em secrets.global, mesmo que ainda não configuradas
+KNOWN_GLOBAL_SECRETS = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "NOTION_API_KEY"]
 
 # Variáveis que o editor genérico não pode remover (apenas editar o valor)
 SYSTEM_GLOBAL_KEYS: dict[str, set[str]] = {
@@ -1070,6 +1073,17 @@ async def get_global(fname: str):
         raise HTTPException(400, detail="File not allowed")
     fpath = BASE_DIR / fname
     content = fpath.read_text(errors="replace") if fpath.exists() else ""
+    if fname == "secrets.global":
+        # Injeta placeholders para chaves conhecidas ainda não presentes no arquivo.
+        # Só afeta o response — o arquivo não é alterado até o usuário salvar explicitamente.
+        existing_keys = {
+            l.split("=")[0].strip()
+            for l in content.splitlines()
+            if "=" in l and not l.strip().startswith("#")
+        }
+        missing = [k for k in KNOWN_GLOBAL_SECRETS if k not in existing_keys]
+        if missing:
+            content = content.rstrip("\n") + "\n" + "\n".join(f"{k}=" for k in missing) + "\n"
     return {"content": content}
 
 

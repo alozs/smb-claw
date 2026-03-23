@@ -74,6 +74,12 @@ echo "── GitHub ────────────────────
 read_secret "Token GitHub (GITHUB_TOKEN)" "GITHUB_TOKEN"
 
 echo ""
+echo "── Notion (opcional) ───────────────────────────────────"
+echo "  Crie em: https://www.notion.so/my-integrations"
+echo "  Para acesso amplo: Settings & members → Connections → Add connection"
+read_secret "Token Notion (NOTION_API_KEY)" "NOTION_API_KEY"
+
+echo ""
 echo "── OpenRouter (opcional) ────────────────────────────"
 echo "  Necessário para bots com PROVIDER=openrouter"
 echo "  Obtenha em: https://openrouter.ai/keys"
@@ -89,7 +95,7 @@ read_secret "API Key extra 2 (API_KEY_2)" "API_KEY_2"
     echo "# secrets.env — NÃO commitar, NÃO compartilhar"
     echo "# Gerado em: $(date)"
     echo ""
-    for key in DB_URL GIT_TOKEN GIT_USER GIT_EMAIL GITHUB_TOKEN OPENROUTER_API_KEY API_KEY_1 API_KEY_2; do
+    for key in DB_URL GIT_TOKEN GIT_USER GIT_EMAIL GITHUB_TOKEN NOTION_API_KEY OPENROUTER_API_KEY API_KEY_1 API_KEY_2; do
         val="${current[$key]}"
         [ -n "$val" ] && echo "$key=$val"
     done
