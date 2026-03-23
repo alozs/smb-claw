@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.0 (2026-03-23)
+
+Novas funcionalidades
+
+• Integração com Notion: bots podem agora buscar, ler e criar páginas e databases diretamente no Notion. Basta configurar a chave `NOTION_API_KEY` no `secrets.env` e adicionar `notion` à variável `TOOLS` do bot.
+
+Melhorias
+
+• Painel admin com informações mais precisas sobre os recursos disponíveis, evitando confusão sobre funcionalidades ainda não implementadas.
+
+Correções
+
+• Arquivo de tracing (`tracer.py`) que estava ausente do repositório foi restaurado, garantindo o funcionamento correto do rastreamento granular de chamadas LLM e tool calls.
+• Removida indicação incorreta de que o `action_log` poderia ser visualizado pelo admin no painel — o recurso ainda não está implementado e a interface agora reflete isso com precisão.
+
 ## 0.9.0 (2026-03-21)
 
 Novas funcionalidades

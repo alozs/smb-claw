@@ -591,9 +591,27 @@
   <!-- Novidades — movido para antes do CTA final -->
   <section id="changelog" class="changelog container">
     <h2 style="text-align: center; font-size: 2.25rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 48px; color: var(--white);">
-      Novidades <!-- CHANGELOG_VERSION -->v0.9.0<!-- /CHANGELOG_VERSION --> <span class="cl-badge">Novo</span>
+      Novidades <!-- CHANGELOG_VERSION -->v0.10.0<!-- /CHANGELOG_VERSION --> <span class="cl-badge">Novo</span>
     </h2>
     <!-- CHANGELOG_START -->
+                <div class="cl-entry">
+          <div class="cl-header">
+            <span class="cl-version">v0.10.0</span>
+            <span class="cl-date">2026-03-23</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>Novas funcionalidades</li>
+              <li>Integração com Notion: bots podem agora buscar, ler e criar páginas e databases diretamente no Notion. Basta configurar a chave `NOTION_API_KEY` no `secrets.env` e adicionar `notion` à variável `TOOLS` do bot.</li>
+              <li>Melhorias</li>
+              <li>Painel admin com informações mais precisas sobre os recursos disponíveis, evitando confusão sobre funcionalidades ainda não implementadas.</li>
+              <li>Correções</li>
+              <li>Arquivo de tracing (`tracer.py`) que estava ausente do repositório foi restaurado, garantindo o funcionamento correto do rastreamento granular de chamadas LLM e tool calls.</li>
+              <li>Removida indicação incorreta de que o `action_log` poderia ser visualizado pelo admin no painel — o recurso ainda não está implementado e a interface agora reflete isso com precisão.</li>
+            </ul>
+          </div>
+        </div>
         <div class="cl-entry">
           <div class="cl-header">
             <span class="cl-version">v0.9.0</span>
@@ -627,28 +645,7 @@
             </ul>
           </div>
         </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.7.x</span>
-            <span class="cl-date">2026-03-17 – 20</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Novas funcionalidades</strong></p>
-            <ul>
-              <li><strong style="color: var(--zinc-100);">Raciocínio estendido:</strong> comando <code>/thinking</code> ativa pensamento profundo em 4 níveis (off, low, medium, high) com até 16k tokens de raciocínio interno. Suportado nos provedores Anthropic e Claude-CLI.</li>
-              <li><strong style="color: var(--zinc-100);">Atualização pelo Telegram:</strong> novo botão no menu admin permite executar <code>/update</code> diretamente pelo chat, sem acesso ao servidor via terminal.</li>
-              <li><strong style="color: var(--zinc-100);">Suporte a grupos aprimorado:</strong> variável <code>GROUP_MODE</code> controla se o agente responde a todas as mensagens (<em>always</em>) ou apenas quando mencionado (<em>mention_only</em>).</li>
-            </ul>
-            <p><strong>Melhorias</strong></p>
-            <ul>
-              <li><code>/tasks</code> agora exibe agendamentos ativos com horário convertido para BRT e dias da semana em português, na mesma listagem das tarefas.</li>
-              <li>Outputs de ferramentas longos (&gt;12k chars) são truncados automaticamente, protegendo o contexto e evitando erros silenciosos.</li>
-              <li>Mensagens que ultrapassam <code>MAX_HISTORY</code> são arquivadas no SQLite em vez de descartadas — histórico completo preservado.</li>
-              <li>memory-autosave.sh alerta o modelo para compactar <code>MEMORY.md</code> quando ultrapassa 6 KB, evitando crescimento indefinido.</li>
-            </ul>
-          </div>
-        </div>
-    <!-- CHANGELOG_END -->
+        <!-- CHANGELOG_END -->
   </section>
 
   <section class="section container" style="text-align: center;">
