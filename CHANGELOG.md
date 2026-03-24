@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0 (2026-03-24)
+
+• Melhorias internas e correções de estabilidade.
+
 ## 0.10.0 (2026-03-23)
 
 Novas funcionalidades

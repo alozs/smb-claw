@@ -9,7 +9,7 @@ BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 QUIET=false
 [ "$1" = "--quiet" ] && QUIET=true
 
-log() { [ "$QUIET" = false ] && echo "$1"; }
+log() { if [ "$QUIET" = false ]; then echo "$1"; fi; }
 
 # ── Variáveis a garantir em cada bot ──────────────────────────────────────────
 # Formato: "CHAVE=VALOR_PADRAO" e "CHAVE=#comentário de bloco"
@@ -22,8 +22,8 @@ declare -a MIGRATIONS=(
     "GUARDRAILS_LEVEL=dangerous"
     "# Detecção de prompt injection (0.0 = desabilitado)"
     "INJECTION_THRESHOLD=0.7"
-    "# Aprendizado comportamental (requer behavior-extract.sh no cron)"
-    "BEHAVIOR_LEARNING_ENABLED=false"
+    "# Aprendizado comportamental (executado automaticamente pelo memory-autosave.sh)"
+    "BEHAVIOR_LEARNING_ENABLED=true"
     "BEHAVIOR_MAX_CHARS=2000"
 )
 

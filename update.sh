@@ -51,6 +51,7 @@ git fetch origin main 2>/dev/null
 BEHIND=$(git rev-list HEAD..origin/main --count 2>/dev/null || echo "0")
 if [ "$BEHIND" -eq 0 ]; then
     echo "✅ Já está atualizado."
+    bash "$BASE_DIR/install-crons.sh"
     exit 0
 fi
 
@@ -65,6 +66,10 @@ NEW_VERSION=$(cat "$BASE_DIR/VERSION" 2>/dev/null || echo "?")
 # ── Migração de .env (adiciona variáveis novas aos bots existentes) ──────────
 echo "🔧 Migrando variáveis de configuração..."
 bash "$BASE_DIR/migrate-env.sh"
+
+# ── Verifica e instala crons do sistema ─────────────────────────────────────
+echo "🔧 Verificando crons do sistema..."
+bash "$BASE_DIR/install-crons.sh"
 
 # ── Detecção Docker ──────────────────────────────────────────────────────────
 IN_DOCKER=false

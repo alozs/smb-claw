@@ -37,6 +37,7 @@ subagents/      — NOVO: diretório de sub-agentes especializados
 | Arquivo | Papel |
 |---|---|
 | `setup.sh` | **Bootstrap mínimo** — instala deps, sobe painel admin; onboarding completo é no painel web |
+| `install-crons.sh` | Verifica e instala os crons do sistema (idempotente). Remove obsoletos, cria ausentes. Chamado por `setup.sh` e `update.sh`. |
 | `criar-bot.sh` | Cria novo bot — deve refletir 100% do que `bot.py` suporta |
 | `config.global` | Fonte de verdade em runtime: carregado por `bot.py` como defaults globais |
 | `secrets.global` | Credenciais sensíveis compartilhadas por todos os bots (chmod 600) |
@@ -137,6 +138,7 @@ Valor: lista separada por vírgula ou `none`.
 | Git | `git` | `GIT_TOKEN`, `GIT_USER`, `GIT_EMAIL` | Clone/push/pull com token injetado |
 | GitHub | `github` | `GITHUB_TOKEN` (ou `GIT_TOKEN`) | API do GitHub: PRs, issues, reviews, CI checks |
 | Notion | `notion` | `NOTION_API_KEY` | Buscar, ler e criar páginas e databases no Notion |
+| Tavily | `tavily` | `TAVILY_API_KEY` | Busca na web por query + extração de conteúdo limpo de páginas com JavaScript |
 | Database | `database` | `DB_URL` | Queries SQL (PostgreSQL, MySQL, SQLite) |
 | Sub-agentes | *(auto-descoberto)* | — | Delegação para sub-agentes em `subagents/`. Ferramentas `agent_<nome>` geradas automaticamente. Configurar via `subagents/<nome>/.env` e `soul.md`. Sub-agentes recebem **apenas** as ferramentas declaradas no seu `TOOLS` (sem ferramentas "sempre ativas" como tasks/memory/schedule). Analytics de sub-agentes são logados com bot `<bot>/sub:<agent_name>`. |
 
@@ -280,7 +282,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 | `GUARDRAILS_MODE` | — | `notify` | `notify` = alerta admin, executa normal; `confirm` = **bloqueia** dangerous sem `request_approval` prévio; `block` = **sempre bloqueia** dangerous |
 | `GUARDRAILS_LEVEL` | — | `dangerous` | Nível mínimo para alertas ao admin: `moderate` ou `dangerous` |
 | `INJECTION_THRESHOLD` | — | `0.7` | Score mínimo para flag de injection (0.0 = desabilitado). Scoring multi-padrão: 0.3 por padrão fraco, 0.5 por padrão forte |
-| `BEHAVIOR_LEARNING_ENABLED` | — | `false` | Carrega BEHAVIOR.md no system prompt e habilita extração pelo behavior-extract.sh |
+| `BEHAVIOR_LEARNING_ENABLED` | — | `true` | Carrega BEHAVIOR.md no system prompt e habilita extração pelo behavior-extract.sh (embutido no memory-autosave.sh) |
 | `BEHAVIOR_MAX_CHARS` | — | `2000` | Tamanho máximo do perfil comportamental no contexto |
 
 ## Variáveis do config.global
@@ -339,8 +341,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 
 | Schedule | Script | Descrição |
 |---|---|---|
-| `50 23 * * *` | `memory-autosave.sh` | Destila memória diária → MEMORY.md. Usa fallback automático de provedor (Claude OAuth → Codex OAuth → OpenRouter → OpenAI). Status visível no painel admin aba Sistema. |
-| `55 23 * * *` | `behavior-extract.sh` | Extrai perfil comportamental → BEHAVIOR.md (5 min após memory-autosave). Só processa bots com `BEHAVIOR_LEARNING_ENABLED=true`. |
+| `50 23 * * *` | `memory-autosave.sh` | Destila memória diária → MEMORY.md. Ao final, chama `behavior-extract.sh` automaticamente. Usa fallback automático de provedor (Claude OAuth → Codex OAuth → OpenRouter → OpenAI). Status visível no painel admin aba Sistema. |
 | `0 2 * * 0` | `memory-cleanup.sh 30` | Remove diários com mais de 30 dias |
 | dinâmico (`# smb-bugfixer`) | `bugfixer.py` | Bug Fixer Agent — gerado automaticamente pelo painel admin conforme `BUGFIXER_TIMES_PER_DAY` |
 | `0 8 * * *` | `check-update.sh` | Verifica se origin/main tem commits novos e notifica admin |

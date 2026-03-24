@@ -7,7 +7,7 @@ import asyncio
 import logging
 from datetime import datetime
 
-from telegram.error import RetryAfter
+from telegram.error import RetryAfter, TimedOut as TelegramTimedOut
 
 logger = logging.getLogger(__name__)
 
@@ -177,11 +177,18 @@ async def scheduler_loop(application, db, ask_claude_fn, conversations: dict,
                     for chunk in chunks:
                         for attempt in range(5):
                             try:
-                                await application.bot.send_message(chat_id=user_id, text=chunk)
+                                await application.bot.send_message(
+                                    chat_id=user_id, text=chunk,
+                                    read_timeout=30, write_timeout=30, connect_timeout=10,
+                                )
                                 break
                             except RetryAfter as e:
                                 wait = int(e.retry_after) + 1
                                 logger.warning(f"[scheduler] Flood control — aguardando {wait}s antes de reenviar")
+                                await asyncio.sleep(wait)
+                            except TelegramTimedOut:
+                                wait = 3 * (attempt + 1)
+                                logger.warning(f"[scheduler] TimedOut ao enviar chunk (tentativa {attempt+1}/5) — aguardando {wait}s")
                                 await asyncio.sleep(wait)
                         else:
                             logger.error(f"[scheduler] Falhou após 5 tentativas ao enviar chunk para {user_id}")

@@ -347,3 +347,11 @@ open('$STATE_FILE', 'w').write(json.dumps(state))
 
 echo ""
 echo "✅ memory-autosave concluído ($PROVIDER) — $BOTS_PROCESSED bot(s) processado(s)"
+
+# ── Executa behavior-extract em sequência ─────────────────────────────────
+BEHAVIOR_SCRIPT="$BASE_DIR/behavior-extract.sh"
+if [ -x "$BEHAVIOR_SCRIPT" ]; then
+    echo ""
+    echo "── Iniciando behavior-extract ────────────────────────────────────────"
+    bash "$BEHAVIOR_SCRIPT" ${1:-} || echo "⚠️  behavior-extract terminou com erro (não crítico)"
+fi

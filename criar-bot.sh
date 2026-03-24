@@ -71,8 +71,8 @@ WORK_DIR=$BOT_DIR/workspace
 # Detecção de prompt injection (score 0.0 = desabilitado)
 # INJECTION_THRESHOLD=0.7
 
-# Aprendizado comportamental (requer behavior-extract.sh no cron)
-# BEHAVIOR_LEARNING_ENABLED=false
+# Aprendizado comportamental (executado automaticamente pelo memory-autosave.sh)
+BEHAVIOR_LEARNING_ENABLED=true
 # BEHAVIOR_MAX_CHARS=2000
 
 # Provedor de IA:

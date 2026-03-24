@@ -12,6 +12,7 @@ ADMIN_PORT="${ADMIN_PORT:-8080}"
 # ── Cron daemon ──────────────────────────────────────────────────────────────
 echo "🕐 Iniciando cron daemon..."
 service cron start || cron || true
+bash "$BASE_DIR/install-crons.sh"
 
 # ── Limpa locks órfãos de execuções anteriores ───────────────────────────────
 mkdir -p "$BASE_DIR/.locks"

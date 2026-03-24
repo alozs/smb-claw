@@ -1201,6 +1201,9 @@ if [ "$IN_DOCKER" = true ] && command -v crontab &>/dev/null; then
     service cron start >/dev/null 2>&1 || true
 fi
 
+# ── Verifica e instala crons do sistema ─────────────────────────────────────
+bash "$BASE_DIR/install-crons.sh"
+
 # Aviso de Docker: porta pode não estar exposta no host
 if [ "$IN_DOCKER" = true ]; then
     # Detectar container ID (cgroups v1 e v2, hostname como fallback)

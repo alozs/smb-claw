@@ -96,10 +96,10 @@
 </div>
 
 <!-- ── New Bot Modal ──────────────────────────────────────────────────────── -->
-<div x-show="showNewBotModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,0.55); backdrop-filter:blur(4px)" @keydown.escape.window="showNewBotModal=false">
-  <div x-show="showNewBotModal" x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="bg-white rounded-2xl w-full max-w-2xl overflow-hidden" style="box-shadow:0 20px 60px -10px rgba(0,0,0,0.35)" @click.outside="showNewBotModal=false">
+<div x-show="showNewBotModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 flex items-center justify-center p-6" style="background:rgba(0,0,0,0.55); backdrop-filter:blur(4px)" @keydown.escape.window="showNewBotModal=false">
+  <div x-show="showNewBotModal" x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="bg-white rounded-2xl flex flex-col overflow-hidden" style="width:80vw; max-height:90vh; box-shadow:0 20px 60px -10px rgba(0,0,0,0.35)" @click.outside="showNewBotModal=false">
     <!-- Header -->
-    <div class="px-6 pt-6 pb-4 border-b border-surface-border flex items-center gap-3">
+    <div class="px-6 pt-6 pb-4 border-b border-surface-border flex items-center gap-3 flex-shrink-0">
       <div class="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center flex-shrink-0">
         <i data-lucide="bot" class="w-5 h-5 text-white"></i>
       </div>
@@ -108,34 +108,34 @@
         <p class="text-sm text-slate-500 mt-0.5">Configure seu novo agente</p>
       </div>
     </div>
-    <!-- Body: 2 colunas -->
-    <div class="px-6 py-5">
-      <div class="grid grid-cols-2 gap-x-6 gap-y-4">
+    <!-- Body: 2 colunas (scrollável) -->
+    <div class="px-6 py-5 overflow-y-auto flex-1">
+      <div class="grid grid-cols-2 gap-x-8 gap-y-4">
         <!-- Coluna esquerda -->
         <div class="space-y-4">
           <div>
-            <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Nome de exibição <span class="text-danger normal-case tracking-normal">*</span></label>
+            <label class="block text-xs font-700 text-slate-700 mb-1.5 uppercase tracking-wide">Nome de exibição <span class="text-danger normal-case tracking-normal">*</span></label>
             <input x-model="newBot.display_name" @input="newBot.name = slugify(newBot.display_name)" type="text" placeholder="Assistente Pessoal"
               class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
-            <p class="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1">
-              <span class="text-slate-300">Pasta:</span>
-              <code class="font-mono text-slate-500" x-text="newBot.name || 'derivado-do-nome'"></code>
+            <p class="text-xs text-slate-500 mt-1.5 flex items-center gap-1">
+              <span class="text-slate-400">Pasta:</span>
+              <code class="font-mono text-slate-700" x-text="newBot.name || 'derivado-do-nome'"></code>
             </p>
           </div>
           <div>
-            <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Descrição</label>
+            <label class="block text-xs font-700 text-slate-700 mb-1.5 uppercase tracking-wide">Descrição</label>
             <input x-model="newBot.description" type="text" placeholder="Ex: Assistente especializado em suporte ao cliente"
               class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
           </div>
           <div>
-            <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Telegram Token</label>
+            <label class="block text-xs font-700 text-slate-700 mb-1.5 uppercase tracking-wide">Telegram Token</label>
             <input x-model="newBot.telegram_token" type="text" placeholder="Cole o token do @BotFather"
               class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand transition-shadow" />
-            <p class="text-[10px] text-slate-400 mt-1">Obtenha via <strong>@BotFather</strong> no Telegram → /newbot</p>
+            <p class="text-xs text-slate-500 mt-1">Obtenha via <strong class="text-slate-700">@BotFather</strong> no Telegram → /newbot</p>
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Provedor</label>
+              <label class="block text-xs font-700 text-slate-700 mb-1.5 uppercase tracking-wide">Provedor</label>
               <select x-model="newBot.provider" @change="newBot.model = modelsByProvider[newBot.provider][0]"
                 class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
                 <option value="claude-cli">Claude Code (OAuth)</option>
@@ -145,7 +145,7 @@
               </select>
             </div>
             <div>
-              <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Modelo</label>
+              <label class="block text-xs font-700 text-slate-700 mb-1.5 uppercase tracking-wide">Modelo</label>
               <select x-model="newBot.model"
                 class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand cursor-pointer">
                 <template x-for="m in modelsByProvider[newBot.provider]" :key="m">
@@ -157,15 +157,29 @@
         </div>
         <!-- Coluna direita: Ferramentas -->
         <div>
-          <label class="block text-xs font-600 text-slate-600 mb-2 uppercase tracking-wide">Ferramentas</label>
-          <div class="grid grid-cols-2 gap-2">
+          <label class="block text-xs font-700 text-slate-700 mb-2 uppercase tracking-wide">Ferramentas</label>
+          <div class="grid grid-cols-3 gap-2">
             <template x-for="tool in toolOptions" :key="tool.key">
-              <label class="flex items-start gap-2.5 cursor-pointer p-2.5 rounded-lg border transition-colors"
-                :class="newBot.tools.includes(tool.key) ? 'bg-brand/5 border-brand/25' : 'border-surface-border hover:bg-slate-50'">
-                <input type="checkbox" :value="tool.key" x-model="newBot.tools" class="rounded text-brand w-4 h-4 cursor-pointer mt-0.5" />
-                <div>
-                  <span class="text-slate-700 font-600 text-sm" x-text="tool.label"></span>
-                  <span class="text-slate-400 font-400 text-[10px] block mt-0.5" x-text="tool.desc"></span>
+              <label class="cursor-pointer rounded-xl border-2 transition-all block p-3 select-none"
+                :class="newBot.tools.includes(tool.key) ? 'border-brand/30 bg-brand/[0.03]' : 'border-surface-border hover:border-slate-300 hover:bg-slate-50/60'">
+                <input type="checkbox" hidden :value="tool.key" x-model="newBot.tools" />
+                <div class="flex items-start gap-2.5">
+                  <div class="w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0 transition-colors"
+                    :class="newBot.tools.includes(tool.key) ? 'bg-brand/10' : 'bg-slate-100'">
+                    <span x-text="tool.icon"></span>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-1 mb-1">
+                      <span class="font-700 text-xs text-slate-900 leading-snug" x-text="tool.label"></span>
+                      <div class="w-7 h-[15px] rounded-full flex-shrink-0 transition-colors relative"
+                        :class="newBot.tools.includes(tool.key) ? 'bg-brand' : 'bg-slate-200'">
+                        <div class="absolute top-[2px] w-[11px] h-[11px] bg-white rounded-full shadow-sm transition-all"
+                          :class="newBot.tools.includes(tool.key) ? 'left-[14px]' : 'left-[2px]'"></div>
+                      </div>
+                    </div>
+                    <span class="text-[11px] text-slate-600 leading-snug block" x-text="tool.desc"></span>
+                    <span x-show="tool.example" class="text-[10px] text-slate-500 italic mt-1.5 block leading-snug" x-text="'💡 ' + (tool.example || '')"></span>
+                  </div>
                 </div>
               </label>
             </template>
@@ -174,7 +188,7 @@
       </div>
     </div>
     <!-- Footer -->
-    <div class="px-6 pb-6 pt-4 border-t border-surface-border flex gap-3">
+    <div class="px-6 pb-6 pt-4 border-t border-surface-border flex gap-3 flex-shrink-0">
       <button @click="showNewBotModal=false" class="flex-1 py-2.5 rounded-xl border border-surface-border text-sm font-600 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">Cancelar</button>
       <button @click="createBot()" :disabled="creatingBot"
         class="btn-primary flex-1 py-2.5 rounded-xl bg-brand text-white text-sm font-600 hover:bg-brand-hover disabled:opacity-50 cursor-pointer">
@@ -226,7 +240,33 @@
         <svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
       </div>
       <h2 class="text-lg font-700 text-slate-900 mb-1">Configurar <span x-text="credentialModal.toolLabel"></span></h2>
-      <p class="text-sm text-slate-400 mb-5">Insira as credenciais para ativar esta ferramenta. Você pode configurar depois nas Credenciais do agente.</p>
+      <!-- Instruções específicas da ferramenta (ex: Tavily) -->
+      <template x-if="credentialModal.instructions">
+        <div class="mb-5">
+          <!-- Passos de configuração -->
+          <div class="bg-slate-50 rounded-xl p-3.5 mb-3 space-y-2">
+            <template x-for="step in credentialModal.instructions.steps" :key="step.text">
+              <div class="flex items-start gap-2.5">
+                <span class="text-base leading-none mt-0.5" x-text="step.icon"></span>
+                <span class="text-xs text-slate-700 leading-snug" x-html="step.text"></span>
+              </div>
+            </template>
+          </div>
+          <!-- Benefícios -->
+          <div class="border border-emerald-100 bg-emerald-50/60 rounded-xl p-3 mb-1">
+            <p class="text-[10px] font-700 text-emerald-700 uppercase tracking-wide mb-1.5">O que você ganha</p>
+            <ul class="space-y-1">
+              <template x-for="b in credentialModal.instructions.benefits" :key="b">
+                <li class="flex items-start gap-1.5 text-xs text-emerald-800">
+                  <span class="text-emerald-500 mt-0.5 flex-shrink-0">✓</span>
+                  <span x-text="b"></span>
+                </li>
+              </template>
+            </ul>
+          </div>
+        </div>
+      </template>
+      <p x-show="!credentialModal.instructions" class="text-sm text-slate-400 mb-5">Insira as credenciais para ativar esta ferramenta. Você pode configurar depois nas Credenciais do agente.</p>
       <div class="space-y-4">
         <template x-for="(s, idx) in credentialModal.secrets" :key="s.key">
           <div>
@@ -689,12 +729,26 @@
               <label class="block text-xs font-600 text-slate-600 mb-2 uppercase tracking-wide">Ferramentas</label>
               <div class="grid grid-cols-2 gap-2">
                 <template x-for="tool in toolOptions" :key="tool.key">
-                  <label class="flex items-start gap-2 cursor-pointer p-2.5 rounded-lg border transition-colors"
-                    :class="setupForm.bot_tools.includes(tool.key) ? 'bg-brand/5 border-brand/25' : 'border-surface-border hover:bg-slate-50'">
-                    <input type="checkbox" :value="tool.key" x-model="setupForm.bot_tools" class="rounded text-brand w-4 h-4 cursor-pointer mt-0.5" />
-                    <div>
-                      <span class="text-slate-700 font-600 text-sm" x-text="tool.label"></span>
-                      <span class="text-slate-400 font-400 text-[10px] block mt-0.5" x-text="tool.desc"></span>
+                  <label class="cursor-pointer rounded-xl border-2 transition-all block p-3 select-none"
+                    :class="setupForm.bot_tools.includes(tool.key) ? 'border-brand/30 bg-brand/[0.03]' : 'border-surface-border hover:border-slate-300 hover:bg-slate-50/60'">
+                    <input type="checkbox" hidden :value="tool.key" x-model="setupForm.bot_tools" />
+                    <div class="flex items-start gap-2.5">
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0 transition-colors"
+                        :class="setupForm.bot_tools.includes(tool.key) ? 'bg-brand/10' : 'bg-slate-100'">
+                        <span x-text="tool.icon"></span>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between gap-1 mb-0.5">
+                          <span class="font-700 text-xs text-slate-800 leading-snug" x-text="tool.label"></span>
+                          <div class="w-7 h-[15px] rounded-full flex-shrink-0 transition-colors relative"
+                            :class="setupForm.bot_tools.includes(tool.key) ? 'bg-brand' : 'bg-slate-200'">
+                            <div class="absolute top-[2px] w-[11px] h-[11px] bg-white rounded-full shadow-sm transition-all"
+                              :class="setupForm.bot_tools.includes(tool.key) ? 'left-[14px]' : 'left-[2px]'"></div>
+                          </div>
+                        </div>
+                        <span class="text-[10px] text-slate-400 leading-snug block" x-text="tool.desc"></span>
+                        <span x-show="tool.example" class="text-[9px] text-brand/50 italic mt-1 block leading-snug" x-text="'Ex: ' + (tool.example || '')"></span>
+                      </div>
                     </div>
                   </label>
                 </template>
@@ -991,15 +1045,18 @@
                 <div class="flex items-center gap-2 flex-wrap">
                   <span class="inline-flex items-center gap-1 text-[10px] font-600 px-2 py-1 rounded-lg bg-slate-100 text-slate-600">
                     <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                    <span x-text="bot.provider"></span>
+                    <span x-text="providerLabel(bot.provider)"></span>
                   </span>
-                  <span x-show="bot.model" class="inline-flex items-center gap-1 text-[10px] font-600 px-2 py-1 rounded-lg bg-zinc-100 text-zinc-600 max-w-[160px] truncate" x-text="bot.model"></span>
+                  <span x-show="bot.model" class="inline-flex items-center gap-1 text-[10px] font-600 px-2 py-1 rounded-lg bg-zinc-100 text-zinc-600 max-w-[160px] truncate" x-text="modelLabel(bot.model)"></span>
                 </div>
 
                 <!-- Tools -->
                 <div x-show="bot.tools && bot.tools.length > 0" class="flex flex-wrap gap-1">
                   <template x-for="t in (bot.tools || [])" :key="t">
-                    <span class="text-[10px] font-600 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-600 border border-amber-100" x-text="t"></span>
+                    <span class="inline-flex items-center gap-1 text-[10px] font-600 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-100">
+                      <span x-text="toolIcon(t)"></span>
+                      <span x-text="toolLabel(t)"></span>
+                    </span>
                   </template>
                 </div>
                 <div x-show="!bot.tools || bot.tools.length === 0">
@@ -1237,7 +1294,7 @@
 
               <!-- Soul tab -->
               <div x-show="saFormTab==='soul'">
-                <label class="block text-xs font-700 text-slate-500 uppercase tracking-wide mb-2">System Prompt (soul.md)</label>
+                <label class="block text-xs font-700 text-slate-500 uppercase tracking-wide mb-2">Personalidade do Sub-agente</label>
                 <p class="text-[11px] text-slate-400 mb-3">Instrua o sub-agente sobre seu papel e limitações. Seja direto e conciso.</p>
                 <textarea x-model="saForm.soul" rows="16" placeholder="Você é um especialista em..." class="code-editor w-full px-3.5 py-3 text-sm border border-surface-border rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300 resize-none"></textarea>
               </div>
@@ -1578,31 +1635,36 @@
             <table class="w-full text-sm">
               <thead>
                 <tr class="bg-slate-50 border-b border-surface-border">
-                  <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Expressão</th>
-                  <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Comando</th>
+                  <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Tarefa</th>
+                  <th class="text-left px-5 py-3 text-xs font-700 text-slate-500 uppercase tracking-wide">Script</th>
                   <th class="px-5 py-3"></th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-surface-border">
                 <template x-if="crontabLines.length === 0">
                   <tr>
-                    <td colspan="3" class="px-5 py-8 text-center text-sm text-slate-400">Nenhuma entrada no crontab</td>
+                    <td colspan="3" class="px-5 py-8 text-center text-sm text-slate-400">Nenhuma tarefa agendada</td>
                   </tr>
                 </template>
                 <template x-for="(line, idx) in crontabLines" :key="idx">
                   <tr class="hover:bg-slate-50 transition-colors">
-                    <td class="px-5 py-3.5 font-mono text-xs text-slate-700" x-text="line.split(/\s+/).slice(0,5).join(' ')"></td>
-                    <td class="px-5 py-3.5 font-mono text-xs text-slate-500 break-all" x-text="line.split(/\s+/).slice(5).join(' ')"></td>
+                    <td class="px-5 py-3.5">
+                      <p class="text-sm font-600 text-slate-800" x-text="cronLabel(line)"></p>
+                      <p class="text-xs text-slate-400 mt-0.5" x-text="cronSchedule(line)"></p>
+                    </td>
+                    <td class="px-5 py-3.5">
+                      <span class="font-mono text-xs text-slate-400" x-text="cronScriptName(line)"></span>
+                    </td>
                     <td class="px-5 py-3.5 text-right">
                       <template x-if="isSystemCronLine(line)">
-                        <span class="inline-flex items-center gap-1 text-xs font-600 text-slate-400 border border-slate-200 px-2.5 py-1.5 rounded-lg" title="Entrada de sistema — não pode ser removida">
+                        <span class="inline-flex items-center gap-1 text-xs font-600 text-slate-400 border border-slate-200 px-2.5 py-1.5 rounded-lg">
                           <i data-lucide="lock" class="w-3 h-3 flex-shrink-0"></i>Sistema
                         </span>
                       </template>
                       <template x-if="!isSystemCronLine(line)">
                         <button @click="deleteCronEntry(idx)"
                           class="text-xs font-600 text-danger hover:bg-danger/10 border border-danger/20 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1">
-                          <i data-lucide="trash-2" class="w-3 h-3 flex-shrink-0"></i>Deletar
+                          <i data-lucide="trash-2" class="w-3 h-3 flex-shrink-0"></i>Remover
                         </button>
                       </template>
                     </td>
@@ -1614,16 +1676,17 @@
 
           <!-- Formulário de adição -->
           <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
-            <h3 class="text-sm font-700 text-slate-900 mb-4">Adicionar Entrada</h3>
+            <h3 class="text-sm font-700 text-slate-900 mb-1">Nova Tarefa Agendada</h3>
+            <p class="text-xs text-slate-400 mb-4">Use a expressão cron para definir o horário e informe o caminho completo do script.</p>
             <div class="grid grid-cols-[220px_1fr_auto] gap-3 items-end">
               <div>
-                <label class="block text-xs font-600 text-slate-600 mb-1.5">Expressão Cron</label>
+                <label class="block text-xs font-700 text-slate-700 mb-1.5">Horário <span class="font-400 text-slate-400 normal-case">(expressão cron)</span></label>
                 <input x-model="newCronEntry.schedule" type="text" placeholder="50 23 * * *"
                   class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
               </div>
               <div>
-                <label class="block text-xs font-600 text-slate-600 mb-1.5">Comando</label>
-                <input x-model="newCronEntry.command" type="text" placeholder="/caminho/para/script.sh"
+                <label class="block text-xs font-700 text-slate-700 mb-1.5">Script a executar</label>
+                <input x-model="newCronEntry.command" type="text" placeholder="/caminho/para/script.sh # descrição"
                   class="w-full border border-surface-border rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-white"/>
               </div>
               <button @click="addCronEntry()"
@@ -2076,9 +2139,9 @@
                   <span class="text-xs text-slate-400 font-500" x-text="'· ' + botDetail.uptime"></span>
                 </template>
                 <span class="text-slate-300 text-xs">·</span>
-                <span x-text="botDetail?.provider" class="text-xs text-slate-400 font-500"></span>
+                <span x-text="providerLabel(botDetail?.provider)" class="text-xs text-slate-400 font-500"></span>
                 <span class="text-slate-300 text-xs">·</span>
-                <span x-text="botDetail?.model" class="text-xs text-slate-400 font-500 max-w-[200px] truncate"></span>
+                <span x-text="modelLabel(botDetail?.model)" class="text-xs text-slate-400 font-500 max-w-[200px] truncate"></span>
               </div>
             </div>
           </div>
@@ -2162,8 +2225,8 @@
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         <span x-text="botDetail?.uptime"></span>
                       </span>
-                      <span class="text-xs text-slate-400 font-600 bg-slate-100 px-2.5 py-1 rounded-full" x-text="botDetail?.provider || ''"></span>
-                      <span class="text-xs text-slate-400 font-500 bg-slate-100 px-2.5 py-1 rounded-full max-w-[200px] truncate" x-text="botDetail?.model || ''"></span>
+                      <span class="text-xs text-slate-400 font-600 bg-slate-100 px-2.5 py-1 rounded-full" x-text="providerLabel(botDetail?.provider)"></span>
+                      <span class="text-xs text-slate-400 font-500 bg-slate-100 px-2.5 py-1 rounded-full max-w-[200px] truncate" x-text="modelLabel(botDetail?.model)"></span>
                     </div>
                   </div>
                 </div>
@@ -2183,11 +2246,11 @@
                 <div class="space-y-2.5">
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-slate-500">Provedor</span>
-                    <span class="text-xs font-600 text-slate-800 bg-zinc-100 px-2 py-0.5 rounded-lg" x-text="botDetail?.provider || '—'"></span>
+                    <span class="text-xs font-600 text-slate-800 bg-zinc-100 px-2 py-0.5 rounded-lg" x-text="providerLabel(botDetail?.provider) || '—'"></span>
                   </div>
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-slate-500">Modelo</span>
-                    <span class="text-xs font-600 text-slate-800 bg-zinc-100 px-2 py-0.5 rounded-lg font-mono max-w-[180px] truncate" x-text="botDetail?.model || '—'"></span>
+                    <span class="text-xs font-600 text-slate-800 bg-zinc-100 px-2 py-0.5 rounded-lg max-w-[180px] truncate" x-text="modelLabel(botDetail?.model) || '—'"></span>
                   </div>
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-slate-500">Acesso</span>
@@ -2242,17 +2305,20 @@
                 <p class="text-[10px] font-700 text-zinc-400 uppercase tracking-widest mb-3">Ferramentas ativas</p>
                 <div x-show="botDetail?.tools && botDetail.tools.length > 0" class="flex flex-wrap gap-1.5">
                   <template x-for="t in botDetail?.tools || []" :key="t">
-                    <span class="text-[11px] font-600 px-2.5 py-1 rounded-lg bg-zinc-900 text-white" x-text="t"></span>
+                    <span class="inline-flex items-center gap-1 text-[11px] font-600 px-2.5 py-1 rounded-lg bg-zinc-900 text-white">
+                      <span x-text="toolIcon(t)"></span>
+                      <span x-text="toolLabel(t)"></span>
+                    </span>
                   </template>
                   <!-- Sempre ativas -->
-                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">memória</span>
-                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">tarefas</span>
-                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">schedule</span>
+                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">🧠 Memória</span>
+                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">✅ Tarefas</span>
+                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">⏰ Agendamentos</span>
                 </div>
                 <div x-show="!botDetail?.tools || botDetail.tools.length === 0" class="flex flex-wrap gap-1.5">
-                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">memória</span>
-                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">tarefas</span>
-                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">schedule</span>
+                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">🧠 Memória</span>
+                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">✅ Tarefas</span>
+                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">⏰ Agendamentos</span>
                   <p class="w-full text-[10px] text-slate-400 mt-1">Nenhuma ferramenta extra ativa. Configure na aba Configuração.</p>
                 </div>
               </div>
@@ -2376,11 +2442,6 @@
                   </div>
                 </div>
 
-              </div>
-
-              <!-- Coluna direita: Acesso + Ferramentas -->
-              <div class="space-y-4">
-
                 <!-- Acesso e Comportamento -->
                 <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
                   <div class="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
@@ -2415,6 +2476,11 @@
                   </div>
                 </div>
 
+              </div>
+
+              <!-- Coluna direita: apenas Ferramentas -->
+              <div>
+
                 <!-- Ferramentas -->
                 <div class="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">
                   <div class="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
@@ -2428,13 +2494,30 @@
                   </div>
                   <div class="px-5 py-4 grid grid-cols-3 gap-2.5">
                     <template x-for="tool in toolOptions" :key="tool.key">
-                      <label class="flex flex-col gap-1.5 cursor-pointer p-3 rounded-xl border-2 transition-all"
-                        :class="configForm.TOOLS_ARRAY.includes(tool.key) ? 'bg-brand/5 border-brand/30 shadow-sm' : 'border-surface-border hover:border-slate-300 hover:bg-slate-50/80'">
-                        <div class="flex items-center justify-between">
-                          <span class="text-slate-800 font-700 text-xs" x-text="tool.label"></span>
-                          <input type="checkbox" :value="tool.key" x-model="configForm.TOOLS_ARRAY" @change="if(configForm.TOOLS_ARRAY.includes(tool.key)) promptToolCredential(tool.key, currentBot)" class="rounded text-brand w-3.5 h-3.5 cursor-pointer flex-shrink-0" />
+                      <label class="cursor-pointer rounded-xl border-2 transition-all block overflow-hidden select-none"
+                        :class="configForm.TOOLS_ARRAY.includes(tool.key) ? 'border-brand/30 bg-brand/[0.03] shadow-sm' : 'border-surface-border hover:border-slate-300 hover:bg-slate-50/60'">
+                        <input type="checkbox" hidden :value="tool.key" x-model="configForm.TOOLS_ARRAY" @change="if(configForm.TOOLS_ARRAY.includes(tool.key)) promptToolCredential(tool.key, currentBot)" />
+                        <div class="p-3.5 flex flex-col h-full">
+                          <!-- Ícone + toggle -->
+                          <div class="flex items-start justify-between mb-3">
+                            <div class="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 transition-colors"
+                              :class="configForm.TOOLS_ARRAY.includes(tool.key) ? 'bg-brand/10' : 'bg-slate-100'">
+                              <span x-text="tool.icon"></span>
+                            </div>
+                            <div class="w-8 h-[18px] rounded-full flex-shrink-0 transition-colors relative mt-0.5"
+                              :class="configForm.TOOLS_ARRAY.includes(tool.key) ? 'bg-brand' : 'bg-slate-200'">
+                              <div class="absolute top-[2px] w-[14px] h-[14px] bg-white rounded-full shadow-sm transition-all"
+                                :class="configForm.TOOLS_ARRAY.includes(tool.key) ? 'left-[18px]' : 'left-[2px]'"></div>
+                            </div>
+                          </div>
+                          <!-- Nome + descrição -->
+                          <span class="font-700 text-sm text-slate-900 block leading-snug mb-1.5" x-text="tool.label"></span>
+                          <span class="text-xs text-slate-600 leading-snug block" x-text="tool.desc"></span>
+                          <!-- Exemplo -->
+                          <div x-show="tool.example" class="mt-3 pt-2.5 border-t border-slate-100">
+                            <span class="text-[11px] text-slate-500 italic leading-snug" x-text="'💡 ' + (tool.example || '')"></span>
+                          </div>
                         </div>
-                        <span class="text-slate-400 font-400 text-[10px] leading-snug" x-text="tool.desc"></span>
                       </label>
                     </template>
                   </div>
@@ -2547,8 +2630,8 @@
               <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
                 <div class="flex items-center justify-between mb-4">
                   <div>
-                    <h3 class="font-700 text-slate-900 text-sm">soul.md</h3>
-                    <p class="text-xs text-slate-400 mt-0.5">Personalidade e instruções do agente</p>
+                    <h3 class="font-700 text-slate-900 text-sm">Personalidade</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Defina o comportamento, tom de voz e instruções do agente</p>
                   </div>
                   <div class="flex gap-2">
                     <button @click="personaPreview=!personaPreview"
@@ -2571,51 +2654,37 @@
                   x-html="marked.parse(personaContent||'')"></div>
               </div>
 
-              <!-- Welcome Message -->
-              <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card" x-init="$watch('activeTab', v => { if(v==='persona' && !welcomeLoaded) loadWelcome() })">
-                <div class="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 class="font-700 text-slate-900 text-sm">Mensagem de Boas-vindas</h3>
-                    <p class="text-xs text-slate-400 mt-0.5">Mensagem enviada no /start (welcome.md) — Placeholders: {user_name}, {bot_name}, {tools}</p>
-                  </div>
-                  <button @click="saveFile('welcome.md', welcomeContent)"
-                    class="btn-primary text-xs font-600 bg-brand text-white px-3.5 py-2 rounded-xl hover:bg-brand-hover cursor-pointer flex items-center gap-1.5">
-                    <i data-lucide="save" class="w-3.5 h-3.5 flex-shrink-0"></i>Salvar
-                  </button>
-                </div>
-                <textarea class="code-editor w-full border border-surface-border rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-brand bg-slate-50/50"
-                  rows="6" x-model="welcomeContent" placeholder="Olá, {user_name}! Sou o *{bot_name}*..."></textarea>
-              </div>
             </div>
           </div>
 
           <!-- Memory -->
           <div x-show="activeTab==='memory'" x-cloak>
-            <div>
-              <!-- Descrições dos arquivos -->
-              <div class="grid grid-cols-2 gap-3 mb-4">
-                <div class="bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3">
-                  <p class="text-[11px] font-700 text-zinc-700 mb-0.5">MEMORY.md</p>
-                  <p class="text-[11px] text-zinc-500 leading-relaxed">Memória de longo prazo destilada pelo agente. Registra fatos importantes sobre o usuário, preferências e decisões passadas. É lida a cada mensagem para manter contexto entre sessões.</p>
-                </div>
-                <div class="bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3">
-                  <p class="text-[11px] font-700 text-zinc-700 mb-0.5">USER.md</p>
-                  <p class="text-[11px] text-zinc-500 leading-relaxed">Perfil manual do usuário: cargo, objetivos, estilo de comunicação e preferências. Editado por você para personalizar como o agente deve tratar e responder ao usuário.</p>
-                </div>
-              </div>
-              <div class="flex gap-2 mb-4">
-                <template x-for="mf in ['MEMORY.md','USER.md']" :key="mf">
-                  <button @click="switchMemoryFile(mf)"
-                    :class="activeMemoryFile===mf ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-slate-600 border border-surface-border hover:bg-slate-50'"
-                    class="px-4 py-2 text-xs font-600 rounded-xl transition cursor-pointer" x-text="mf">
-                  </button>
-                </template>
+            <div class="space-y-5">
+              <div class="flex gap-2">
+                <button @click="switchMemoryFile('MEMORY.md')"
+                  :class="activeMemoryFile==='MEMORY.md' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-slate-600 border border-surface-border hover:bg-slate-50'"
+                  class="px-4 py-2 text-xs font-600 rounded-xl transition cursor-pointer">
+                  Memória
+                </button>
+                <button @click="switchMemoryFile('USER.md')"
+                  :class="activeMemoryFile==='USER.md' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-slate-600 border border-surface-border hover:bg-slate-50'"
+                  class="px-4 py-2 text-xs font-600 rounded-xl transition cursor-pointer">
+                  Perfil do Usuário
+                </button>
               </div>
               <div class="bg-white rounded-2xl border border-surface-border p-5 shadow-card">
                 <div class="flex items-center justify-between mb-4">
-                  <h3 class="font-700 text-slate-900 text-sm" x-text="activeMemoryFile"></h3>
+                  <div>
+                    <h3 class="font-700 text-slate-900 text-sm"
+                      x-text="activeMemoryFile === 'MEMORY.md' ? 'Memória' : 'Perfil do Usuário'"></h3>
+                    <p class="text-xs text-slate-400 mt-0.5"
+                      x-text="activeMemoryFile === 'MEMORY.md'
+                        ? 'Memória de longo prazo destilada pelo agente. Registra fatos importantes, preferências e decisões passadas.'
+                        : 'Perfil do usuário: cargo, objetivos, estilo de comunicação e preferências. Edite para personalizar como o agente responde.'">
+                    </p>
+                  </div>
                   <button @click="saveFile(activeMemoryFile, memoryContent)"
-                    class="btn-primary text-xs font-600 bg-zinc-900 text-white px-3.5 py-2 rounded-xl hover:bg-zinc-700 cursor-pointer flex items-center gap-1.5">
+                    class="btn-primary text-xs font-600 bg-zinc-900 text-white px-3.5 py-2 rounded-xl hover:bg-zinc-700 cursor-pointer flex items-center gap-1.5 flex-shrink-0 ml-4">
                     <i data-lucide="save" class="w-3.5 h-3.5 flex-shrink-0"></i>Salvar
                   </button>
                 </div>
@@ -3032,6 +3101,25 @@ const TOOL_REQUIRED_SECRETS = {
     { key:'GIT_EMAIL', label:'Email Git', hint:'', password:false },
   ],
   'database': [{ key:'DB_URL', label:'URL de conexão', hint:'postgresql://user:pass@host:5432/db', password:true }],
+  'tavily':   [{ key:'TAVILY_API_KEY', label:'API Key', hint:'Gerada em app.tavily.com → Dashboard → API Keys', password:true }],
+};
+
+const TOOL_INSTRUCTIONS = {
+  'tavily': {
+    title: 'Ativar acesso à Internet',
+    steps: [
+      { icon: '🌐', text: 'Acesse <strong>app.tavily.com</strong> e crie uma conta gratuita' },
+      { icon: '🔑', text: 'No Dashboard, vá em <strong>API Keys</strong> e copie sua chave' },
+      { icon: '📋', text: 'Cole a chave abaixo e salve — pronto, o agente já navega na web' },
+    ],
+    benefits: [
+      'Pesquisa inteligente por tema ("me acha notícias sobre X")',
+      'Lê páginas com JavaScript (React, Vue, SPAs) que o HTTP normal não consegue',
+      'Retorna conteúdo limpo, sem HTML bruto',
+      'Resposta direta sintetizada com fontes incluídas',
+      '1.000 buscas/mês grátis no plano Free',
+    ],
+  },
 };
 
 const MODELS_BY_PROVIDER = {
@@ -3093,7 +3181,7 @@ function adminApp() {
     globalConfigSubTab: 'behavior',
     configSubTab: 'settings',
     botSecretsRaw: '', botSecrets: [], newBotSecret: {key:'', value:''},
-    credentialModal: { show:false, toolLabel:'', secrets:[], botName:'' },
+    credentialModal: { show:false, toolLabel:'', secrets:[], botName:'', instructions:null },
     showToken: false,
     currentModelOptions: MODELS_BY_PROVIDER['claude-cli'],
     personaContent: '', personaPreview: false,
@@ -3139,15 +3227,42 @@ function adminApp() {
     setupTesting: false, setupTestResult: null,
     setupSaving: false,
     toolOptions: [
-      {key:'shell',    label:'Terminal',         desc:'Executar comandos no servidor'},
-      {key:'cron',     label:'Cron Jobs',        desc:'Tarefas agendadas do sistema'},
-      {key:'files',    label:'Arquivos',         desc:'Ler e escrever arquivos'},
-      {key:'http',     label:'Requisições HTTP', desc:'Acessar APIs externas'},
-      {key:'git',      label:'Git',              desc:'Controle de versão'},
-      {key:'github',   label:'GitHub',           desc:'Issues, PRs e code reviews'},
-      {key:'notion',   label:'Notion',           desc:'Buscar, ler e criar páginas e databases'},
-      {key:'database', label:'Banco de Dados',   desc:'Consultas SQL'},
+      {key:'shell',    icon:'🖥️',  label:'Terminal',       desc:'Executar comandos e scripts no servidor',                       example:'instalar pacotes, verificar logs, rodar scripts'},
+      {key:'cron',     icon:'⏰',  label:'Agendador',      desc:'Criar tarefas automáticas em horários fixos',                   example:'enviar relatório toda segunda, fazer backup diário'},
+      {key:'files',    icon:'📁',  label:'Arquivos',       desc:'Ler, criar e enviar arquivos diretamente no chat',              example:'gerar planilha, salvar relatório, ler um log'},
+      {key:'http',     icon:'🔌',  label:'APIs Externas',  desc:'Conectar a qualquer serviço web ou API externa',               example:'consultar preços, acionar webhooks, integrar sistemas'},
+      {key:'git',      icon:'🌿',  label:'Git',            desc:'Clonar repositórios, commitar e enviar código',                example:'fazer deploy, atualizar código, criar branch'},
+      {key:'github',   icon:'🐙',  label:'GitHub',         desc:'Gerenciar issues, pull requests e revisões de código',         example:'abrir PR, comentar em issue, checar CI/CD'},
+      {key:'notion',   icon:'📝',  label:'Notion',         desc:'Ler, criar e atualizar páginas e databases no Notion',         example:'criar tarefa, atualizar registro, buscar documento'},
+      {key:'database', icon:'🗄️', label:'Banco de Dados', desc:'Consultar e gravar dados no banco da sua aplicação',           example:'listar clientes, verificar pedidos, gerar relatório'},
+      {key:'tavily',   icon:'🌐',  label:'Internet',       desc:'Pesquisar na web e ler qualquer página, mesmo com JavaScript', example:'buscar notícias, pesquisar produtos, ler artigo'},
     ],
+
+    providerLabel(p) {
+      return {'claude-cli':'Anthropic (OAuth)','anthropic':'Anthropic (API Key)','openrouter':'OpenRouter','codex':'OpenAI (Codex)'}[p] || p;
+    },
+    modelLabel(m) {
+      return (m || '')
+        .replace('claude-opus-4-6','Opus 4.6')
+        .replace('claude-sonnet-4-6','Sonnet 4.6')
+        .replace('claude-haiku-4-5-20251001','Haiku 4.5')
+        .replace('claude-haiku-4-5','Haiku 4.5')
+        .replace('claude-3-5-sonnet','Sonnet 3.5')
+        .replace('claude-3-5-haiku','Haiku 3.5')
+        .replace('claude-3-opus','Opus 3')
+        .replace('gpt-5.4','GPT-5.4')
+        .replace('gpt-5.3-codex','GPT-5.3 Codex')
+        .replace('gpt-5.2','GPT-5.2')
+        .replace('gpt-5.1','GPT-5.1')
+        .replace('gpt-4o','GPT-4o')
+        .replace('gpt-4-turbo','GPT-4 Turbo');
+    },
+    toolLabel(key) {
+      return (this.toolOptions.find(t => t.key === key) || {label: key}).label;
+    },
+    toolIcon(key) {
+      return (this.toolOptions.find(t => t.key === key) || {icon: '🔧'}).icon;
+    },
 
     slugify(str) {
       return (str || '').toLowerCase()
@@ -3261,6 +3376,7 @@ function adminApp() {
         toolLabel: tool?.label || toolKey,
         secrets: missing.map(s => ({ ...s, value:'' })),
         botName,
+        instructions: TOOL_INSTRUCTIONS[toolKey] || null,
       };
       // Retorna promise que resolve quando o modal fecha
       return new Promise(resolve => {
@@ -3573,7 +3689,41 @@ function adminApp() {
     },
 
     isSystemCronLine(line) {
-      return line.includes('# [system]') || line.includes('# smb-');
+      if (line.includes('# [system]') || line.includes('# smb-')) return true;
+      const systemScripts = ['memory-autosave.sh','memory-cleanup.sh','check-update.sh','behavior-extract.sh','bugfixer.py'];
+      return systemScripts.some(s => line.includes(s));
+    },
+
+    cronLabel(line) {
+      const m = line.match(/#\s*(.+)$/);
+      if (m) return m[1].trim().replace(/^./, c => c.toUpperCase());
+      return this.cronScriptName(line);
+    },
+
+    cronScriptName(line) {
+      const cmd = line.trim().split(/\s+/).slice(5).join(' ').split(/\s*>>/)[0].trim();
+      const m = cmd.match(/([^\/\s]+\.(?:sh|py|js|rb|php))(?:\s|$)/);
+      return m ? m[1] : cmd.split(/\s+/).slice(-1)[0] || cmd;
+    },
+
+    cronSchedule(line) {
+      const p = line.trim().split(/\s+/);
+      if (p.length < 5) return line;
+      const [min, hour, dom, , dow] = p;
+      const DAY = {'0':'Dom','1':'Seg','2':'Ter','3':'Qua','4':'Qui','5':'Sex','6':'Sáb','7':'Dom'};
+      const fmtH = (h, m) => {
+        if (h.includes(',')) return h.split(',').map(x => x.padStart(2,'0')+'h').join(', ');
+        if (h === '*') return 'toda hora';
+        return h.padStart(2,'0') + ':' + m.padStart(2,'0');
+      };
+      const t = fmtH(hour, min);
+      if (dow !== '*' && dom === '*') {
+        if (dow.includes('-')) { const [a,b] = dow.split('-'); return `${DAY[a]||a}–${DAY[b]||b}, às ${t}`; }
+        if (dow.includes(',')) return dow.split(',').map(d => DAY[d]||d).join(', ') + `, às ${t}`;
+        return `Toda ${DAY[dow]||dow}, às ${t}`;
+      }
+      if (dom !== '*') return `Dia ${dom} do mês, às ${t}`;
+      return `Todo dia, às ${t}`;
     },
 
     parseGlobalEnv() {
