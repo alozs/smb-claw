@@ -1788,7 +1788,31 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     elif action == "menu_update" and is_admin(user_id):
         await query.answer()
-        await cmd_update(update, context)
+        await reply("📥 Verificando atualizações...")
+        import subprocess as _sp
+        try:
+            _sp.run(["git", "-C", str(BASE_DIR), "fetch", "origin", "main"],
+                    capture_output=True, timeout=15)
+            behind = _sp.run(
+                ["git", "-C", str(BASE_DIR), "rev-list", "HEAD..origin/main", "--count"],
+                capture_output=True, text=True, timeout=10
+            ).stdout.strip()
+            if not behind or int(behind) == 0:
+                await reply("✅ Já está na versão mais recente.")
+                return
+            log = _sp.run(
+                ["git", "-C", str(BASE_DIR), "log", "--pretty=format:- %s", "HEAD..origin/main"],
+                capture_output=True, text=True, timeout=10
+            ).stdout.strip()
+            await reply(f"🔄 Atualizando {behind} commit(s)...\n\n{log[:3000]}")
+            _sp.Popen(
+                [str(BASE_DIR / "update.sh"), "--notify"],
+                cwd=str(BASE_DIR),
+                stdout=open(str(BASE_DIR / "logs" / "update.log"), "a"),
+                stderr=open(str(BASE_DIR / "logs" / "update.log"), "a"),
+            )
+        except Exception as e:
+            await reply(f"❌ Erro: {e}")
 
     else:
         await reply("⚠️ Ação não reconhecida ou sem permissão.")

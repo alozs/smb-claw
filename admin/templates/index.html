@@ -2310,16 +2310,9 @@
                       <span x-text="toolLabel(t)"></span>
                     </span>
                   </template>
-                  <!-- Sempre ativas -->
-                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">🧠 Memória</span>
-                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">✅ Tarefas</span>
-                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">⏰ Agendamentos</span>
                 </div>
                 <div x-show="!botDetail?.tools || botDetail.tools.length === 0" class="flex flex-wrap gap-1.5">
-                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">🧠 Memória</span>
-                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">✅ Tarefas</span>
-                  <span class="text-[11px] font-500 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-500">⏰ Agendamentos</span>
-                  <p class="w-full text-[10px] text-slate-400 mt-1">Nenhuma ferramenta extra ativa. Configure na aba Configuração.</p>
+                  <p class="w-full text-[10px] text-slate-400">Nenhuma ferramenta extra ativa. Configure na aba Configuração.</p>
                 </div>
               </div>
 
@@ -2490,7 +2483,6 @@
                       </div>
                       <h3 class="text-sm font-700 text-slate-800">Ferramentas</h3>
                     </div>
-                    <span class="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">memory · tasks · schedule sempre ativas</span>
                   </div>
                   <div class="px-5 py-4 grid grid-cols-3 gap-2.5">
                     <template x-for="tool in toolOptions" :key="tool.key">
