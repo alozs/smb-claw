@@ -127,8 +127,8 @@ if db_path.exists():
     try:
         rows = conn.execute(
             "SELECT user_id, messages, archived_at FROM sessions_archive "
-            "WHERE bot_name = ? AND date(archived_at) = ? ORDER BY archived_at ASC",
-            (bot_name, today)
+            "WHERE date(archived_at) = ? ORDER BY archived_at ASC",
+            (today,)
         ).fetchall()
         for row in rows:
             msgs = json.loads(row["messages"])
