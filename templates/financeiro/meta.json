@@ -1,0 +1,10 @@
+{
+  "id": "financeiro",
+  "name": "Agente Financeiro",
+  "icon": "💰",
+  "description": "Controle financeiro e relatórios",
+  "highlights": ["Controle de gastos e receitas", "Relatórios e resumos", "Análise de metas financeiras"],
+  "tools": ["files", "http"],
+  "model": "claude-sonnet-4-6",
+  "provider": "claude-cli"
+}

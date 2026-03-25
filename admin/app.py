@@ -26,6 +26,7 @@ from typing import Optional
 BASE_DIR = Path(__file__).resolve().parent.parent
 BOTS_DIR = BASE_DIR / "bots"
 SUBAGENTS_DIR = BASE_DIR / "subagents"
+TEMPLATES_DIR = BASE_DIR / "templates"
 
 IN_DOCKER = Path("/.dockerenv").exists() or bool(os.environ.get("IN_DOCKER"))
 
@@ -407,6 +408,24 @@ async def index(request: Request):
 
 # ── Routes: Bots ──────────────────────────────────────────────────────────────
 
+@app.get("/api/templates")
+async def list_templates():
+    templates = []
+    if TEMPLATES_DIR.exists():
+        for d in sorted(TEMPLATES_DIR.iterdir()):
+            if d.is_dir() and (d / "meta.json").exists():
+                try:
+                    meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    continue
+                soul = ""
+                soul_path = d / "soul.md"
+                if soul_path.exists():
+                    soul = soul_path.read_text(encoding="utf-8")
+                templates.append({**meta, "soul": soul})
+    return templates
+
+
 @app.get("/api/bots")
 async def list_bots():
     bots = []
@@ -475,6 +494,7 @@ class CreateBotRequest(BaseModel):
     provider: Optional[str] = "claude-cli"
     tools: Optional[list] = []
     telegram_token: Optional[str] = ""
+    soul: Optional[str] = ""
 
 
 @app.post("/api/bots")
@@ -512,6 +532,10 @@ async def create_bot(req: CreateBotRequest):
         patches["DESCRIPTION"] = req.description
     if patches:
         write_env(env_path, patches)
+
+    if req.soul and req.soul.strip():
+        soul_path = BOTS_DIR / req.name / "soul.md"
+        soul_path.write_text(req.soul.strip() + "\n", encoding="utf-8")
 
     return get_bot_summary(req.name)
 

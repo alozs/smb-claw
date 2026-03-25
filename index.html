@@ -591,10 +591,24 @@
   <!-- Novidades — movido para antes do CTA final -->
   <section id="changelog" class="changelog container">
     <h2 style="text-align: center; font-size: 2.25rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 48px; color: var(--white);">
-      Novidades <!-- CHANGELOG_VERSION -->v0.10.0<!-- /CHANGELOG_VERSION --> <span class="cl-badge">Novo</span>
+      Novidades <!-- CHANGELOG_VERSION -->v0.12.0<!-- /CHANGELOG_VERSION --> <span class="cl-badge">Novo</span>
     </h2>
     <!-- CHANGELOG_START -->
                 <div class="cl-entry">
+          <div class="cl-header">
+            <span class="cl-version">v0.12.0</span>
+            <span class="cl-date">2026-03-24</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>**Correções**</li>
+              <li>O wizard de criação de agentes agora exibe corretamente todas as etapas em telas menores, com scroll vertical funcional e sem corte de conteúdo nos passos mais longos.</li>
+              <li>O painel admin passou a refletir com precisão as ferramentas realmente configuradas por bot, removendo a exibição incorreta de ferramentas sempre ativas que não faziam parte da configuração individual.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
           <div class="cl-header">
             <span class="cl-version">v0.10.0</span>
             <span class="cl-date">2026-03-23</span>
@@ -630,18 +644,6 @@
             <p><strong>Melhorias</strong></p>
             <ul>
               <li>185 testes automatizados cobrindo guardrails, detecção de injection, configuração e analytics.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.8.0</span>
-            <span class="cl-date">2026-03-20</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Novas funcionalidades</strong></p>
-            <ul>
-              <li><strong style="color: var(--zinc-100);">Debounce de mensagens:</strong> mensagens enviadas em rápida sucessão são consolidadas numa única requisição ao LLM, reduzindo chamadas desnecessárias à API. Intervalo configurável via <code>DEBOUNCE_SECONDS</code>.</li>
             </ul>
           </div>
         </div>

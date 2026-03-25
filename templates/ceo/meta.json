@@ -1,0 +1,10 @@
+{
+  "id": "ceo",
+  "name": "Agente CEO",
+  "icon": "👔",
+  "description": "Estratégia, decisões e análise executiva",
+  "highlights": ["Análise de cenários e riscos", "Resumos executivos", "Priorização de iniciativas"],
+  "tools": ["http", "files"],
+  "model": "claude-opus-4-6",
+  "provider": "claude-cli"
+}

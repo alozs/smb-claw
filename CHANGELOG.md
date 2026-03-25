@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0 (2026-03-24)
+
+**Correções**
+
+• O wizard de criação de agentes agora exibe corretamente todas as etapas em telas menores, com scroll vertical funcional e sem corte de conteúdo nos passos mais longos.
+• O painel admin passou a refletir com precisão as ferramentas realmente configuradas por bot, removendo a exibição incorreta de ferramentas sempre ativas que não faziam parte da configuração individual.
+
 ## 0.11.1 (2026-03-24)
 
 • Melhorias internas e correções de estabilidade.

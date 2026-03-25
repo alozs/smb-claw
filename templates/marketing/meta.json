@@ -1,0 +1,10 @@
+{
+  "id": "marketing",
+  "name": "Agente de Marketing",
+  "icon": "📣",
+  "description": "Copy, campanhas e análise de mercado",
+  "highlights": ["Criação de copy e textos", "Sugestões de campanha", "Análise de concorrência"],
+  "tools": ["http", "files"],
+  "model": "claude-sonnet-4-6",
+  "provider": "claude-cli"
+}

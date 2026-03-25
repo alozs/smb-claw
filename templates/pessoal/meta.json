@@ -1,0 +1,10 @@
+{
+  "id": "pessoal",
+  "name": "Assistente Pessoal",
+  "icon": "🧑",
+  "description": "Organização, tarefas e dia a dia",
+  "highlights": ["Lista de tarefas e lembretes", "Planejamento da rotina", "Respostas rápidas e objetivas"],
+  "tools": ["files"],
+  "model": "claude-sonnet-4-6",
+  "provider": "claude-cli"
+}
