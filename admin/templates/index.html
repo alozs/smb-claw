@@ -1123,7 +1123,7 @@
             <div class="flex items-center gap-4 md:gap-6 mb-2">
               <img src="/static/logo2.png" alt="SMB Claw" class="h-14 md:h-20 w-auto object-contain flex-shrink-0">
               <div class="h-10 md:h-12 w-px bg-outline-variant/30"></div>
-              <h1 class="text-2xl md:text-4xl font-extrabold font-headline tracking-tight text-onsurface">Dashboard</h1>
+              <h1 class="text-2xl md:text-4xl font-extrabold font-headline tracking-tight text-onsurface">Dashboard de agentes</h1>
             </div>
           </div>
 
@@ -1182,13 +1182,7 @@
                   <div class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-4 border-white"
                     :class="bot.active ? 'bg-accent' : 'bg-slate-300'"></div>
                 </div>
-                <!-- Msgs badge -->
-                <div class="flex-shrink-0 text-right" x-show="bot.msgs_today > 0">
-                  <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-brand/10 text-brand font-label">
-                    <span x-text="bot.msgs_today"></span> msgs
-                  </span>
                 </div>
-              </div>
 
               <!-- Name + Description -->
               <div>
