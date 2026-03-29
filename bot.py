@@ -1574,36 +1574,28 @@ def _build_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     """Monta o teclado inline do /menu conforme perfil do usuário."""
     user_rows = [
         [
-            InlineKeyboardButton("📋 Tarefas / Agendamentos", callback_data="menu_tasks"),
             InlineKeyboardButton("🆕 Nova conversa", callback_data="menu_clear"),
+            InlineKeyboardButton("ℹ️ Sobre o bot",   callback_data="menu_info"),
         ],
         [
-            InlineKeyboardButton("ℹ️ Sobre o bot",      callback_data="menu_info"),
             InlineKeyboardButton("🆔 Meu ID",           callback_data="menu_id"),
+            InlineKeyboardButton("🤔 Raciocínio",       callback_data="menu_thinking"),
         ],
         [
-            InlineKeyboardButton("🤔 Raciocínio",       callback_data="menu_thinking"),
             InlineKeyboardButton("❌ Cancelar operação", callback_data="menu_cancel"),
         ],
     ]
     admin_rows = [
         [
-            InlineKeyboardButton("📊 Stats",      callback_data="menu_stats"),
-            InlineKeyboardButton("🧠 Memória",    callback_data="menu_memory"),
-        ],
-        [
             InlineKeyboardButton("👥 Usuários",   callback_data="menu_users"),
             InlineKeyboardButton("⏳ Pendentes",  callback_data="menu_pending"),
         ],
         [
-            InlineKeyboardButton("🔍 Trace",      callback_data="menu_trace"),
-            InlineKeyboardButton("⚙️ Config",     callback_data="menu_config"),
-        ],
-        [
-            InlineKeyboardButton("🔄 Reiniciar agente", callback_data="menu_restart"),
+            InlineKeyboardButton("⚙️ Config",           callback_data="menu_config"),
             InlineKeyboardButton("🔗 Painel Admin",     callback_data="menu_painel"),
         ],
         [
+            InlineKeyboardButton("🔄 Reiniciar agente",  callback_data="menu_restart"),
             InlineKeyboardButton("⬆️ Atualizar sistema", callback_data="menu_update"),
         ],
     ]
@@ -1638,10 +1630,7 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     async def reply(text, **kwargs):
         await context.bot.send_message(chat_id=chat_id, text=text, **kwargs)
 
-    if action == "menu_tasks":
-        await reply(_build_tasks_and_schedules(user_id), parse_mode="HTML")
-
-    elif action == "menu_clear":
+    if action == "menu_clear":
         user_lock = await _get_user_lock(user_id)
         async with user_lock:
             if conversations.get(user_id):
@@ -1680,33 +1669,6 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         else:
             await reply("✅ Nenhuma operação em andamento.")
 
-    elif action == "menu_stats" and is_admin(user_id):
-        s = db.get_summary(1)
-        await reply(
-            f"📊 *Analytics — {BOT_NAME}*\n📅 Hoje\n\n"
-            f"💬 Mensagens: {s['msgs']}\n"
-            f"📥 Input tokens: {s['input_tokens']:,}\n"
-            f"📤 Output tokens: {s['output_tokens']:,}\n"
-            f"🔧 Tool calls: {s['tool_calls']}\n"
-            f"❌ Erros: {s['errors']}\n"
-            f"💰 Custo estimado: ${s['cost_usd']:.4f}",
-            parse_mode="Markdown",
-        )
-
-    elif action == "menu_memory" and is_admin(user_id):
-        today = date.today().isoformat()
-        days = sorted(MEM_DIR.glob("*.md"), reverse=True)
-        mem_long = (BOT_DIR / "MEMORY.md").exists()
-        mem_today = (MEM_DIR / f"{today}.md").exists()
-        lines = [
-            f"🧠 *Memória — {BOT_NAME}*\n",
-            f"📚 MEMORY.md: {'✅' if mem_long else '❌ (vazio)'}",
-            f"📅 Hoje ({today}): {'✅' if mem_today else '❌ (vazio)'}",
-            f"📁 Dias registrados: {len(days)}",
-            "\nÚltimos dias:",
-        ] + [f"  • {d.stem}" for d in days[:7]]
-        await reply("\n".join(lines), parse_mode="Markdown")
-
     elif action == "menu_users" and is_admin(user_id):
         if not approved_users:
             await reply("Nenhum usuário aprovado."); return
@@ -1723,20 +1685,6 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             lines.append(f"• {info['name']} {info['username']} — `{uid}`")
         await reply("\n".join(lines), parse_mode="Markdown")
 
-    elif action == "menu_trace" and is_admin(user_id):
-        traces = db.get_traces(bot_name=BOT_NAME, limit=10)
-        if not traces:
-            await reply("📭 Nenhum trace registrado ainda."); return
-        lines = [f"🔍 *Traces recentes — {BOT_NAME}*\n"]
-        for t in traces:
-            tid = t.get("id", "?")
-            latency = t.get("total_latency_ms", 0)
-            tools = t.get("total_tool_calls", 0)
-            tok = (t.get("total_input_tokens", 0) or 0) + (t.get("total_output_tokens", 0) or 0)
-            started = (t.get("started_at") or "")[:19].replace("T", " ")
-            err = " ❌" if t.get("error") else ""
-            lines.append(f"`{tid}`{err} | {latency/1000:.1f}s | {tools}🔧 | {tok:,}tok | {started}")
-        await reply("\n".join(lines), parse_mode="Markdown")
 
     elif action == "menu_config" and is_admin(user_id):
         await reply(
@@ -1863,13 +1811,13 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         tools_info = f"\n🔧 `{', '.join(sorted(ENABLED_TOOLS))}`" if ENABLED_TOOLS else ""
         admin_extra = (
             "\n\n*Admin:*\n/users — aprovados\n/pending — pendentes\n"
-            "/revoke <id> — revogar\n/memory — ver memória\n/stats — analytics\n"
+            "/revoke <id> — revogar\n/painel — abrir painel admin\n"
             "/criar\\_agente — novo agente via wizard\n/criar\\_subagente — novo sub-agente\n/apagar\\_agente — remover agente"
             if is_admin(user.id) else ""
         )
         welcome_msg = (
             f"Olá, {user.first_name}! Sou o *{BOT_NAME}*.{tools_info}\n\n"
-            "/clear — limpa histórico\n/cancel — cancela operação em andamento\n/info — quem sou eu\n/id — seu ID\n/tasks — minhas tarefas\n/thinking — raciocínio estendido"
+            "/clear — limpa histórico\n/cancel — cancela operação em andamento\n/info — quem sou eu\n/id — seu ID\n/thinking — raciocínio estendido"
             f"{admin_extra}"
         )
     await update.message.reply_text(
@@ -1938,21 +1886,6 @@ async def cmd_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def cmd_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(f"Seu ID: `{update.effective_user.id}`", parse_mode="Markdown")
 
-
-async def cmd_memory(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not is_admin(update.effective_user.id): return
-    today = date.today().isoformat()
-    days = sorted(MEM_DIR.glob("*.md"), reverse=True)
-    mem_long = (BOT_DIR / "MEMORY.md").exists()
-    mem_today = (MEM_DIR / f"{today}.md").exists()
-    lines = [
-        f"🧠 *Memória — {BOT_NAME}*\n",
-        f"📚 MEMORY.md: {'✅' if mem_long else '❌ (vazio)'}",
-        f"📅 Hoje ({today}): {'✅' if mem_today else '❌ (vazio)'}",
-        f"📁 Dias registrados: {len(days)}",
-        f"\nÚltimos dias:",
-    ] + [f"  • {d.stem}" for d in days[:7]]
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
 async def cmd_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2109,72 +2042,6 @@ async def cmd_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     except Exception as e:
         await update.message.reply_text(f"❌ Erro: {e}")
 
-
-async def cmd_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    if not has_access(user.id): return
-    valid = ("all", "in_progress", "paused", "completed", "failed", "cancelled")
-    status_filter = context.args[0] if context.args else "all"
-    if status_filter not in valid:
-        await update.message.reply_text(f"Status inválido. Use: {', '.join(valid)}"); return
-    html = _build_tasks_and_schedules(user.id, status_filter)
-    for chunk in _split_html(html):
-        await update.message.reply_text(chunk, parse_mode="HTML")
-
-
-async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not is_admin(update.effective_user.id): return
-    days_map = {"hoje": 1, "semana": 7, "mes": 30, "mês": 30}
-    period = context.args[0] if context.args else "hoje"
-    days = days_map.get(period, 1)
-    try:
-        days = int(period)
-    except (ValueError, TypeError):
-        pass
-    s = db.get_summary(days)
-    label = {"hoje": "Hoje", "semana": "Última semana", "mes": "Último mês", "mês": "Último mês"}.get(
-        period if not isinstance(period, int) else "", f"Últimos {days} dia(s)"
-    )
-    await update.message.reply_text(
-        f"📊 *Analytics — {BOT_NAME}*\n"
-        f"📅 {label}\n\n"
-        f"💬 Mensagens: {s['msgs']}\n"
-        f"📥 Input tokens: {s['input_tokens']:,}\n"
-        f"📤 Output tokens: {s['output_tokens']:,}\n"
-        f"🔧 Tool calls: {s['tool_calls']}\n"
-        f"❌ Erros: {s['errors']}\n"
-        f"💰 Custo estimado: ${s['cost_usd']:.4f}",
-        parse_mode="Markdown",
-    )
-
-
-async def cmd_trace(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Exibe traces recentes do loop agêntico (somente admin)."""
-    if not is_admin(update.effective_user.id): return
-    trace_id = context.args[0] if context.args else None
-    if trace_id:
-        t = db.get_trace(trace_id)
-        if not t:
-            await update.message.reply_text(f"❌ Trace `{trace_id}` não encontrado.", parse_mode="Markdown")
-            return
-        msg = tracer.format_trace_message(t)
-        await send_long(update, msg)
-        return
-    traces = db.get_traces(bot_name=BOT_NAME, limit=10)
-    if not traces:
-        await update.message.reply_text("📭 Nenhum trace registrado ainda.")
-        return
-    lines = [f"🔍 *Traces recentes — {BOT_NAME}*\n"]
-    for t in traces:
-        tid = t.get("id", "?")
-        latency = t.get("total_latency_ms", 0)
-        tools = t.get("total_tool_calls", 0)
-        tok = (t.get("total_input_tokens", 0) or 0) + (t.get("total_output_tokens", 0) or 0)
-        started = (t.get("started_at") or "")[:19].replace("T", " ")
-        err = " ❌" if t.get("error") else ""
-        lines.append(f"`{tid}`{err} | {latency/1000:.1f}s | {tools}🔧 | {tok:,}tok | {started}")
-    lines.append(f"\nUse `/trace <id>` para detalhes de um trace específico.")
-    await send_long(update, "\n".join(lines))
 
 
 async def callback_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3760,10 +3627,6 @@ def main() -> None:
     app.add_handler(CommandHandler("thinking", cmd_thinking))
     app.add_handler(CommandHandler("info",    cmd_info))
     app.add_handler(CommandHandler("id",      cmd_id))
-    app.add_handler(CommandHandler("tasks",   cmd_tasks))
-    app.add_handler(CommandHandler("memory",  cmd_memory))
-    app.add_handler(CommandHandler("stats",   cmd_stats))
-    app.add_handler(CommandHandler("trace",   cmd_trace))
     app.add_handler(CommandHandler("menu",    cmd_menu))
     app.add_handler(CommandHandler("users",   cmd_users))
     app.add_handler(CommandHandler("pending", cmd_pending))

@@ -265,7 +265,6 @@ Se não estiver instalada, PDFs recebem fallback graceful com nome+tamanho.
 | `/clear` | Limpa histórico de conversa |
 | `/info` | Exibe soul.md do bot |
 | `/id` | Retorna o Telegram ID do usuário |
-| `/tasks [status]` | Lista tarefas do agente e agendamentos ativos (filtros de tarefas: all, in_progress, paused, completed, failed, cancelled) |
 | `/thinking [off\|low\|medium\|high]` | Define nível de raciocínio estendido por sessão. `off`=desativado (padrão), `low`=2k tokens, `medium`=6k tokens, `high`=16k tokens. Suportado nos providers `anthropic` e `claude-cli`. |
 
 ### Somente admin (ADMIN_ID)
@@ -274,9 +273,6 @@ Se não estiver instalada, PDFs recebem fallback graceful com nome+tamanho.
 | `/users` | Lista usuários aprovados |
 | `/pending` | Lista solicitações pendentes |
 | `/revoke <id>` | Revoga acesso de um usuário |
-| `/memory` | Mostra status dos arquivos de memória |
-| `/stats [período]` | Analytics: tokens, custo, mensagens (hoje/semana/mes/N) |
-| `/trace [id]` | Lista traces recentes ou detalha trace específico (LLM calls, tool calls, timings) |
 | `/version` | Mostra versão atual e se há atualizações pendentes |
 | `/update` | Puxa atualizações do remote e reinicia todos os serviços |
 | `/painel [min]` | Gera link temporário de acesso ao painel admin (default: 30 min) |
