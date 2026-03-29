@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.0 (2026-03-28)
+
+
+
+## Novas funcionalidades
+
+• Suporte a WhatsApp como canal de comunicação — agora cada bot pode operar via Telegram ou WhatsApp, configurável pela variável CHANNEL no .env do bot
+• Conexão WhatsApp via QR code com gerenciamento de sessão integrado ao painel admin (status de conexão, reconexão e logout)
+• Criação de bots WhatsApp pelo terminal com ./criar-bot.sh meu-bot --channel whatsapp
+• O wizard /criar_agente no Telegram agora permite escolher o canal (Telegram ou WhatsApp) durante a criação do bot
+
 ## 0.12.0 (2026-03-24)
 
 **Correções**

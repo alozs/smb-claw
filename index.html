@@ -595,10 +595,26 @@
   <!-- Novidades — movido para antes do CTA final -->
   <section id="changelog" class="changelog container">
     <h2 style="text-align: center; font-size: 2.25rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 48px; color: var(--white);">
-      Novidades <!-- CHANGELOG_VERSION -->v0.12.0<!-- /CHANGELOG_VERSION --> <span class="cl-badge">Novo</span>
+      Novidades <!-- CHANGELOG_VERSION -->v0.13.0<!-- /CHANGELOG_VERSION --> <span class="cl-badge">Novo</span>
     </h2>
     <!-- CHANGELOG_START -->
                 <div class="cl-entry">
+          <div class="cl-header">
+            <span class="cl-version">v0.13.0</span>
+            <span class="cl-date">2026-03-28</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>## Novas funcionalidades</li>
+              <li>Suporte a WhatsApp como canal de comunicação — agora cada bot pode operar via Telegram ou WhatsApp, configurável pela variável CHANNEL no .env do bot</li>
+              <li>Conexão WhatsApp via QR code com gerenciamento de sessão integrado ao painel admin (status de conexão, reconexão e logout)</li>
+              <li>Criação de bots WhatsApp pelo terminal com ./criar-bot.sh meu-bot --channel whatsapp</li>
+              <li>O wizard /criar_agente no Telegram agora permite escolher o canal (Telegram ou WhatsApp) durante a criação do bot</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
           <div class="cl-header">
             <span class="cl-version">v0.12.0</span>
             <span class="cl-date">2026-03-24</span>
@@ -631,27 +647,6 @@
               <li>Correções</li>
               <li>Arquivo de tracing (`tracer.py`) que estava ausente do repositório foi restaurado, garantindo o funcionamento correto do rastreamento granular de chamadas LLM e tool calls.</li>
               <li>Removida indicação incorreta de que o `action_log` poderia ser visualizado pelo admin no painel — o recurso ainda não está implementado e a interface agora reflete isso com precisão.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.9.0</span>
-            <span class="cl-date">2026-03-21</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Novas funcionalidades</strong></p>
-            <ul>
-              <li><strong style="color: var(--zinc-100);">Guardrails de segurança</strong> com 3 modos: <em>notify</em> (alerta silencioso ao admin), <em>confirm</em> (exige aprovação antes de ações perigosas) e <em>block</em> (bloqueia incondicionalmente). Ativado por padrão em todos os bots.</li>
-              <li><strong style="color: var(--zinc-100);">Detecção de prompt injection</strong> por scoring: 25+ padrões em português e inglês, threshold configurável. Injeta aviso automático no sistema quando uma tentativa de manipulação é detectada.</li>
-              <li><strong style="color: var(--zinc-100);">Aprendizado comportamental</strong> opt-in: arquivo BEHAVIOR.md gerado toda noite por LLM com base nas conversas do dia. O agente aprende seus hábitos e antecipa necessidades ao longo do tempo.</li>
-              <li><strong style="color: var(--zinc-100);">Tool request_approval:</strong> o agente pode solicitar confirmação explícita do usuário antes de executar ações sensíveis, com fluxo integrado ao chat.</li>
-              <li><strong style="color: var(--zinc-100);">Auditoria de ações:</strong> tabela action_log registra cada chamada de ferramenta com classificação de risco e score, com limpeza automática após 30 dias.</li>
-              <li><strong style="color: var(--zinc-100);">migrate-env.sh:</strong> novas variáveis de configuração são adicionadas automaticamente nos bots existentes a cada <code>./update.sh</code>.</li>
-            </ul>
-            <p><strong>Melhorias</strong></p>
-            <ul>
-              <li>185 testes automatizados cobrindo guardrails, detecção de injection, configuração e analytics.</li>
             </ul>
           </div>
         </div>
