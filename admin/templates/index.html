@@ -30,7 +30,7 @@
             success: { DEFAULT: '#22C55E', light: '#F0FDF4', ring: '#86EFAC' },
             danger:  { DEFAULT: '#ba1a1a', light: '#ffdad6', ring: '#FECACA' },
             warn:    { DEFAULT: '#F59E0B', light: '#FFFBEB', ring: '#FDE68A' },
-            surface: { DEFAULT: '#f8fafb', card: '#FFFFFF', border: '#e1e3e4', muted: '#71717a', dim: '#d8dadb', high: '#e6e8e9' },
+            surface: { DEFAULT: '#e5e7eb', card: '#FFFFFF', border: '#e1e3e4', muted: '#71717a', dim: '#d8dadb', high: '#e6e8e9' },
             onsurface: { DEFAULT: '#191c1d', variant: '#444749' },
             outline: { DEFAULT: '#6b7b6c', variant: '#bacbb9' },
           },
@@ -53,7 +53,7 @@
   </script>
   <style>
     [x-cloak] { display: none !important; }
-    body { font-family: 'Manrope', sans-serif; background: #f8fafb; color: #191c1d; }
+    body { font-family: 'Manrope', sans-serif; background: #e5e7eb; color: #191c1d; }
     .material-symbols-outlined {
       font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
     }
@@ -1101,10 +1101,10 @@
   </aside>
 
   <!-- Main content -->
-  <div id="main-content" class="flex-1 h-full min-h-0 overflow-y-auto min-w-0" style="background:#f8fafb">
+  <div id="main-content" class="flex-1 h-full min-h-0 overflow-y-auto min-w-0" style="background:#e5e7eb">
 
     <!-- Mobile top bar (hidden when viewing bot detail, global config, or architect) -->
-    <div x-show="!currentBot && !showingGlobalConfig && !showingArchitect" class="md:hidden sticky top-0 z-30 bg-white/80 glass-effect border-b border-outline-variant/10 px-4 py-3 flex items-center justify-between">
+    <div x-show="!currentBot && !showingGlobalConfig && !showingArchitect" class="md:hidden sticky top-0 z-30 bg-surface/90 glass-effect border-b border-surface-border/40 px-4 py-3 flex items-center justify-between">
       <button @click="sidebarOpen=!sidebarOpen" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-high transition-colors cursor-pointer">
         <span class="material-symbols-outlined text-onsurface">menu</span>
       </button>
@@ -1164,7 +1164,7 @@
 
           <template x-for="(bot, idx) in bots" :key="bot.name">
             <div @click="selectBot(bot.name)"
-              class="card bg-white rounded-xl p-6 ghost-border cursor-pointer group overflow-hidden flex flex-col transition-all duration-300 hover:shadow-card-hover"
+              class="card bg-white rounded-xl p-6 border border-surface-border/60 shadow-card cursor-pointer group overflow-hidden flex flex-col transition-all duration-300 hover:shadow-card-hover"
               :style="`animation-delay:${idx*60}ms`">
 
               <!-- Header: avatar + toggle -->
