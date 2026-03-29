@@ -2544,31 +2544,90 @@ def _load_curated_openrouter_models() -> dict:
         return {"models": [], "price_legend": {}, "last_updated": ""}
 
 
+_model_catalog_cache: dict | None = None
+_model_catalog_mtime: float = 0
+
+
+def _load_model_catalog() -> dict:
+    """Carrega catálogo unificado de modelos de admin/model-catalog.json. Cacheia por mtime."""
+    global _model_catalog_cache, _model_catalog_mtime
+    catalog_path = Path(__file__).resolve().parent / "model-catalog.json"
+    if not catalog_path.exists():
+        return {}
+    try:
+        current_mtime = catalog_path.stat().st_mtime
+        if _model_catalog_cache is not None and current_mtime == _model_catalog_mtime:
+            return _model_catalog_cache
+        _model_catalog_cache = json.loads(catalog_path.read_text())
+        _model_catalog_mtime = current_mtime
+    except Exception:
+        if _model_catalog_cache is None:
+            _model_catalog_cache = {}
+    return _model_catalog_cache
+
+
 @app.get("/api/architect/available-models")
 async def architect_available_models():
-    """Retorna modelos diretos e OpenRouter (curado) separados."""
+    """Retorna modelos de todos os provedores conectados a partir do model-catalog.json."""
     info = _resolve_architect_provider()
+    catalog = _load_model_catalog()
+    providers_cat = catalog.get("providers", {})
+    caps_emoji = catalog.get("caps_emoji", {})
+    price_legend = catalog.get("price_legend", {})
+    last_updated = catalog.get("last_updated", "")
 
-    # Modelos diretos (Anthropic + OpenAI conectados)
+    # Detectar claude-cli (OAuth Claude Code)
+    connected = list(info["connected"])
+    claude_oauth = _check_oauth(CLAUDE_CREDS_PATH, ["claudeAiOauth", "accessToken"])
+    if claude_oauth["status"] == "active" and "claude-cli" not in connected:
+        connected.append("claude-cli")
+
+    # Labels curtos para exibição no dropdown
+    _short_labels = {"claude-cli": "Anthropic", "anthropic": "Anthropic", "codex": "OpenAI"}
+
+    # Modelos diretos (tudo que não é OpenRouter)
+    # Se claude-cli e anthropic ambos conectados, pular anthropic (mesmos modelos)
     direct: list[dict] = []
-    if "anthropic" in info["connected"]:
-        for m in _ANTHROPIC_MODELS:
-            direct.append({"id": m["id"], "name": m["name"], "provider": "Anthropic"})
-    if "codex" in info["connected"]:
-        for m in _CODEX_MODELS:
-            direct.append({"id": m["id"], "name": m["name"], "provider": "OpenAI"})
+    seen_ids: set[str] = set()
+    for prov_key in ["claude-cli", "anthropic", "codex"]:
+        if prov_key not in connected:
+            continue
+        prov_data = providers_cat.get(prov_key, {})
+        prov_label = _short_labels.get(prov_key, prov_key)
+        for m in prov_data.get("models", []):
+            if m["id"] in seen_ids:
+                continue
+            seen_ids.add(m["id"])
+            direct.append({
+                "id": m["id"],
+                "name": m["name"],
+                "provider": prov_label,
+                "caps": m.get("caps", []),
+                "price": m.get("price", 2),
+                "intelligence": m.get("intelligence", 3),
+                "rec": m.get("rec", ""),
+            })
 
-    # Modelos OpenRouter (catálogo curado do JSON)
-    has_openrouter = "openrouter" in info["connected"]
-    curated = _load_curated_openrouter_models()
-    openrouter = curated.get("models", []) if has_openrouter else []
-    price_legend = curated.get("price_legend", {})
-    last_updated = curated.get("last_updated", "")
+    # Modelos OpenRouter (do catálogo unificado)
+    has_openrouter = "openrouter" in connected
+    openrouter_models = []
+    if has_openrouter:
+        prov_data = providers_cat.get("openrouter", {})
+        for m in prov_data.get("models", []):
+            openrouter_models.append({
+                "id": m["id"],
+                "name": m["name"],
+                "specialty": m.get("rec", ""),
+                "price_level": m.get("price", 2),
+                "intelligence": m.get("intelligence", 3),
+                "caps": m.get("caps", []),
+            })
 
     return {
         "direct": direct,
-        "openrouter": openrouter,
+        "openrouter": openrouter_models,
         "has_openrouter": has_openrouter,
+        "caps_emoji": caps_emoji,
         "price_legend": price_legend,
         "last_updated": last_updated,
     }

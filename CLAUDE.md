@@ -56,6 +56,7 @@ subagents/      — NOVO: diretório de sub-agentes especializados
 | `update.sh` | Pull do remote + **migrate-env.sh** + restart de serviços um a um |
 | `migrate-env.sh` | Adiciona variáveis novas ao `.env` de cada bot existente (idempotente). Chamado automaticamente pelo `update.sh`. Respeita valores já definidos (inclusive comentados). |
 | `check-update.sh` | Cron diário: verifica se origin/main tem commits novos e notifica admin |
+| `admin/model-catalog.json` | Catálogo unificado de modelos por provedor (capabilities, preço). Usado pelo wizard de criação de agentes/sub-agentes. Hot-reload: mudanças no arquivo são detectadas automaticamente. |
 
 ---
 

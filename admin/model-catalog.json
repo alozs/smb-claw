@@ -1,0 +1,68 @@
+{
+  "last_updated": "2026-03-29",
+  "providers": {
+    "claude-cli": {
+      "label": "Claude (gratuito, OAuth)",
+      "models": [
+        {"id": "claude-sonnet-4-6",         "name": "Claude Sonnet 4.6", "caps": ["vision", "code", "reasoning", "fast"],    "price": 0, "intelligence": 4, "rec": "Melhor custo-benefício — rápido e inteligente"},
+        {"id": "claude-opus-4-6",           "name": "Claude Opus 4.6",   "caps": ["vision", "code", "reasoning", "creative"], "price": 0, "intelligence": 5, "rec": "Máxima inteligência — tarefas complexas"},
+        {"id": "claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5",  "caps": ["vision", "fast", "cheap"],                "price": 0, "intelligence": 2, "rec": "Ultra rápido — tarefas simples e alto volume"}
+      ]
+    },
+    "anthropic": {
+      "label": "Anthropic API",
+      "models": [
+        {"id": "claude-sonnet-4-6",         "name": "Claude Sonnet 4.6", "caps": ["vision", "code", "reasoning", "fast"],    "price": 2, "intelligence": 4, "rec": "Melhor custo-benefício — rápido e inteligente"},
+        {"id": "claude-opus-4-6",           "name": "Claude Opus 4.6",   "caps": ["vision", "code", "reasoning", "creative"], "price": 4, "intelligence": 5, "rec": "Máxima inteligência — tarefas complexas"},
+        {"id": "claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5",  "caps": ["vision", "fast", "cheap"],                "price": 1, "intelligence": 2, "rec": "Ultra rápido — tarefas simples e alto volume"}
+      ]
+    },
+    "codex": {
+      "label": "Codex / ChatGPT",
+      "models": [
+        {"id": "gpt-5.4",       "name": "GPT-5.4",       "caps": ["vision", "code", "reasoning", "creative"], "price": 0, "intelligence": 5, "rec": "Mais recente da OpenAI — muito capaz"},
+        {"id": "gpt-5.3-codex", "name": "GPT-5.3 Codex", "caps": ["code", "reasoning", "fast"],               "price": 0, "intelligence": 4, "rec": "Otimizado para código"},
+        {"id": "gpt-5.2",       "name": "GPT-5.2",       "caps": ["vision", "code", "reasoning"],             "price": 0, "intelligence": 3, "rec": "Bom equilíbrio geral"}
+      ]
+    },
+    "openrouter": {
+      "label": "OpenRouter",
+      "models": [
+        {"id": "google/gemini-3.1-pro-preview",        "name": "Gemini 3.1 Pro",       "caps": ["vision", "video", "code", "reasoning", "long-context"], "price": 3, "intelligence": 5, "rec": "O mais inteligente do Google — raciocínio avançado"},
+        {"id": "google/gemini-3-flash-preview",         "name": "Gemini 3 Flash",       "caps": ["vision", "video", "code", "fast"],                      "price": 2, "intelligence": 3, "rec": "Rápido e capaz — uso geral com visão e vídeo"},
+        {"id": "google/gemini-3.1-flash-lite-preview",  "name": "Gemini 3.1 Flash Lite","caps": ["vision", "fast", "cheap"],                              "price": 1, "intelligence": 2, "rec": "Ultra leve e barato — tarefas simples"},
+        {"id": "google/gemini-3.1-flash-image-preview", "name": "Nano Banana 2",        "caps": ["image-gen", "creative"],                                "price": 2, "intelligence": 3, "rec": "Geração e edição de imagens + texto"},
+        {"id": "google/gemini-2.5-pro",                 "name": "Gemini 2.5 Pro",       "caps": ["vision", "video", "code", "reasoning", "long-context"], "price": 3, "intelligence": 4, "rec": "Tarefas complexas e dados grandes"},
+        {"id": "google/gemini-2.5-flash",               "name": "Gemini 2.5 Flash",     "caps": ["vision", "video", "fast", "cheap"],                     "price": 2, "intelligence": 3, "rec": "Tarefas rápidas e resumos"},
+        {"id": "deepseek/deepseek-v3.2",                "name": "DeepSeek V3.2",        "caps": ["code", "reasoning"],                                    "price": 2, "intelligence": 4, "rec": "Código e análise de dados"},
+        {"id": "nex-agi/deepseek-v3.1-nex-n1",         "name": "DeepSeek V3.1 Nex N1", "caps": ["reasoning", "long-context"],                            "price": 2, "intelligence": 4, "rec": "Raciocínio aprofundado e pesquisa"},
+        {"id": "mistralai/mistral-small-2603",          "name": "Mistral Small 4",      "caps": ["code", "fast", "cheap", "multilingual"],                "price": 1, "intelligence": 2, "rec": "Leve e eficiente — código e texto"},
+        {"id": "qwen/qwen3.5-397b-a17b",               "name": "Qwen 3.5 397B",        "caps": ["reasoning", "multilingual", "code"],                    "price": 2, "intelligence": 4, "rec": "Raciocínio e multilingual"},
+        {"id": "moonshotai/kimi-k2.5",                  "name": "Kimi K2.5",            "caps": ["long-context", "reasoning"],                            "price": 2, "intelligence": 3, "rec": "Documentos longos e texto"},
+        {"id": "x-ai/grok-4.1-fast",                   "name": "Grok 4.1 Fast",        "caps": ["code", "reasoning", "fast"],                            "price": 1, "intelligence": 3, "rec": "Código e lógica rápida"},
+        {"id": "z-ai/glm-5",                           "name": "GLM-5",                "caps": ["code", "reasoning"],                                    "price": 3, "intelligence": 4, "rec": "Codificação e raciocínio técnico"},
+        {"id": "minimax/minimax-m2.7",                  "name": "MiniMax M2.7",         "caps": ["creative", "code"],                                     "price": 2, "intelligence": 3, "rec": "Criatividade e programação"},
+        {"id": "stepfun/step-3.5-flash",                "name": "Step 3.5 Flash",       "caps": ["creative", "fast", "cheap"],                            "price": 1, "intelligence": 2, "rec": "Criatividade, sites e apresentações"}
+      ]
+    }
+  },
+  "caps_emoji": {
+    "vision": "👁️",
+    "video": "🎬",
+    "code": "💻",
+    "reasoning": "🧠",
+    "creative": "🎨",
+    "fast": "⚡",
+    "cheap": "💰",
+    "long-context": "📄",
+    "multilingual": "🌍",
+    "image-gen": "🖼️"
+  },
+  "price_legend": {
+    "0": "🆓",
+    "1": "💲",
+    "2": "💲💲",
+    "3": "💲💲💲",
+    "4": "💲💲💲💲"
+  }
+}

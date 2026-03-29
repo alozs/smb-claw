@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.14.0 (2026-03-29)
+
+### Novas funcionalidades
+
+- **Catálogo unificado de modelos** (`admin/model-catalog.json`) — fonte de verdade para todos os provedores (Anthropic, OpenAI, OpenRouter) com capabilities, nível de inteligência e preço por modelo. Hot-reload automático.
+- **Recomendação inteligente de modelo no Arquiteto** — badge acima do dropdown sugere o melhor modelo baseado na descrição do agente/sub-agente (ex: vídeo → Gemini, código → Sonnet)
+- **Seleção de modelo no wizard Telegram** — novo step entre provedor e ferramentas com ranking por relevância e capabilities
+- **Detecção de provedores disponíveis** — wizard e painel mostram quais provedores estão configurados vs não
+
+### Melhorias
+
+- Dropdowns de modelo no Arquiteto exibem nível de inteligência (🧠) e preço (💲)
+- Provedores deduplicados quando claude-cli e anthropic estão ambos conectados
+- Label "Claude (chave API)" corrigido para "Anthropic (chave API)" em todos os dropdowns do painel
+
 ## 0.13.2 (2026-03-29)
 
 Melhorias

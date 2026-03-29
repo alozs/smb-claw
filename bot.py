@@ -2112,6 +2112,107 @@ WIZARD_PROVIDERS = {
     "openrouter": "OpenRouter",
     "codex":      "Codex / ChatGPT",
 }
+
+# ── Catálogo de modelos: carregado de admin/model-catalog.json ────────
+# Atualizar o JSON para adicionar/remover modelos e provedores.
+# Tags de capacidade: vision, video, code, reasoning, creative, fast,
+#                     cheap, long-context, multilingual, image-gen
+_MODEL_CATALOG: dict | None = None   # cache em memória
+
+
+_MODEL_CATALOG_MTIME: float = 0  # mtime do arquivo na última leitura
+
+
+def _load_model_catalog() -> dict:
+    """Carrega o catálogo de modelos de admin/model-catalog.json. Recarrega se o arquivo mudou."""
+    global _MODEL_CATALOG, _MODEL_CATALOG_MTIME
+    catalog_path = BASE_DIR / "admin" / "model-catalog.json"
+    if not catalog_path.exists():
+        _MODEL_CATALOG = {}
+        return _MODEL_CATALOG
+    try:
+        current_mtime = catalog_path.stat().st_mtime
+        if _MODEL_CATALOG is not None and current_mtime == _MODEL_CATALOG_MTIME:
+            return _MODEL_CATALOG
+        import json as _json
+        _MODEL_CATALOG = _json.loads(catalog_path.read_text(encoding="utf-8"))
+        _MODEL_CATALOG_MTIME = current_mtime
+    except Exception:
+        if _MODEL_CATALOG is None:
+            _MODEL_CATALOG = {}
+    return _MODEL_CATALOG
+
+
+def _get_provider_models(provider: str) -> list[dict]:
+    """Retorna lista de modelos para um provedor a partir do catálogo."""
+    catalog = _load_model_catalog()
+    prov = catalog.get("providers", {}).get(provider, {})
+    return prov.get("models", [])
+
+
+def _get_caps_emoji() -> dict[str, str]:
+    catalog = _load_model_catalog()
+    return catalog.get("caps_emoji", {
+        "vision": "👁️", "video": "🎬", "code": "💻", "reasoning": "🧠",
+        "creative": "🎨", "fast": "⚡", "cheap": "💰", "long-context": "📄",
+        "multilingual": "🌍", "image-gen": "🖼️",
+    })
+
+
+def _get_price_label(price: int) -> str:
+    catalog = _load_model_catalog()
+    legend = catalog.get("price_legend", {})
+    return legend.get(str(price), "$$ Moderado")
+
+
+# Palavras-chave na descrição → capabilities recomendadas
+_DESC_CAP_HINTS = {
+    "vision": ["imagem", "foto", "visual", "screenshot", "print", "ocr", "ver", "enxergar", "olhar"],
+    "video": ["vídeo", "video", "filmagem", "gravação", "youtube", "stream"],
+    "code": ["código", "codigo", "programação", "programacao", "dev", "debug", "script", "api", "deploy", "git", "sql"],
+    "reasoning": ["análise", "analise", "raciocínio", "raciocinio", "complexo", "pesquisa", "research", "estratégia", "estrategia", "planejamento"],
+    "creative": ["criativo", "criativa", "escrita", "texto", "redação", "redacao", "conteúdo", "conteudo", "marketing", "copywriting", "história", "historia"],
+    "fast": ["rápido", "rapido", "simples", "básico", "basico", "notificação", "notificacao", "alerta", "monitor"],
+    "cheap": ["econômico", "economico", "barato", "volume", "massa", "bulk"],
+    "long-context": ["documento", "pdf", "longo", "extenso", "livro", "relatório", "relatorio"],
+    "multilingual": ["tradução", "traducao", "idioma", "multilingual", "inglês", "ingles", "espanhol"],
+    "image-gen": ["gerar imagem", "criar imagem", "desenhar", "ilustrar", "design"],
+}
+
+
+def _detect_available_providers() -> dict[str, bool]:
+    """Detecta quais provedores estão configurados e disponíveis."""
+    available = {}
+    available["claude-cli"] = Path.home().joinpath(".claude", ".credentials.json").exists()
+    available["anthropic"] = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
+    available["openrouter"] = bool(os.environ.get("OPENROUTER_API_KEY", "").strip())
+    available["codex"] = (
+        Path.home().joinpath(".codex", "auth.json").exists()
+        or bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    )
+    return available
+
+
+def _recommend_models(description: str, provider: str) -> list[dict]:
+    """Retorna modelos ordenados por relevância para a descrição do agente."""
+    models = _get_provider_models(provider)
+    if not models:
+        return []
+
+    desc_lower = description.lower()
+    wanted_caps = set()
+    for cap, keywords in _DESC_CAP_HINTS.items():
+        if any(kw in desc_lower for kw in keywords):
+            wanted_caps.add(cap)
+
+    def score(m):
+        model_caps = set(m.get("caps", []))
+        match_count = len(wanted_caps & model_caps)
+        return (-match_count, m.get("price", 2))
+
+    return sorted(models, key=score)
+
+
 WIZARD_TOOLS = {
     "shell":    "🖥️ Terminal (executa comandos)",
     "cron":     "⏰ Agendamentos (cron jobs)",
@@ -2124,9 +2225,13 @@ WIZARD_TOOLS = {
 
 
 def _wizard_provider_keyboard() -> InlineKeyboardMarkup:
+    available = _detect_available_providers()
     rows = []
     for key, label in WIZARD_PROVIDERS.items():
-        rows.append([InlineKeyboardButton(label, callback_data=f"wiz_provider_{key}")])
+        ok = available.get(key, False)
+        icon = "✅" if ok else "⚠️"
+        suffix = "" if ok else " (não configurado)"
+        rows.append([InlineKeyboardButton(f"{icon} {label}{suffix}", callback_data=f"wiz_provider_{key}")])
     rows.append([InlineKeyboardButton("❌ Cancelar wizard", callback_data="wiz_cancel")])
     return InlineKeyboardMarkup(rows)
 
@@ -2158,6 +2263,8 @@ def _wizard_summary(wizard: dict) -> str:
         parent = data.get("parent", "all")
         lines.append(f"*Agente pai:* {'Todos' if parent == 'all' else parent}")
     lines.append(f"*Provedor:* {provider_str}")
+    model = data.get("model", "")
+    lines.append(f"*Modelo:* {model if model else '(padrão do sistema)'}")
     lines.append(f"*Ferramentas:* {tools_str}")
     lines.append(f"\n*Personalidade (soul.md):*\n```\n{data.get('soul_md', '')[:300]}{'...' if len(data.get('soul_md','')) > 300 else ''}\n```")
     return "\n".join(lines)
@@ -2187,9 +2294,72 @@ async def _wizard_ask_provider(update_or_query, wtype: str) -> None:
     label = "agente" if wtype == "agent" else "sub-agente"
     txt = (
         f"🤖 *Qual IA vai alimentar o {label}?*\n\n"
-        "Escolha o provedor de inteligência artificial:"
+        "Escolha o provedor. Na próxima etapa você escolhe o modelo específico.\n"
+        "_(✅ = configurado, ⚠️ = sem credencial)_"
     )
     kb = _wizard_provider_keyboard()
+    if hasattr(update_or_query, "message"):
+        await update_or_query.message.reply_text(txt, parse_mode="Markdown", reply_markup=kb)
+    else:
+        await update_or_query.edit_message_text(txt, parse_mode="Markdown", reply_markup=kb)
+
+
+async def _wizard_ask_model(update_or_query, wizard: dict) -> None:
+    """Apresenta seleção de modelo com recomendações inteligentes."""
+    data = wizard["data"]
+    provider = data.get("provider", "anthropic")
+    description = data.get("description", "")
+    wtype = wizard["type"]
+    label = "agente" if wtype == "agent" else "sub-agente"
+
+    ranked = _recommend_models(description, provider)
+    if not ranked:
+        # Sem modelos catalogados: usar default e pular step
+        data["model"] = ""  # usa default global
+        wizard["step"] = "tools"
+        await _wizard_ask_tools(update_or_query, data.get("tools", []))
+        return
+
+    # Detectar capabilities desejadas para o badge de recomendação
+    desc_lower = description.lower()
+    wanted_caps = set()
+    for cap, keywords in _DESC_CAP_HINTS.items():
+        if any(kw in desc_lower for kw in keywords):
+            wanted_caps.add(cap)
+
+    caps_emoji = _get_caps_emoji()
+
+    # Montar texto com recomendações
+    lines = [f"🧠 *Qual modelo de IA para o {label}?*\n"]
+    if wanted_caps:
+        caps_str = ", ".join(caps_emoji.get(c, "") + " " + c for c in wanted_caps)
+        lines.append(f"Pela descrição, você precisa de: {caps_str}\n")
+    lines.append("Modelos ordenados por relevância:\n")
+
+    rows = []
+    for i, m in enumerate(ranked[:8]):
+        caps_icons = " ".join(caps_emoji.get(c, "") for c in m.get("caps", []))
+        price_str = _get_price_label(m.get("price", 2))
+        is_top = (i == 0 and wanted_caps)
+        star = "⭐ " if is_top else ""
+        btn_label = f"{star}{m['name']}  {caps_icons}  {price_str}"
+        # callback_data tem limite de 64 bytes — usar índice
+        rows.append([InlineKeyboardButton(btn_label, callback_data=f"wiz_model_{i}")])
+
+    # Opção de usar default global
+    rows.append([InlineKeyboardButton("🔄 Usar modelo padrão do sistema", callback_data="wiz_model_default")])
+    rows.append([InlineKeyboardButton("❌ Cancelar", callback_data="wiz_cancel")])
+
+    # Guardar ranking no wizard para recuperar pelo índice
+    data["_model_options"] = ranked[:8]
+
+    txt = "\n".join(lines)
+    # Adicionar detalhes do top recomendado
+    if ranked and wanted_caps:
+        top = ranked[0]
+        txt += f"\n⭐ *Recomendado:* {top['name']}\n_{top.get('rec', '')}_"
+
+    kb = InlineKeyboardMarkup(rows)
     if hasattr(update_or_query, "message"):
         await update_or_query.message.reply_text(txt, parse_mode="Markdown", reply_markup=kb)
     else:
@@ -2290,6 +2460,8 @@ async def _wizard_create_agent(update: Update, wizard: dict) -> None:
             "TOOLS":          ",".join(data.get("tools", [])) if data.get("tools") else "none",
             "DESCRIPTION":    data.get("description", ""),
         }
+        if data.get("model"):
+            patches["MODEL"] = data["model"]
         _write_bot_env(env_path, patches)
 
         soul_path = BASE_DIR / "bots" / name / "soul.md"
@@ -2350,6 +2522,7 @@ async def _wizard_create_subagent(update: Update, wizard: dict) -> None:
             f'NAME="{name}"',
             f'DESCRIPTION="{data.get("description", "")}"',
             f'PROVIDER="{data.get("provider", "anthropic")}"',
+            f'MODEL="{data.get("model", "")}"',
             f'TOOLS="{",".join(data.get("tools", [])) if data.get("tools") else "none"}"',
             f'ALLOWED_PARENTS="{allowed}"',
         ]
@@ -2493,6 +2666,26 @@ async def _wizard_handle_callback(query, context: ContextTypes.DEFAULT_TYPE) -> 
     if data_cb.startswith("wiz_provider_"):
         provider = data_cb[len("wiz_provider_"):]
         wdata["provider"] = provider
+        wizard["step"] = "model"
+        await _wizard_ask_model(query, wizard)
+        return
+
+    # Escolha de modelo
+    if data_cb.startswith("wiz_model_"):
+        choice = data_cb[len("wiz_model_"):]
+        if choice == "default":
+            wdata["model"] = ""  # usa MODEL global
+        else:
+            try:
+                idx = int(choice)
+                options = wdata.get("_model_options", [])
+                if 0 <= idx < len(options):
+                    wdata["model"] = options[idx]["id"]
+                else:
+                    wdata["model"] = ""
+            except (ValueError, IndexError):
+                wdata["model"] = ""
+        wdata.pop("_model_options", None)  # limpar dados temporários
         wizard["step"] = "tools"
         await _wizard_ask_tools(query, wdata.get("tools", []))
         return
