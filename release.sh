@@ -39,10 +39,17 @@ send_telegram() {
     [ -z "$token" ] && echo "⚠️  Sem token Telegram, notificação não enviada." && return
     local text="$1"
     [ ${#text} -gt 4000 ] && text="${text:0:3997}..."
-    curl -s -X POST "https://api.telegram.org/bot${token}/sendMessage" \
+    # Tenta com Markdown; se falhar (chars especiais da IA), reenvia sem formatação
+    local result
+    result=$(curl -s -X POST "https://api.telegram.org/bot${token}/sendMessage" \
         -d chat_id="${ADMIN_ID}" \
         -d text="$text" \
-        -d parse_mode="Markdown" > /dev/null 2>&1
+        -d parse_mode="Markdown")
+    if echo "$result" | grep -q '"ok":false'; then
+        curl -s -X POST "https://api.telegram.org/bot${token}/sendMessage" \
+            -d chat_id="${ADMIN_ID}" \
+            -d text="$text" > /dev/null 2>&1
+    fi
 }
 
 # ── Verifica se há algo pra lançar ──────────────────────────────────────────
@@ -307,11 +314,14 @@ else
 fi
 
 # ── Notifica admin ──────────────────────────────────────────────────────────
+# Escapa caracteres Markdown do Telegram nas notas geradas pela IA
+SAFE_NOTES=$(echo "$AI_NOTES" | sed 's/##\s*//g; s/_/\\_/g; s/\[/\\[/g; s/\]/\\]/g')
+
 MSG="🚀 *Release v$NEW_VERSION*
 
-$AI_NOTES
+$SAFE_NOTES
 
-_Para atualizar: \`/update\`_"
+_Para atualizar:_ \`/update\`"
 
 send_telegram "$MSG"
 echo "✅ Release v$NEW_VERSION completo!"
