@@ -595,10 +595,23 @@
   <!-- Novidades — movido para antes do CTA final -->
   <section id="changelog" class="changelog container">
     <h2 style="text-align: center; font-size: 2.25rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 48px; color: var(--white);">
-      Novidades <!-- CHANGELOG_VERSION -->v0.13.0<!-- /CHANGELOG_VERSION --> <span class="cl-badge">Novo</span>
+      Novidades <!-- CHANGELOG_VERSION -->v0.13.1<!-- /CHANGELOG_VERSION --> <span class="cl-badge">Novo</span>
     </h2>
     <!-- CHANGELOG_START -->
                 <div class="cl-entry">
+          <div class="cl-header">
+            <span class="cl-version">v0.13.1</span>
+            <span class="cl-date">2026-03-29</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>### Correções</li>
+              <li>Corrigida falha silenciosa na notificação Telegram ao realizar um release — o admin agora recebe a mensagem de confirmação corretamente após cada atualização de versão</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
           <div class="cl-header">
             <span class="cl-version">v0.13.0</span>
             <span class="cl-date">2026-03-28</span>
@@ -629,24 +642,6 @@
             <ul>
               <li>Wizard de criação com scroll vertical correto em telas menores.</li>
               <li>Painel admin reflete corretamente as ferramentas configuradas por bot.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.10.0</span>
-            <span class="cl-date">2026-03-23</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Alterações</strong></p>
-            <ul>
-              <li>Novas funcionalidades</li>
-              <li>Integração com Notion: bots podem agora buscar, ler e criar páginas e databases diretamente no Notion. Basta configurar a chave `NOTION_API_KEY` no `secrets.env` e adicionar `notion` à variável `TOOLS` do bot.</li>
-              <li>Melhorias</li>
-              <li>Painel admin com informações mais precisas sobre os recursos disponíveis, evitando confusão sobre funcionalidades ainda não implementadas.</li>
-              <li>Correções</li>
-              <li>Arquivo de tracing (`tracer.py`) que estava ausente do repositório foi restaurado, garantindo o funcionamento correto do rastreamento granular de chamadas LLM e tool calls.</li>
-              <li>Removida indicação incorreta de que o `action_log` poderia ser visualizado pelo admin no painel — o recurso ainda não está implementado e a interface agora reflete isso com precisão.</li>
             </ul>
           </div>
         </div>

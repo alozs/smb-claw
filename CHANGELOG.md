@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.1 (2026-03-29)
+
+
+
+### Correções
+
+• Corrigida falha silenciosa na notificação Telegram ao realizar um release — o admin agora recebe a mensagem de confirmação corretamente após cada atualização de versão
+
 ## 0.13.0 (2026-03-28)
 
 
