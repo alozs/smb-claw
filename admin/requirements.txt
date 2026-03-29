@@ -3,3 +3,6 @@ uvicorn[standard]
 jinja2
 python-multipart
 aiofiles
+httpx
+anthropic
+openai

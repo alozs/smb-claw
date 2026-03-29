@@ -25,6 +25,8 @@ declare -a MIGRATIONS=(
     "# Aprendizado comportamental (executado automaticamente pelo memory-autosave.sh)"
     "BEHAVIOR_LEARNING_ENABLED=true"
     "BEHAVIOR_MAX_CHARS=2000"
+    "# Canal de comunicação (telegram ou whatsapp)"
+    "CHANNEL=telegram"
 )
 
 BOTS_UPDATED=0

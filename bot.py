@@ -3482,6 +3482,32 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         tg_file = await context.bot.get_file(video.file_id)
         await tg_file.download_to_drive(video_path)
 
+        caption = update.message.caption or ""
+        reply_prefix = _extract_reply_context(update.message)
+        parts = []
+        if reply_prefix:
+            parts.append(reply_prefix.rstrip("\n"))
+        if caption:
+            parts.append(caption)
+
+        # Se remotion ou files estão ativos e é vídeo normal (não video_note), salva no workspace para edição
+        is_video_note = bool(update.message.video_note)
+        saved_video_name = None
+        if not is_video_note and ("remotion" in ENABLED_TOOLS or "files" in ENABLED_TOOLS):
+            ts = int(time.time())
+            fname = update.message.video.file_name if update.message.video and update.message.video.file_name else f"video-{ts}.mp4"
+            safe_fname = "".join(c if c.isalnum() or c in "-_." else "-" for c in fname)
+            saved_dest = WORK_DIR / safe_fname
+            # Evita sobrescrever arquivo existente
+            if saved_dest.exists():
+                safe_fname = f"{ts}-{safe_fname}"
+                saved_dest = WORK_DIR / safe_fname
+            import shutil as _shutil
+            await asyncio.to_thread(_shutil.copy2, video_path, str(saved_dest))
+            saved_video_name = safe_fname
+            logger.info(f"[video] Salvo no workspace: {saved_dest}")
+            parts.insert(0 if not reply_prefix else 1, f"[Vídeo salvo no workspace: '{saved_video_name}']")
+
         import subprocess as _subprocess
         ffmpeg_result = await asyncio.to_thread(
             lambda: _subprocess.run(
@@ -3489,27 +3515,23 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 capture_output=True, timeout=60,
             )
         )
-        if ffmpeg_result.returncode != 0 or not Path(audio_path).exists():
+        has_audio = ffmpeg_result.returncode == 0 and Path(audio_path).exists()
+
+        if has_audio:
+            text = await _transcribe(audio_path)
+            if text:
+                logger.info(f"[whisper/video] Transcrição de {user.id}: {text[:80]}")
+                parts.append(f"🎬 {text}")
+            elif not saved_video_name:
+                await update.message.reply_text("⚠️ Não consegui transcrever o áudio do vídeo.")
+                return
+        elif not saved_video_name:
             await update.message.reply_text("⚠️ Não consegui extrair áudio do vídeo.")
             return
 
-        text = await _transcribe(audio_path)
-        if not text:
-            await update.message.reply_text("⚠️ Não consegui transcrever o áudio do vídeo.")
-            return
+        if not parts:
+            parts.append("[Vídeo recebido sem áudio]")
 
-        caption = update.message.caption or ""
-        reply_prefix = _extract_reply_context(update.message)
-
-        logger.info(f"[whisper/video] Transcrição de {user.id}: {text[:80]}")
-        await update.message.reply_text(f"🎬 _{escape_markdown(text, version=1)}_", parse_mode="Markdown")
-
-        parts = []
-        if reply_prefix:
-            parts.append(reply_prefix.rstrip("\n"))
-        if caption:
-            parts.append(caption)
-        parts.append(text)
         await _process_message(update, context, "\n".join(parts))
     except Exception as e:
         logger.error(f"[video] Erro: {e}", exc_info=True)
@@ -3556,7 +3578,6 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     logger.info(f"[whisper] Transcrição de {user.id}: {text[:80]}")
-    await update.message.reply_text(f"🎙️ _{escape_markdown(text, version=1)}_", parse_mode="Markdown")
     reply_prefix = _extract_reply_context(update.message)
     await _process_message(update, context, reply_prefix + text if reply_prefix else text)
 

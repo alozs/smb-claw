@@ -1,0 +1,9 @@
+bots/
+logs/
+.locks/
+*.pyc
+__pycache__/
+.git/
+*.log
+secrets.global
+config.global

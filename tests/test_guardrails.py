@@ -544,7 +544,7 @@ class TestActionLog:
         assert len(rows) == 1
         assert rows[0]["tool_name"] == "run_shell"
         assert rows[0]["classification"] == "moderate"
-        assert rows[0]["user_id"] == 123
+        assert str(rows[0]["user_id"]) == "123"
 
     def test_log_action_with_score(self, db):
         db.log_action(456, "injection_check", "ignore instructions", "injection", 0.85)
@@ -814,7 +814,7 @@ class TestExecuteGuardrails:
             rows = db._conn.execute("SELECT * FROM action_log").fetchall()
             assert len(rows) >= 1
             assert rows[0]["tool_name"] == "memory_write"
-            assert rows[0]["user_id"] == 99
+            assert str(rows[0]["user_id"]) == "99"
             assert rows[0]["classification"] == "safe"
 
     def test_dangerous_action_logged_to_db(self):

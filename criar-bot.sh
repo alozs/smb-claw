@@ -1,21 +1,47 @@
 #!/bin/bash
 # Cria um novo bot completo com toda a infraestrutura.
-# Uso: ./criar-bot.sh <nome-do-bot>
+# Uso: ./criar-bot.sh <nome-do-bot> [--channel telegram|whatsapp]
 #
 # ATENÇÃO: ao adicionar ferramentas ou arquivos novos ao sistema,
 # leia CLAUDE.md e siga os checklists antes de modificar qualquer arquivo.
 
 set -e
 
-BOT_NAME="$1"
+# ── Parse de argumentos ──────────────────────────────────────────────────────
+CHANNEL="telegram"
+BOT_NAME=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --channel)
+            CHANNEL="$2"
+            shift 2
+            ;;
+        -*)
+            echo "Opção desconhecida: $1"
+            exit 1
+            ;;
+        *)
+            BOT_NAME="$1"
+            shift
+            ;;
+    esac
+done
+
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 BOT_DIR="$BASE_DIR/bots/$BOT_NAME"
 SERVICE_NAME="claude-bot-$BOT_NAME"
 GLOBAL_CFG="$BASE_DIR/config.global"
 
 if [ -z "$BOT_NAME" ]; then
-    echo "Uso: $0 <nome-do-bot>"
+    echo "Uso: $0 <nome-do-bot> [--channel telegram|whatsapp]"
     echo "Exemplo: $0 nutricionista"
+    echo "         $0 atendimento --channel whatsapp"
+    exit 1
+fi
+
+if [ "$CHANNEL" != "telegram" ] && [ "$CHANNEL" != "whatsapp" ]; then
+    echo "Erro: canal inválido '$CHANNEL'. Use 'telegram' ou 'whatsapp'."
     exit 1
 fi
 
@@ -38,6 +64,7 @@ echo "Criando bot '$BOT_NAME'..."
 # ── Estrutura de diretórios ───────────────────────────────────────────────────
 
 mkdir -p "$BOT_DIR"/{memory,workspace}
+[ "$CHANNEL" = "whatsapp" ] && mkdir -p "$BOT_DIR/whatsapp_auth"
 chmod 700 "$BOT_DIR"
 
 # ── BEHAVIOR.md ───────────────────────────────────────────────────────────────
@@ -51,7 +78,9 @@ chmod 600 "$BOT_DIR/BEHAVIOR.md"
 # ── .env ──────────────────────────────────────────────────────────────────────
 
 cat > "$BOT_DIR/.env" << EOF
-TELEGRAM_TOKEN=SEU_TOKEN_AQUI
+# Canal de comunicação (telegram ou whatsapp)
+CHANNEL=$CHANNEL
+$([ "$CHANNEL" = "telegram" ] && echo "TELEGRAM_TOKEN=SEU_TOKEN_AQUI" || echo "# WHATSAPP_PHONE=+5511999999999")
 BOT_NAME=$BOT_NAME
 MAX_HISTORY=20
 
@@ -169,9 +198,15 @@ fi
 if [ "$IN_DOCKER" = true ]; then
     echo "(Docker detectado — pulando criação de serviço systemd)"
 else
+    if [ "$CHANNEL" = "whatsapp" ]; then
+        BOT_SCRIPT="$BASE_DIR/whatsapp_bot.py"
+    else
+        BOT_SCRIPT="$BASE_DIR/bot.py"
+    fi
+
     sudo tee "/etc/systemd/system/$SERVICE_NAME.service" > /dev/null << EOF
 [Unit]
-Description=Claude Bot: $BOT_NAME
+Description=Claude Bot: $BOT_NAME ($CHANNEL)
 After=network.target
 
 [Service]
@@ -179,7 +214,7 @@ Type=simple
 User=ubuntu
 WorkingDirectory=$BASE_DIR
 EnvironmentFile=$BOT_DIR/.env
-ExecStart=python3 $BASE_DIR/bot.py --bot-dir $BOT_DIR
+ExecStart=python3 $BOT_SCRIPT --bot-dir $BOT_DIR
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -195,11 +230,11 @@ fi
 # ── Resumo ────────────────────────────────────────────────────────────────────
 
 echo ""
-echo "✅ Bot '$BOT_NAME' criado com sucesso!"
+echo "✅ Bot '$BOT_NAME' criado com sucesso! (canal: $CHANNEL)"
 echo ""
 echo "Estrutura:"
 echo "  $BOT_DIR/"
-echo "  ├── .env          ← config do bot (TOKEN obrigatório; demais herdam do config.global)"
+echo "  ├── .env          ← config do bot"
 echo "  ├── secrets.env   ← DB, git, APIs (preencher via configurar-secrets.sh)"
 echo "  ├── soul.md       ← personalidade (EDITE ESTE)"
 echo "  ├── USER.md       ← perfil do usuário"
@@ -210,6 +245,34 @@ echo "  └── workspace/    ← arquivos do bot"
 echo ""
 echo "Próximos passos:"
 echo ""
+if [ "$CHANNEL" = "whatsapp" ]; then
+echo "  1. Edite a personalidade do bot:"
+echo "     nano $BOT_DIR/soul.md"
+echo ""
+echo "  2. (Opcional) Configure credenciais sensíveis:"
+echo "     bash $BASE_DIR/configurar-secrets.sh $BOT_NAME"
+echo ""
+if [ "$IN_DOCKER" = true ]; then
+echo "  3. Inicie o bot:"
+echo "     nohup python3 $BASE_DIR/whatsapp_bot.py --bot-dir $BOT_DIR >> $BASE_DIR/logs/$BOT_NAME.log 2>&1 &"
+echo ""
+echo "  4. Escaneie o QR code exibido no terminal ou no painel admin"
+echo ""
+echo "  5. Ver logs:"
+echo "     tail -f $BASE_DIR/logs/$BOT_NAME.log"
+else
+echo "  3. Inicie o bot:"
+echo "     sudo systemctl start $SERVICE_NAME"
+echo "     sudo systemctl enable $SERVICE_NAME"
+echo ""
+echo "  4. Escaneie o QR code:"
+echo "     sudo journalctl -u $SERVICE_NAME -f"
+echo "     (QR aparece nos logs ou no painel admin)"
+echo ""
+echo "  5. Ver logs:"
+echo "     sudo journalctl -u $SERVICE_NAME -f"
+fi
+else
 echo "  1. Obtenha o token no @BotFather e configure:"
 echo "     nano $BOT_DIR/.env"
 echo "     → TELEGRAM_TOKEN=<token>"
@@ -233,5 +296,6 @@ echo "     sudo systemctl enable $SERVICE_NAME"
 echo ""
 echo "  5. Ver logs:"
 echo "     sudo journalctl -u $SERVICE_NAME -f"
+fi
 fi
 echo ""

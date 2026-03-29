@@ -133,6 +133,39 @@ class AuthMiddleware(BaseHTTPMiddleware):
 app.add_middleware(AuthMiddleware)
 
 
+# ── Admin DB (SQLite) ────────────────────────────────────────────────────────
+
+ADMIN_DB_PATH = Path(__file__).resolve().parent / "admin.db"
+
+
+def _get_admin_db() -> sqlite3.Connection:
+    conn = sqlite3.connect(str(ADMIN_DB_PATH))
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _init_admin_db():
+    conn = _get_admin_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS architect_conversations (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL DEFAULT '',
+            messages TEXT NOT NULL DEFAULT '[]',
+            blueprint TEXT,
+            selected_models TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+_init_admin_db()
+
+
 def validate_bot_name(name: str):
     if not re.match(r"^[a-zA-Z0-9_-]+$", name):
         raise HTTPException(400, detail="Invalid bot name")
@@ -269,6 +302,15 @@ def get_uptime(bot_name: str) -> str:
         return "—"
 
 
+def _get_bot_script(bot_name: str) -> str:
+    """Returns the correct bot script (bot.py or whatsapp_bot.py) based on CHANNEL."""
+    env = get_bot_env(bot_name)
+    channel = env.get("CHANNEL", "telegram")
+    if channel == "whatsapp":
+        return str(BASE_DIR / "whatsapp_bot.py")
+    return str(BASE_DIR / "bot.py")
+
+
 def get_bot_summary(bot_name: str) -> dict:
     env = get_bot_env_effective(bot_name)
     if IN_DOCKER:
@@ -337,11 +379,14 @@ def get_bot_summary(bot_name: str) -> dict:
     display_name = env.get("BOT_NAME", "").strip() or bot_name
     description = env.get("DESCRIPTION", "").strip()
 
+    channel = env.get("CHANNEL", "telegram")
+
     return {
         "name": bot_name,
         "display_name": display_name,
         "description": description,
         "active": active,
+        "channel": channel,
         "provider": provider,
         "model": model,
         "tools": tools_list,
@@ -403,7 +448,9 @@ async def gen_token(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    resp = templates.TemplateResponse("index.html", {"request": request})
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return resp
 
 
 # ── Routes: Bots ──────────────────────────────────────────────────────────────
@@ -486,6 +533,39 @@ async def delete_avatar(name: str):
     return {"ok": True, "has_avatar": False}
 
 
+# ── Routes: WhatsApp ─────────────────────────────────────────────────────────
+
+@app.get("/api/bots/{name}/whatsapp/qr")
+async def get_whatsapp_qr(name: str):
+    validate_bot_name(name)
+    qr_path = BOTS_DIR / name / "whatsapp_qr.png"
+    if not qr_path.exists():
+        raise HTTPException(404, detail="QR code não disponível")
+    return FileResponse(str(qr_path), media_type="image/png",
+                        headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/api/bots/{name}/whatsapp/status")
+async def get_whatsapp_status(name: str):
+    validate_bot_name(name)
+    status_path = BOTS_DIR / name / "whatsapp_status.json"
+    if not status_path.exists():
+        return {"status": "unknown", "connected": False}
+    try:
+        return json.loads(status_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {"status": "unknown", "connected": False}
+
+
+@app.post("/api/bots/{name}/whatsapp/logout")
+async def whatsapp_logout(name: str):
+    validate_bot_name(name)
+    # Sinaliza logout escrevendo arquivo que o whatsapp_bot.py detecta
+    logout_path = BOTS_DIR / name / "whatsapp_logout"
+    logout_path.write_text("logout", encoding="utf-8")
+    return {"ok": True, "message": "Logout sinalizado. O bot será desconectado."}
+
+
 class CreateBotRequest(BaseModel):
     name: str
     display_name: Optional[str] = ""
@@ -494,6 +574,7 @@ class CreateBotRequest(BaseModel):
     provider: Optional[str] = "claude-cli"
     tools: Optional[list] = []
     telegram_token: Optional[str] = ""
+    channel: Optional[str] = "telegram"
     soul: Optional[str] = ""
 
 
@@ -508,8 +589,12 @@ async def create_bot(req: CreateBotRequest):
     if not script.exists():
         raise HTTPException(500, detail="criar-bot.sh not found")
 
+    channel = req.channel or "telegram"
+    if channel not in ("telegram", "whatsapp"):
+        raise HTTPException(400, detail="Canal inválido. Use 'telegram' ou 'whatsapp'.")
+
     result = subprocess.run(
-        ["bash", str(script), req.name],
+        ["bash", str(script), req.name, "--channel", channel],
         capture_output=True, text=True, timeout=30
     )
     if result.returncode != 0:
@@ -524,7 +609,7 @@ async def create_bot(req: CreateBotRequest):
         patches["PROVIDER"] = req.provider
     if req.tools:
         patches["TOOLS"] = ",".join(req.tools)
-    if req.telegram_token:
+    if req.telegram_token and channel == "telegram":
         patches["TELEGRAM_TOKEN"] = req.telegram_token
     if req.display_name:
         patches["BOT_NAME"] = req.display_name
@@ -635,12 +720,13 @@ async def bot_action(name: str, req: ActionRequest):
 
     if IN_DOCKER:
         bot_dir = str(BOTS_DIR / name)
+        bot_script = _get_bot_script(name)
         if req.action in ("stop", "restart"):
             subprocess.run(["pkill", "-f", "--", f"--bot-dir.*bots/{name}"],
                            capture_output=True, timeout=10)
             # Aguarda o processo morrer (até 10s) e limpa o lock file
             for _ in range(10):
-                r = subprocess.run(["pgrep", "-f", "--", f"bot.py --bot-dir.*bots/{name}"],
+                r = subprocess.run(["pgrep", "-f", "--", f"--bot-dir.*bots/{name}"],
                                    capture_output=True)
                 if r.returncode != 0:
                     break
@@ -652,7 +738,7 @@ async def bot_action(name: str, req: ActionRequest):
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log_fd = open(log_path, "a")
             subprocess.Popen(
-                ["python3", str(BASE_DIR / "bot.py"), "--bot-dir", bot_dir],
+                ["python3", bot_script, "--bot-dir", bot_dir],
                 stdout=log_fd, stderr=log_fd, start_new_session=True,
             )
     else:
@@ -1182,7 +1268,7 @@ async def restart_all_bots():
             subprocess.run(["pkill", "-f", "--", f"--bot-dir.*bots/{name}"],
                            capture_output=True, timeout=10)
             for _ in range(10):
-                r = subprocess.run(["pgrep", "-f", "--", f"bot.py --bot-dir.*bots/{name}"],
+                r = subprocess.run(["pgrep", "-f", "--", f"--bot-dir.*bots/{name}"],
                                    capture_output=True)
                 if r.returncode != 0:
                     break
@@ -1190,11 +1276,12 @@ async def restart_all_bots():
             for lf in (BASE_DIR / ".locks").glob(f"*{name}*"):
                 lf.unlink(missing_ok=True)
             bot_dir = str(BOTS_DIR / name)
+            bot_script = _get_bot_script(name)
             log_path = BASE_DIR / "logs" / f"{name}.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log_fd = open(log_path, "a")
             subprocess.Popen(
-                ["python3", str(BASE_DIR / "bot.py"), "--bot-dir", bot_dir],
+                ["python3", bot_script, "--bot-dir", bot_dir],
                 stdout=log_fd, stderr=log_fd, start_new_session=True,
             )
             results.append({"name": name, "ok": True})
@@ -2031,3 +2118,912 @@ async def update_subagent_soul(name: str, body: FileUpdate):
     validate_subagent_name(name)
     (SUBAGENTS_DIR / name / "soul.md").write_text(body.content)
     return {"ok": True}
+
+
+# ── Routes: Architect ─────────────────────────────────────────────────────────
+
+import httpx
+
+# Cache de modelos do mercado
+_models_cache: list[dict] = []
+_models_cache_ts: float = 0
+_MODELS_CACHE_TTL = 6 * 3600  # 6 horas
+
+CURATED_PROVIDERS = {
+    "anthropic", "openai", "google", "deepseek", "x-ai",
+    "meta-llama", "mistralai", "moonshotai", "minimax",
+    "qwen", "cohere", "amazon", "nex-agi", "stepfun",
+}
+
+# IDs que funcionam via API direta (sem OpenRouter)
+# Modelos diretos (hardcoded) — mesmos usados em outras partes do código
+_ANTHROPIC_MODELS = [
+    {"id": "claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "provider": "anthropic",
+     "context_length": 1000000, "price_input": 3.0, "price_output": 15.0, "tier": "premium",
+     "description": "Equilíbrio ideal entre velocidade e inteligência"},
+    {"id": "claude-opus-4-6", "name": "Claude Opus 4.6", "provider": "anthropic",
+     "context_length": 1000000, "price_input": 5.0, "price_output": 25.0, "tier": "premium",
+     "description": "O mais inteligente — raciocínio profundo e código complexo"},
+    {"id": "claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "provider": "anthropic",
+     "context_length": 200000, "price_input": 1.0, "price_output": 5.0, "tier": "standard",
+     "description": "Rápido e barato para tarefas simples"},
+]
+
+_CODEX_MODELS = [
+    {"id": "gpt-5.4", "name": "GPT-5.4", "provider": "codex",
+     "context_length": 128000, "price_input": 2.5, "price_output": 10.0, "tier": "premium",
+     "description": "Raciocínio e código avançados"},
+    {"id": "gpt-5.1-codex-mini", "name": "GPT-5.1 Codex Mini", "provider": "codex",
+     "context_length": 128000, "price_input": 0.3, "price_output": 1.2, "tier": "economy",
+     "description": "Leve e barato para tarefas simples"},
+]
+
+_ANTHROPIC_DIRECT_IDS = {m["id"] for m in _ANTHROPIC_MODELS}
+_CODEX_DIRECT_IDS = {m["id"] for m in _CODEX_MODELS}
+
+
+def _classify_tier(price_input: float) -> str:
+    """Classifica tier do modelo pelo preço de input ($/MTok)."""
+    if price_input >= 2.0:
+        return "premium"
+    if price_input >= 0.5:
+        return "standard"
+    return "economy"
+
+
+def _normalize_openrouter_model(m: dict) -> dict | None:
+    """Normaliza modelo do OpenRouter para formato interno. Retorna None se inválido."""
+    mid = m.get("id", "")
+    pricing = m.get("pricing") or {}
+    ctx = m.get("context_length") or 0
+    arch = m.get("architecture") or {}
+
+    # Filtro técnico
+    if ctx < 16000:
+        return None
+    if not pricing.get("prompt") or not pricing.get("completion"):
+        return None
+    try:
+        price_in = float(pricing["prompt"]) * 1_000_000  # por MTok
+        price_out = float(pricing["completion"]) * 1_000_000
+    except (ValueError, TypeError):
+        return None
+    if price_in <= 0 and price_out <= 0:
+        return None
+
+    # Filtro deprecated
+    exp = m.get("expiration_date")
+    if exp:
+        try:
+            if datetime.fromisoformat(exp.replace("Z", "+00:00")) < datetime.now(timezone.utc):
+                return None
+        except Exception:
+            pass
+
+    # Filtro fine-tune/base
+    lower_id = mid.lower()
+    if any(tag in lower_id for tag in [":free", "-base", "-raw", ":beta", "nitro", ":floor"]):
+        return None
+
+    # Whitelist de providers
+    provider_prefix = mid.split("/")[0] if "/" in mid else ""
+    if provider_prefix not in CURATED_PROVIDERS:
+        return None
+
+    # Filtro: só texto como input
+    input_mods = arch.get("input_modalities", ["text"])
+    if "text" not in input_mods:
+        return None
+
+    top = m.get("top_provider") or {}
+    price_in_rounded = round(price_in, 4)
+    return {
+        "id": mid,
+        "name": m.get("name", mid),
+        "provider": "openrouter",
+        "context_length": ctx,
+        "max_output": top.get("max_completion_tokens") or 4096,
+        "price_input": price_in_rounded,
+        "price_output": round(price_out, 4),
+        "tier": _classify_tier(price_in_rounded),
+        "description": (m.get("description") or "")[:200],
+        "modality": arch.get("modality", "text->text"),
+    }
+
+
+def _deduplicate_models(models: list[dict], max_per_family: int = 2) -> list[dict]:
+    """Agrupa por família e mantém as melhores variantes."""
+    families: dict[str, list[dict]] = {}
+    for m in models:
+        mid = m["id"]
+        # Extrai família: google/gemini-2.5-flash -> google/gemini-2.5
+        parts = mid.rsplit("-", 1)
+        family = parts[0] if len(parts) > 1 else mid
+        # Simplifica mais: remove sufixos comuns
+        for suffix in ["-preview", "-latest", "-exp"]:
+            family = family.replace(suffix, "")
+        families.setdefault(family, []).append(m)
+
+    result = []
+    for family, members in families.items():
+        # Ordena por: maior contexto primeiro, depois menor preço
+        members.sort(key=lambda m: (-m["context_length"], m["price_input"]))
+        result.extend(members[:max_per_family])
+    return result
+
+
+async def _fetch_market_models() -> list[dict]:
+    """Busca modelos do mercado via OpenRouter API com cache."""
+    global _models_cache, _models_cache_ts
+
+    if _models_cache and (time.time() - _models_cache_ts) < _MODELS_CACHE_TTL:
+        return _models_cache
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get("https://openrouter.ai/api/v1/models")
+            resp.raise_for_status()
+            raw = resp.json().get("data", [])
+    except Exception:
+        return _models_cache  # retorna cache antigo se falhar
+
+    # Pipeline de curadoria
+    normalized = []
+    for m in raw:
+        n = _normalize_openrouter_model(m)
+        if n:
+            normalized.append(n)
+
+    # Deduplicação
+    curated = _deduplicate_models(normalized, max_per_family=2)
+
+    # Score composto e ordenação
+    now_ts = time.time()
+    for m in curated:
+        ctx_score = min(m["context_length"] / 1_000_000, 1.0)  # normaliza 0-1
+        price_score = 1.0 / (1.0 + m["price_input"])  # menor preço = maior score
+        m["_score"] = ctx_score * 0.5 + price_score * 0.5
+
+    curated.sort(key=lambda m: -m["_score"])
+    # Limita a ~30 modelos
+    curated = curated[:30]
+    # Remove score interno
+    for m in curated:
+        m.pop("_score", None)
+
+    _models_cache = curated
+    _models_cache_ts = time.time()
+    return curated
+
+
+def _resolve_architect_provider() -> dict:
+    """Detecta providers conectados e escolhe o melhor para o arquiteto."""
+    secrets_env = load_env(BASE_DIR / "secrets.global")
+    cfg = load_env(BASE_DIR / "config.global")
+
+    connected = []
+    available_models: dict[str, list[str]] = {}
+
+    # Anthropic (OAuth ou API key)
+    anthropic_key = None
+    claude_oauth = _check_oauth(CLAUDE_CREDS_PATH, ["claudeAiOauth", "accessToken"])
+    if claude_oauth["status"] == "active":
+        anthropic_key = "__oauth__"
+    if not anthropic_key:
+        anthropic_key = secrets_env.get("ANTHROPIC_API_KEY") or cfg.get("ANTHROPIC_API_KEY")
+    if anthropic_key:
+        connected.append("anthropic")
+        available_models["anthropic"] = list(_ANTHROPIC_DIRECT_IDS)
+
+    # OpenRouter
+    openrouter_key = secrets_env.get("OPENROUTER_API_KEY") or cfg.get("OPENROUTER_API_KEY")
+    if openrouter_key:
+        connected.append("openrouter")
+        available_models["openrouter"] = []  # preenchido depois com market models
+
+    # Codex (OAuth ou API key)
+    codex_key = None
+    codex_oauth = _check_oauth(CODEX_AUTH_PATH, ["tokens", "access_token"])
+    if codex_oauth["status"] == "active":
+        codex_key = "__oauth__"
+    if not codex_key:
+        codex_key = secrets_env.get("OPENAI_API_KEY")
+    if codex_key:
+        connected.append("codex")
+        available_models["codex"] = list(_CODEX_DIRECT_IDS)
+
+    # Escolher melhor provider para o arquiteto
+    # Preferência: anthropic > openrouter > codex
+    architect_provider = None
+    architect_model = None
+    if "anthropic" in connected:
+        architect_provider = "anthropic"
+        architect_model = "claude-sonnet-4-6"
+    elif "openrouter" in connected:
+        architect_provider = "openrouter"
+        architect_model = "anthropic/claude-sonnet-4.6"
+    elif "codex" in connected:
+        architect_provider = "codex"
+        architect_model = "gpt-5.4"
+
+    return {
+        "connected": connected,
+        "available_models": available_models,
+        "architect_provider": architect_provider,
+        "architect_model": architect_model,
+        "_anthropic_key": anthropic_key,
+        "_openrouter_key": openrouter_key,
+        "_codex_key": codex_key,
+    }
+
+
+def _format_context_size(tokens: int) -> str:
+    """Formata tamanho de contexto para exibição amigável."""
+    if tokens >= 1_000_000:
+        return f"{tokens // 1_000_000}M"
+    return f"{tokens // 1000}k"
+
+
+async def _build_architect_system_prompt(provider_info: dict) -> str:
+    """Monta o system prompt do arquiteto com dados dinâmicos do sistema."""
+    # Nomes existentes (apenas para evitar colisão)
+    existing_names = []
+    if BOTS_DIR.exists():
+        for d in sorted(BOTS_DIR.iterdir()):
+            if d.is_dir() and (d / ".env").exists():
+                existing_names.append(d.name)
+    if SUBAGENTS_DIR.exists():
+        for d in sorted(SUBAGENTS_DIR.iterdir()):
+            if d.is_dir() and (d / ".env").exists():
+                existing_names.append(d.name)
+
+    # Catálogo: modelos diretos PRIMEIRO, depois OpenRouter
+    catalog_lines = []
+
+    # Modelos diretos (prioritários)
+    if "anthropic" in provider_info["connected"]:
+        catalog_lines.append("\n### Anthropic (Acesso Direto — PRIORIDADE)")
+        for m in _ANTHROPIC_MODELS:
+            ctx = _format_context_size(m["context_length"])
+            catalog_lines.append(f"- {m['name']} ({m['id']}) | tier: {m['tier']} | contexto: {ctx} | ${m['price_input']}/MTok in")
+    if "codex" in provider_info["connected"]:
+        catalog_lines.append("\n### OpenAI (Acesso Direto — PRIORIDADE)")
+        for m in _CODEX_MODELS:
+            ctx = _format_context_size(m["context_length"])
+            catalog_lines.append(f"- {m['name']} ({m['id']}) | tier: {m['tier']} | contexto: {ctx} | ${m['price_input']}/MTok in")
+
+    # OpenRouter (secundário)
+    if "openrouter" in provider_info["connected"]:
+        market_models = await _fetch_market_models()
+        if market_models:
+            catalog_lines.append("\n### OpenRouter (via roteamento — usar se nenhum direto atender)")
+            for m in market_models[:15]:
+                ctx = _format_context_size(m["context_length"])
+                tier = m.get("tier", _classify_tier(m["price_input"]))
+                catalog_lines.append(f"- {m['name']} ({m['id']}) | tier: {tier} | contexto: {ctx} | ${m['price_input']}/MTok in")
+
+    catalog_str = "\n".join(catalog_lines) if catalog_lines else "Nenhum modelo disponível"
+    existing_names_str = ", ".join(existing_names) if existing_names else "nenhum"
+
+    return f"""Você é o Arquiteto de Agentes da plataforma "SMB Claw".
+
+O usuário descreve uma necessidade e você projeta a orquestração ideal de agentes e sub-agentes para resolver. Use linguagem simples — o usuário pode não ser técnico.
+
+## Terminologia obrigatória
+- Diga "agente" (nunca "bot")
+- Diga "inteligência" (nunca "modelo" ou "LLM")
+- Diga "capacidades" (nunca "ferramentas" ou "tools")
+- Não use jargões como "token", "context window", "contexto de 1M", "provider", "MTok"
+- Não mencione tamanho de contexto nem preço por token — o usuário não precisa disso
+
+## Comunicação
+- Perguntas: uma ou duas por vez, nunca questionário
+- Explique POR QUE recomenda cada coisa
+- Use analogias do dia a dia
+
+## Perguntas obrigatórias antes de projetar
+1. "Seus arquivos são grandes? Quantas linhas/páginas?"
+2. "Precisa analisar tudo junto ou pode ser aos poucos?"
+3. "Vai fazer uma vez ou repetir (diário/semanal)?"
+4. "Só você vai usar ou outras pessoas?"
+
+## Orquestração
+- **Agente**: recebe mensagens via Telegram ou WhatsApp, coordena o trabalho — é o cérebro
+  - **Telegram**: usa um token do @BotFather para funcionar
+  - **WhatsApp**: conecta via QR code (como WhatsApp Web), sem necessidade de token
+- **Sub-agente**: especialista chamado pelo agente, trabalha nos bastidores
+  - Modo simples: responde uma vez, sem capacidades. Rápido e barato.
+  - Modo agêntico: usa capacidades em vários passos. Mais capaz.
+
+## Perguntas sobre canal
+- Pergunte ao usuário se prefere Telegram ou WhatsApp (ou ambos, com agentes separados)
+- WhatsApp é ideal quando os usuários já estão no WhatsApp e não querem instalar Telegram
+- Telegram é mais flexível (botões, comandos, grupos)
+
+## Capacidades disponíveis
+📁 Arquivos (files) · 💻 Terminal (shell) · 🌐 Internet (http) · ⏰ Agendamentos (cron)
+🔧 Git · 🐙 GitHub · 🗄️ Banco de dados (database) · 📓 Notion · 🔍 Busca web (tavily)
+
+## Catálogo de inteligências (atualizado automaticamente)
+Cada modelo tem um "tier" que indica sua capacidade relativa:
+- **premium**: os mais inteligentes e capazes
+- **standard**: bom equilíbrio entre capacidade e custo
+- **economy**: rápidos e baratos, ideais para tarefas simples
+
+Use APENAS estes dados. Nunca invente números.
+{catalog_str}
+
+## Nomes já em uso (evite ao criar novos agentes)
+{existing_names_str}
+
+## Regras de projeto
+1. Sempre crie agentes NOVOS com nomes descritivos (ex: "analista-vendas", "gerador-relatorio")
+2. Sugira um nome criativo e amigável para cada agente (ex: "Luna", "Atlas", "Bolt"). Use o campo "suggested_bot_name" no JSON. Esse será o nome do bot no Telegram — deve ser curto, memorável e combinar com a função do agente.
+3. Use SOMENTE modelos de Acesso Direto listados acima — eles são prioritários e estão conectados
+4. Agente principal: use o melhor modelo direto disponível (Sonnet 4.6, Opus 4.6, ou GPT-5.4)
+5. Sub-agentes: podem usar modelos diretos mais econômicos (Haiku 4.5, GPT-5.1 Mini)
+6. Modelos do OpenRouter: use APENAS se nenhum modelo direto atender à necessidade (ex: contexto insuficiente)
+7. Para cada agente/sub-agente, recomende 2-3 opções rankeadas (rank 1 = recomendado)
+8. Considere tamanho do contexto vs volume de dados
+9. Se dados são grandes demais, recomende pré-processamento
+
+## Formato do blueprint
+Quando tiver informações suficientes, gere um RESUMO em linguagem simples e depois inclua um bloco JSON técnico dentro de um bloco ```json:
+
+{{
+  "title": "Nome do Projeto",
+  "agents": [{{
+    "name": "nome-slug-descritivo",
+    "display_name": "Nome Amigável",
+    "suggested_bot_name": "Nome Criativo (ex: Luna, Atlas, Bolt)",
+    "description": "O que faz",
+    "channel": "telegram ou whatsapp",
+    "tools": ["files", "shell"],
+    "role": "Papel do agente",
+    "models": [
+      {{"rank": 1, "id": "modelo-id", "provider": "provider", "tier": "premium"}},
+      {{"rank": 2, "id": "modelo-id", "provider": "provider", "tier": "standard"}}
+    ]
+  }}],
+  "subagents": [{{
+    "name": "nome-slug-descritivo",
+    "display_name": "Nome Amigável",
+    "description": "O que faz",
+    "tools": ["files"],
+    "mode": "simple",
+    "parent": "nome-do-agente-pai",
+    "models": [...]
+  }}],
+  "connections": [
+    {{"from": "nome-agente", "to": "nome-subagente", "label": "envia planilhas para"}}
+  ],
+  "warnings": [
+    "Dica técnica útil (requisitos do servidor, limitações, boas práticas)"
+  ]
+}}
+
+Responda sempre no mesmo idioma que o usuário usar."""
+
+
+class ArchitectChatRequest(BaseModel):
+    messages: list[dict]
+
+
+@app.get("/api/architect/providers")
+async def architect_providers():
+    """Retorna providers conectados e info do arquiteto."""
+    info = _resolve_architect_provider()
+    # Preencher modelos OpenRouter se conectado
+    if "openrouter" in info["connected"]:
+        market = await _fetch_market_models()
+        info["available_models"]["openrouter"] = [m["id"] for m in market[:15]]
+    # Remover chaves internas
+    return {
+        "connected": info["connected"],
+        "available_models": info["available_models"],
+        "architect_provider": info["architect_provider"],
+        "architect_model": info["architect_model"],
+    }
+
+
+@app.get("/api/architect/models")
+async def architect_models():
+    """Retorna catálogo curado de modelos do mercado."""
+    market = await _fetch_market_models()
+    all_models = market if market else (_ANTHROPIC_MODELS + _CODEX_MODELS)
+    return {"models": all_models, "total": len(all_models)}
+
+
+def _load_curated_openrouter_models() -> dict:
+    """Carrega catálogo curado de modelos OpenRouter do JSON externo."""
+    json_path = Path(__file__).resolve().parent / "openrouter-models.json"
+    try:
+        import json as _json
+        return _json.loads(json_path.read_text())
+    except Exception:
+        return {"models": [], "price_legend": {}, "last_updated": ""}
+
+
+@app.get("/api/architect/available-models")
+async def architect_available_models():
+    """Retorna modelos diretos e OpenRouter (curado) separados."""
+    info = _resolve_architect_provider()
+
+    # Modelos diretos (Anthropic + OpenAI conectados)
+    direct: list[dict] = []
+    if "anthropic" in info["connected"]:
+        for m in _ANTHROPIC_MODELS:
+            direct.append({"id": m["id"], "name": m["name"], "provider": "Anthropic"})
+    if "codex" in info["connected"]:
+        for m in _CODEX_MODELS:
+            direct.append({"id": m["id"], "name": m["name"], "provider": "OpenAI"})
+
+    # Modelos OpenRouter (catálogo curado do JSON)
+    has_openrouter = "openrouter" in info["connected"]
+    curated = _load_curated_openrouter_models()
+    openrouter = curated.get("models", []) if has_openrouter else []
+    price_legend = curated.get("price_legend", {})
+    last_updated = curated.get("last_updated", "")
+
+    return {
+        "direct": direct,
+        "openrouter": openrouter,
+        "has_openrouter": has_openrouter,
+        "price_legend": price_legend,
+        "last_updated": last_updated,
+    }
+
+
+def _build_provider_chain(provider_info: dict) -> list[tuple[str, str, dict]]:
+    """Constrói cadeia de fallback: [(provider, model, client_kwargs), ...]"""
+    chain = []
+
+    # Anthropic (API key apenas, OAuth pode não funcionar para streaming)
+    anthropic_key = provider_info["_anthropic_key"]
+    if anthropic_key and anthropic_key != "__oauth__":
+        chain.append(("anthropic", "claude-sonnet-4-6", {"api_key": anthropic_key}))
+    elif anthropic_key == "__oauth__":
+        try:
+            creds = json.loads(CLAUDE_CREDS_PATH.read_text())
+            token = creds.get("claudeAiOauth", {}).get("accessToken", "")
+            if token:
+                chain.append(("anthropic", "claude-sonnet-4-6", {"auth_token": token}))
+        except Exception:
+            pass
+
+    # OpenRouter
+    openrouter_key = provider_info["_openrouter_key"]
+    if openrouter_key:
+        chain.append(("openrouter", "anthropic/claude-sonnet-4.6", {"api_key": openrouter_key}))
+
+    # Codex
+    codex_key = provider_info["_codex_key"]
+    if codex_key:
+        if codex_key == "__oauth__":
+            try:
+                auth = json.loads(CODEX_AUTH_PATH.read_text())
+                api_key = auth.get("tokens", {}).get("access_token", "")
+                account_id = auth.get("account_id", "")
+                if api_key:
+                    chain.append(("codex", "gpt-5.4", {
+                        "api_key": api_key, "account_id": account_id, "is_oauth": True,
+                    }))
+            except Exception:
+                pass
+        else:
+            chain.append(("codex", "gpt-5.4", {"api_key": codex_key, "is_oauth": False}))
+
+    return chain
+
+
+def _stream_anthropic(model, system_prompt, messages, client_kwargs):
+    """Streaming generator for Anthropic."""
+    import anthropic as anthropic_sdk
+    client = anthropic_sdk.Anthropic(**{k: v for k, v in client_kwargs.items() if k in ("api_key", "auth_token")})
+    with client.messages.stream(
+        model=model, max_tokens=4096, system=system_prompt,
+        messages=messages,
+    ) as stream:
+        for text in stream.text_stream:
+            yield text
+
+
+def _stream_openrouter(model, system_prompt, messages, client_kwargs):
+    """Streaming generator for OpenRouter."""
+    from openai import OpenAI
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=client_kwargs["api_key"])
+    oai_messages = [{"role": "system", "content": system_prompt}] + messages
+    resp = client.chat.completions.create(model=model, max_tokens=4096, messages=oai_messages, stream=True)
+    for chunk in resp:
+        delta = chunk.choices[0].delta if chunk.choices else None
+        if delta and delta.content:
+            yield delta.content
+
+
+def _stream_codex(model, system_prompt, messages, client_kwargs):
+    """Streaming generator for Codex/OpenAI."""
+    from openai import OpenAI
+    if client_kwargs.get("is_oauth"):
+        headers = {}
+        if client_kwargs.get("account_id"):
+            headers["ChatGPT-Account-Id"] = client_kwargs["account_id"]
+        client = OpenAI(
+            api_key=client_kwargs["api_key"],
+            base_url="https://chatgpt.com/backend-api/wham",
+            default_headers=headers,
+        )
+    else:
+        client = OpenAI(api_key=client_kwargs["api_key"])
+    oai_messages = [{"role": "system", "content": system_prompt}] + messages
+    resp = client.chat.completions.create(model=model, max_tokens=4096, messages=oai_messages, stream=True)
+    for chunk in resp:
+        delta = chunk.choices[0].delta if chunk.choices else None
+        if delta and delta.content:
+            yield delta.content
+
+
+_STREAM_FNS = {
+    "anthropic": _stream_anthropic,
+    "openrouter": _stream_openrouter,
+    "codex": _stream_codex,
+}
+
+
+@app.post("/api/architect/chat")
+async def architect_chat(req: ArchitectChatRequest):
+    """Chat com o arquiteto via SSE streaming, com fallback entre providers."""
+    provider_info = _resolve_architect_provider()
+    chain = _build_provider_chain(provider_info)
+
+    if not chain:
+        async def error_stream():
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Nenhum provedor de IA configurado. Acesse Configurações para adicionar uma chave de API.'})}\n\n"
+        return StreamingResponse(error_stream(), media_type="text/event-stream")
+
+    system_prompt = await _build_architect_system_prompt(provider_info)
+    messages = [m for m in req.messages if m.get("role") in ("user", "assistant") and m.get("content")]
+
+    async def stream_sse():
+        last_error = None
+        for prov, model, kwargs in chain:
+            full_text = ""
+            try:
+                stream_fn = _STREAM_FNS.get(prov)
+                if not stream_fn:
+                    continue
+                # Roda o generator sync em thread e coleta chunks
+                import queue, threading
+                q = queue.Queue()
+                error_holder = [None]
+
+                def run_stream():
+                    try:
+                        for chunk in stream_fn(model, system_prompt, messages, kwargs):
+                            q.put(("token", chunk))
+                        q.put(("end", None))
+                    except Exception as e:
+                        q.put(("error", e))
+
+                t = threading.Thread(target=run_stream, daemon=True)
+                t.start()
+
+                success = False
+                while True:
+                    try:
+                        kind, val = q.get(timeout=120)
+                    except queue.Empty:
+                        last_error = "Timeout: resposta demorou mais de 2 minutos"
+                        break
+                    if kind == "token":
+                        full_text += val
+                        yield f"data: {json.dumps({'type': 'token', 'content': val})}\n\n"
+                    elif kind == "end":
+                        success = True
+                        break
+                    elif kind == "error":
+                        last_error = str(val)[:500]
+                        break
+
+                t.join(timeout=5)
+
+                if success:
+                    yield f"data: {json.dumps({'type': 'done', 'content': full_text})}\n\n"
+                    return
+                # Se falhou, tenta próximo provider
+                if full_text:
+                    # Se já enviou tokens parciais, não dá para fallback limpo
+                    yield f"data: {json.dumps({'type': 'error', 'content': last_error or 'Erro desconhecido'})}\n\n"
+                    return
+                continue
+
+            except Exception as e:
+                last_error = str(e)[:500]
+                continue
+
+        yield f"data: {json.dumps({'type': 'error', 'content': last_error or 'Todos os provedores falharam.'})}\n\n"
+
+    return StreamingResponse(stream_sse(), media_type="text/event-stream")
+
+
+# ── Architect Conversations CRUD ─────────────────────────────────────────────
+
+
+class ArchitectConversationSave(BaseModel):
+    id: str
+    title: str = ""
+    messages: list[dict] = []
+    blueprint: Optional[dict] = None
+    selected_models: Optional[dict] = None
+
+
+@app.get("/api/architect/conversations")
+async def architect_conversations_list():
+    """Lista conversas do arquiteto, ordenadas por atualização."""
+    conn = _get_admin_db()
+    try:
+        rows = conn.execute(
+            "SELECT id, title, blueprint, created_at, updated_at FROM architect_conversations ORDER BY updated_at DESC LIMIT 50"
+        ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "has_blueprint": r["blueprint"] is not None and r["blueprint"] != "null",
+                "created_at": r["created_at"],
+                "updated_at": r["updated_at"],
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+@app.get("/api/architect/conversations/{conv_id}")
+async def architect_conversation_get(conv_id: str):
+    """Retorna uma conversa completa."""
+    conn = _get_admin_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM architect_conversations WHERE id = ?", (conv_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, detail="Conversa não encontrada")
+        return {
+            "id": row["id"],
+            "title": row["title"],
+            "messages": json.loads(row["messages"]),
+            "blueprint": json.loads(row["blueprint"]) if row["blueprint"] else None,
+            "selected_models": json.loads(row["selected_models"]) if row["selected_models"] else {},
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+    finally:
+        conn.close()
+
+
+@app.post("/api/architect/conversations")
+async def architect_conversation_save(conv: ArchitectConversationSave):
+    """Cria ou atualiza uma conversa do arquiteto."""
+    now = datetime.now(timezone.utc).isoformat()
+    conn = _get_admin_db()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM architect_conversations WHERE id = ?", (conv.id,)
+        ).fetchone()
+        if existing:
+            conn.execute(
+                """UPDATE architect_conversations
+                   SET title=?, messages=?, blueprint=?, selected_models=?, updated_at=?
+                   WHERE id=?""",
+                (
+                    conv.title,
+                    json.dumps(conv.messages, ensure_ascii=False),
+                    json.dumps(conv.blueprint, ensure_ascii=False) if conv.blueprint else None,
+                    json.dumps(conv.selected_models, ensure_ascii=False) if conv.selected_models else None,
+                    now,
+                    conv.id,
+                ),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO architect_conversations (id, title, messages, blueprint, selected_models, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    conv.id,
+                    conv.title,
+                    json.dumps(conv.messages, ensure_ascii=False),
+                    json.dumps(conv.blueprint, ensure_ascii=False) if conv.blueprint else None,
+                    json.dumps(conv.selected_models, ensure_ascii=False) if conv.selected_models else None,
+                    now,
+                    now,
+                ),
+            )
+        conn.commit()
+        return {"ok": True, "id": conv.id}
+    finally:
+        conn.close()
+
+
+@app.delete("/api/architect/conversations/{conv_id}")
+async def architect_conversation_delete(conv_id: str):
+    """Remove uma conversa do arquiteto."""
+    conn = _get_admin_db()
+    try:
+        conn.execute("DELETE FROM architect_conversations WHERE id = ?", (conv_id,))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+# ── Architect: Create Agents from Blueprint ──────────────────────────────────
+
+class ArchitectCreateRequest(BaseModel):
+    blueprint: dict
+    tokens: dict                       # {agent_slug: telegram_token}
+    selected_models: dict              # {agent_slug: model_id}
+    channels: dict = {}                # {agent_slug: 'telegram'|'whatsapp'}
+    conversation_id: Optional[str] = None
+
+
+def _resolve_provider_for_model(model_id: str) -> str:
+    """Resolve provider string for .env based on model_id."""
+    if model_id in _ANTHROPIC_DIRECT_IDS:
+        oauth = _check_oauth(CLAUDE_CREDS_PATH, ["claudeAiOauth", "accessToken"])
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        return "claude-cli" if (oauth.get("status") == "active" and not api_key) else "anthropic"
+    if model_id in _CODEX_DIRECT_IDS:
+        return "codex"
+    return "openrouter"
+
+
+def _generate_soul(agent: dict, is_subagent: bool = False) -> str:
+    """Generate soul.md content from blueprint agent data."""
+    lines = [f"# {agent.get('display_name', agent.get('name', 'Assistente'))}"]
+    if agent.get('suggested_bot_name'):
+        lines.append(f"\nVocê se chama **{agent['suggested_bot_name']}**.")
+    if agent.get('role'):
+        lines.append(f"\n## Papel\n{agent['role']}")
+    lines.append(f"\n## Descrição\n{agent.get('description', 'Um assistente útil.')}")
+    if is_subagent:
+        lines.append("\nVocê é um sub-agente especializado. Recebe tarefas do agente principal e foca na sua área de expertise.")
+    return "\n".join(lines) + "\n"
+
+
+def _start_bot_process(name: str):
+    """Start a bot process (same logic as bot_action start)."""
+    if IN_DOCKER:
+        bot_dir = str(BOTS_DIR / name)
+        bot_script = _get_bot_script(name)
+        log_path = BASE_DIR / "logs" / f"{name}.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_fd = open(log_path, "a")
+        subprocess.Popen(
+            ["python3", bot_script, "--bot-dir", bot_dir],
+            stdout=log_fd, stderr=log_fd, start_new_session=True,
+        )
+    else:
+        service = f"claude-bot-{name}"
+        subprocess.run(
+            ["sudo", "systemctl", "start", service],
+            capture_output=True, text=True, timeout=30,
+        )
+
+
+@app.post("/api/architect/create-agents")
+async def architect_create_agents(req: ArchitectCreateRequest):
+    """Create all agents and subagents from an architect blueprint."""
+    blueprint = req.blueprint
+    agents = blueprint.get("agents", [])
+    subagents = blueprint.get("subagents", [])
+    results = []
+
+    # ── Validation ──
+    all_agent_names = [a["name"] for a in agents]
+    all_sub_names = [s["name"] for s in subagents]
+
+    # Check name format
+    for name in all_agent_names + all_sub_names:
+        if not re.match(r"^[a-zA-Z0-9_-]+$", name):
+            raise HTTPException(400, detail=f"Nome inválido: {name}")
+
+    # Check collisions
+    collisions = []
+    for name in all_agent_names:
+        if (BOTS_DIR / name).is_dir():
+            collisions.append(f"Agente '{name}' já existe")
+    for name in all_sub_names:
+        if (SUBAGENTS_DIR / name).exists():
+            collisions.append(f"Sub-agente '{name}' já existe")
+    if collisions:
+        raise HTTPException(409, detail="; ".join(collisions))
+
+    # Check all Telegram agents have tokens (WhatsApp uses QR code, no token needed)
+    missing_tokens = [
+        n for n in all_agent_names
+        if req.channels.get(n, "telegram") == "telegram" and not req.tokens.get(n, "").strip()
+    ]
+    if missing_tokens:
+        raise HTTPException(400, detail=f"Token faltando para: {', '.join(missing_tokens)}")
+
+    # Check all have models selected
+    missing_models = [n for n in all_agent_names + all_sub_names if not req.selected_models.get(n, "").strip()]
+    if missing_models:
+        raise HTTPException(400, detail=f"Modelo não selecionado para: {', '.join(missing_models)}")
+
+    # ── Create main agents ──
+    script = BASE_DIR / "criar-bot.sh"
+    for agent in agents:
+        name = agent["name"]
+        channel = req.channels.get(name, "telegram")
+        try:
+            if not script.exists():
+                raise RuntimeError("criar-bot.sh not found")
+
+            cmd = ["bash", str(script), name, "--channel", channel]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=30,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr or result.stdout)
+
+            # Resolve model & provider
+            model_id = req.selected_models[name]
+            provider = _resolve_provider_for_model(model_id)
+
+            # Patch .env
+            env_path = BOTS_DIR / name / ".env"
+            patches = {
+                "BOT_NAME": agent.get("display_name", agent.get("suggested_bot_name", name)),
+                "MODEL": model_id,
+                "PROVIDER": provider,
+                "TOOLS": ",".join(agent.get("tools", [])) or "none",
+                "DESCRIPTION": agent.get("description", ""),
+            }
+            if channel == "telegram":
+                patches["TELEGRAM_TOKEN"] = req.tokens[name].strip()
+            write_env(env_path, patches)
+
+            # Write soul.md
+            soul = _generate_soul(agent)
+            (BOTS_DIR / name / "soul.md").write_text(soul, encoding="utf-8")
+
+            # Start bot
+            _start_bot_process(name)
+
+            results.append({"name": name, "type": "agent", "ok": True})
+        except Exception as e:
+            results.append({"name": name, "type": "agent", "ok": False, "error": str(e)})
+
+    # ── Create subagents ──
+    SUBAGENTS_DIR.mkdir(exist_ok=True)
+    for sub in subagents:
+        name = sub["name"]
+        try:
+            d = SUBAGENTS_DIR / name
+            d.mkdir()
+
+            model_id = req.selected_models[name]
+            provider = _resolve_provider_for_model(model_id)
+
+            env_content = (
+                f"NAME={sub.get('display_name', name)}\n"
+                f"DESCRIPTION={sub.get('description', '')}\n"
+                f"PROVIDER={provider}\n"
+                f"MODEL={model_id}\n"
+                f"MODE={sub.get('mode', 'simple')}\n"
+                f"TOOLS={','.join(sub.get('tools', [])) or 'none'}\n"
+                f"ALLOWED_PARENTS={sub.get('parent', '*')}\n"
+            )
+            (d / ".env").write_text(env_content)
+
+            soul = _generate_soul(sub, is_subagent=True)
+            (d / "soul.md").write_text(soul, encoding="utf-8")
+
+            results.append({"name": name, "type": "subagent", "ok": True})
+        except Exception as e:
+            results.append({"name": name, "type": "subagent", "ok": False, "error": str(e)})
+
+    created = sum(1 for r in results if r["ok"])
+    failed = sum(1 for r in results if not r["ok"])
+    return {"results": results, "created": created, "failed": failed}

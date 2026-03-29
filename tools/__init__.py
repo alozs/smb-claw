@@ -8,7 +8,7 @@ Todas as execuções rodam via asyncio.to_thread() para não bloquear o event lo
 import asyncio
 import logging
 
-from tools import memory, tasks, shell, github_tool, git, http, database, schedule, telegram_file, notion, tavily
+from tools import memory, tasks, shell, github_tool, git, http, database, schedule, telegram_file, notion, tavily, remotion
 
 logger = logging.getLogger("tools")
 
@@ -46,6 +46,8 @@ def build_definitions(enabled_tools: set, work_dir, base_dir=None, bot_name: str
         defs.extend(notion.DEFINITIONS)
     if "tavily" in enabled_tools:
         defs.extend(tavily.DEFINITIONS)
+    if "remotion" in enabled_tools:
+        defs.extend(remotion.DEFINITIONS)
     # Sub-agentes (apenas quando base_dir é fornecido — evita recursão em sub-agentes)
     if base_dir is not None:
         from tools import agent as agent_tool
@@ -101,6 +103,9 @@ def _execute_sync(name: str, inp: dict, *, user_id: int = 0, db, config: dict) -
     # Telegram file (fila de envio)
     if name == "send_telegram_file":
         return telegram_file.execute(inp, user_id=user_id, config=config)
+    # Remotion (render de vídeo)
+    if name == "remotion_render":
+        return remotion.execute(inp, config=config)
     # Sub-agentes
     if name.startswith("agent_"):
         from tools import agent as agent_tool

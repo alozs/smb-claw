@@ -39,13 +39,13 @@ class BotDB:
             c = self._conn
             c.executescript("""
                 CREATE TABLE IF NOT EXISTS conversations (
-                    user_id INTEGER PRIMARY KEY,
+                    user_id TEXT PRIMARY KEY,
                     messages TEXT NOT NULL DEFAULT '[]',
                     updated_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS tasks (
                     id TEXT PRIMARY KEY,
-                    user_id INTEGER NOT NULL,
+                    user_id TEXT NOT NULL,
                     title TEXT NOT NULL,
                     description TEXT NOT NULL DEFAULT '',
                     steps TEXT NOT NULL DEFAULT '[]',
@@ -58,7 +58,7 @@ class BotDB:
                 );
                 CREATE TABLE IF NOT EXISTS schedules (
                     id TEXT PRIMARY KEY,
-                    user_id INTEGER NOT NULL,
+                    user_id TEXT NOT NULL,
                     hour INTEGER NOT NULL,
                     minute INTEGER NOT NULL DEFAULT 0,
                     weekdays TEXT NOT NULL DEFAULT 'all',
@@ -72,7 +72,7 @@ class BotDB:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     ts TEXT NOT NULL,
                     bot TEXT NOT NULL,
-                    user_id INTEGER NOT NULL,
+                    user_id TEXT NOT NULL DEFAULT '',
                     input_tokens INTEGER NOT NULL DEFAULT 0,
                     output_tokens INTEGER NOT NULL DEFAULT 0,
                     tool_calls INTEGER NOT NULL DEFAULT 0,
@@ -80,7 +80,7 @@ class BotDB:
                     error TEXT NOT NULL DEFAULT ''
                 );
                 CREATE TABLE IF NOT EXISTS approved_users (
-                    user_id INTEGER PRIMARY KEY,
+                    user_id TEXT PRIMARY KEY,
                     name TEXT NOT NULL DEFAULT '',
                     username TEXT NOT NULL DEFAULT '',
                     approved_at TEXT NOT NULL
@@ -88,7 +88,7 @@ class BotDB:
                 CREATE TABLE IF NOT EXISTS sessions_archive (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     bot_name TEXT NOT NULL,
-                    user_id INTEGER NOT NULL,
+                    user_id TEXT NOT NULL DEFAULT '',
                     messages TEXT NOT NULL,
                     archived_at TEXT NOT NULL
                 );
@@ -99,7 +99,7 @@ class BotDB:
                 CREATE TABLE IF NOT EXISTS traces (
                     id TEXT PRIMARY KEY,
                     bot_name TEXT NOT NULL,
-                    user_id INTEGER NOT NULL,
+                    user_id TEXT NOT NULL DEFAULT '',
                     started_at TEXT NOT NULL,
                     ended_at TEXT,
                     total_spans INTEGER DEFAULT 0,
@@ -115,7 +115,7 @@ class BotDB:
                 CREATE INDEX IF NOT EXISTS idx_traces_bot_ts ON traces(bot_name, started_at);
                 CREATE TABLE IF NOT EXISTS action_log (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER,
+                    user_id TEXT,
                     tool_name TEXT,
                     tool_input_preview TEXT,
                     classification TEXT,
@@ -131,6 +131,43 @@ class BotDB:
                     c.commit()
                 except Exception:
                     pass  # column already exists
+
+            # Migration: user_id INTEGER → TEXT (WhatsApp JIDs são strings)
+            # SQLite não suporta ALTER COLUMN, recriamos tabelas com INTEGER PRIMARY KEY
+            for table in ["conversations", "approved_users"]:
+                try:
+                    col_info = c.execute(f"PRAGMA table_info({table})").fetchall()
+                    uid_col = next((r for r in col_info if r[1] == "user_id"), None)
+                    if uid_col and uid_col[2].upper() == "INTEGER":
+                        c.executescript(f"""
+                            ALTER TABLE {table} RENAME TO {table}_old;
+                        """)
+                        # Recria com TEXT — o CREATE TABLE IF NOT EXISTS acima já criou com TEXT
+                        # mas como renomeamos, precisa criar de novo
+                        if table == "conversations":
+                            c.executescript("""
+                                CREATE TABLE conversations (
+                                    user_id TEXT PRIMARY KEY,
+                                    messages TEXT NOT NULL DEFAULT '[]',
+                                    updated_at TEXT NOT NULL
+                                );
+                                INSERT INTO conversations SELECT CAST(user_id AS TEXT), messages, updated_at FROM conversations_old;
+                                DROP TABLE conversations_old;
+                            """)
+                        elif table == "approved_users":
+                            c.executescript("""
+                                CREATE TABLE approved_users (
+                                    user_id TEXT PRIMARY KEY,
+                                    name TEXT NOT NULL DEFAULT '',
+                                    username TEXT NOT NULL DEFAULT '',
+                                    approved_at TEXT NOT NULL
+                                );
+                                INSERT INTO approved_users SELECT CAST(user_id AS TEXT), name, username, approved_at FROM approved_users_old;
+                                DROP TABLE approved_users_old;
+                            """)
+                        logger.info(f"Migrated {table}.user_id from INTEGER to TEXT")
+                except Exception as e:
+                    logger.warning(f"Migration {table} user_id→TEXT: {e}")
 
     # ── Migração de JSON legado ──────────────────────────────────────────────
 
@@ -241,7 +278,7 @@ class BotDB:
 
     # ── Conversations ────────────────────────────────────────────────────────
 
-    def load_conversation(self, user_id: int) -> list:
+    def load_conversation(self, user_id: int | str) -> list:
         row = self._conn.execute(
             "SELECT messages FROM conversations WHERE user_id = ?", (user_id,)
         ).fetchone()
@@ -249,7 +286,7 @@ class BotDB:
             return json.loads(row["messages"])
         return []
 
-    def save_conversation(self, user_id: int, messages: list):
+    def save_conversation(self, user_id: int | str, messages: list):
         self._conn.execute(
             "INSERT INTO conversations (user_id, messages, updated_at) VALUES (?, ?, ?) "
             "ON CONFLICT(user_id) DO UPDATE SET messages = excluded.messages, updated_at = excluded.updated_at",
@@ -257,11 +294,11 @@ class BotDB:
         )
         self._conn.commit()
 
-    def clear_conversation(self, user_id: int):
+    def clear_conversation(self, user_id: int | str):
         self._conn.execute("DELETE FROM conversations WHERE user_id = ?", (user_id,))
         self._conn.commit()
 
-    def archive_conversation(self, user_id: int, messages: list, bot_name: str):
+    def archive_conversation(self, user_id: int | str, messages: list, bot_name: str):
         """Arquiva sessão atual antes de limpar. Ignora se não há mensagens."""
         if not messages:
             return
@@ -289,7 +326,7 @@ class BotDB:
 
     # ── Tasks ────────────────────────────────────────────────────────────────
 
-    def task_create(self, user_id: int, tid: str, title: str,
+    def task_create(self, user_id: int | str, tid: str, title: str,
                     description: str, steps: list[str]) -> str:
         now = datetime.now().isoformat()
         self._conn.execute(
@@ -322,7 +359,7 @@ class BotDB:
         row = self._conn.execute("SELECT * FROM tasks WHERE id = ?", (tid,)).fetchone()
         return self._row_to_task(row) if row else None
 
-    def tasks_for_user(self, user_id: int, status: str | None = None) -> list[dict]:
+    def tasks_for_user(self, user_id: int | str, status: str | None = None) -> list[dict]:
         if status:
             rows = self._conn.execute(
                 "SELECT * FROM tasks WHERE user_id = ? AND status = ? ORDER BY updated_at DESC",
@@ -354,7 +391,7 @@ class BotDB:
 
     # ── Schedules ────────────────────────────────────────────────────────────
 
-    def schedule_add(self, sid: str, user_id: int, hour: int, minute: int,
+    def schedule_add(self, sid: str, user_id: int | str, hour: int, minute: int,
                      weekdays: str, message: str, day_of_month: int = 0,
                      name: str = "", description: str = ""):
         self._conn.execute(
@@ -374,7 +411,7 @@ class BotDB:
 
     # ── Analytics ────────────────────────────────────────────────────────────
 
-    def log_event(self, bot: str, user_id: int, input_tokens: int,
+    def log_event(self, bot: str, user_id: int | str, input_tokens: int,
                   output_tokens: int, tool_calls: int, latency_ms: int,
                   error: str = ""):
         self._conn.execute(
@@ -387,7 +424,7 @@ class BotDB:
 
     # ── Traces ───────────────────────────────────────────────────────────────
 
-    def save_trace(self, trace_id: str, bot_name: str, user_id: int,
+    def save_trace(self, trace_id: str, bot_name: str, user_id: int | str,
                    started_at: str, total_spans: int, total_tool_calls: int,
                    total_llm_calls: int, total_input_tokens: int,
                    total_output_tokens: int, total_latency_ms: int,
@@ -404,7 +441,7 @@ class BotDB:
         )
         self._conn.commit()
 
-    def get_traces(self, bot_name: str = "", user_id: int = 0, limit: int = 20) -> list[dict]:
+    def get_traces(self, bot_name: str = "", user_id: int | str = 0, limit: int = 20) -> list[dict]:
         if bot_name and user_id:
             rows = self._conn.execute(
                 "SELECT * FROM traces WHERE bot_name = ? AND user_id = ? "
@@ -431,7 +468,7 @@ class BotDB:
 
     # ── Action Log ───────────────────────────────────────────────────────────
 
-    def log_action(self, user_id: int, tool_name: str, tool_input_preview: str,
+    def log_action(self, user_id: int | str, tool_name: str, tool_input_preview: str,
                    classification: str, score: float = 0.0):
         self._conn.execute(
             "INSERT INTO action_log (user_id, tool_name, tool_input_preview, classification, score) "
@@ -454,11 +491,11 @@ class BotDB:
 
     # ── Approved Users ──────────────────────────────────────────────────────
 
-    def load_approved(self) -> dict[int, dict]:
+    def load_approved(self) -> dict[int | str, dict]:
         rows = self._conn.execute("SELECT * FROM approved_users").fetchall()
         return {r["user_id"]: {"name": r["name"], "username": r["username"]} for r in rows}
 
-    def approve_user(self, user_id: int, name: str, username: str):
+    def approve_user(self, user_id: int | str, name: str, username: str):
         self._conn.execute(
             "INSERT INTO approved_users (user_id, name, username, approved_at) "
             "VALUES (?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET name = excluded.name, username = excluded.username",
@@ -466,12 +503,12 @@ class BotDB:
         )
         self._conn.commit()
 
-    def revoke_user(self, user_id: int) -> bool:
+    def revoke_user(self, user_id: int | str) -> bool:
         cur = self._conn.execute("DELETE FROM approved_users WHERE user_id = ?", (user_id,))
         self._conn.commit()
         return cur.rowcount > 0
 
-    def is_approved(self, user_id: int) -> bool:
+    def is_approved(self, user_id: int | str) -> bool:
         row = self._conn.execute(
             "SELECT 1 FROM approved_users WHERE user_id = ?", (user_id,)
         ).fetchone()

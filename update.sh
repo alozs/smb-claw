@@ -83,17 +83,24 @@ RESTARTED=0
 for bot_dir in "$BASE_DIR"/bots/*/; do
     bot=$(basename "$bot_dir")
     if [ "$IN_DOCKER" = true ]; then
-        if pgrep -f "bot.py --bot-dir.*bots/$bot" > /dev/null 2>&1; then
-            pkill -f "bot.py --bot-dir.*bots/$bot" 2>/dev/null
+        # Detecta canal e script correto
+        channel=$(grep -m1 '^CHANNEL=' "$bot_dir/.env" 2>/dev/null | cut -d= -f2)
+        if [ "$channel" = "whatsapp" ]; then
+            bot_script="whatsapp_bot.py"
+        else
+            bot_script="bot.py"
+        fi
+        if pgrep -f "$bot_script --bot-dir.*bots/$bot" > /dev/null 2>&1; then
+            pkill -f "$bot_script --bot-dir.*bots/$bot" 2>/dev/null
             # Espera processo morrer e lock ser liberado
             for _i in $(seq 1 10); do
-                pgrep -f "bot.py --bot-dir.*bots/$bot" > /dev/null 2>&1 || break
+                pgrep -f "$bot_script --bot-dir.*bots/$bot" > /dev/null 2>&1 || break
                 sleep 1
             done
             rm -f "$BASE_DIR/.locks/"*"${bot}"* 2>/dev/null
             log_file="$BASE_DIR/logs/${bot}.log"
             mkdir -p "$BASE_DIR/logs"
-            nohup python3 "$BASE_DIR/bot.py" --bot-dir "$bot_dir" >> "$log_file" 2>&1 &
+            nohup python3 "$BASE_DIR/$bot_script" --bot-dir "$bot_dir" >> "$log_file" 2>&1 &
             echo "  ✅ $bot"
             RESTARTED=$((RESTARTED + 1))
             sleep 2

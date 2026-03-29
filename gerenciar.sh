@@ -15,12 +15,34 @@ list_bots() {
     ls "$BOTS_DIR" 2>/dev/null
 }
 
+# Detecta o canal do bot a partir do .env
+get_bot_script() {
+    local bot="$1"
+    local channel
+    channel=$(grep -m1 '^CHANNEL=' "$BOTS_DIR/$bot/.env" 2>/dev/null | cut -d= -f2)
+    if [ "$channel" = "whatsapp" ]; then
+        echo "$BASE_DIR/whatsapp_bot.py"
+    else
+        echo "$BASE_DIR/bot.py"
+    fi
+}
+
+# Pattern para pkill — identifica o processo correto
+get_bot_pattern() {
+    local bot="$1"
+    local script
+    script=$(basename "$(get_bot_script "$bot")")
+    echo "$script --bot-dir.*bots/$bot"
+}
+
 start_bot() {
     local bot="$1"
+    local bot_script
+    bot_script=$(get_bot_script "$bot")
     if [ "$IN_DOCKER" = true ]; then
         local log_file="$BASE_DIR/logs/${bot}.log"
         mkdir -p "$BASE_DIR/logs"
-        nohup python3 "$BASE_DIR/bot.py" --bot-dir "$BOTS_DIR/$bot" >> "$log_file" 2>&1 &
+        nohup python3 "$bot_script" --bot-dir "$BOTS_DIR/$bot" >> "$log_file" 2>&1 &
         echo "✅ $bot iniciado (PID $!)"
     else
         sudo systemctl start "claude-bot-$bot" && echo "✅ $bot iniciado"
@@ -29,8 +51,10 @@ start_bot() {
 
 stop_bot() {
     local bot="$1"
+    local pattern
+    pattern=$(get_bot_pattern "$bot")
     if [ "$IN_DOCKER" = true ]; then
-        pkill -f "bot.py --bot-dir.*bots/$bot" 2>/dev/null && echo "⏹ $bot parado" || echo "⏹ $bot não estava rodando"
+        pkill -f "$pattern" 2>/dev/null && echo "⏹ $bot parado" || echo "⏹ $bot não estava rodando"
     else
         sudo systemctl stop "claude-bot-$bot" && echo "⏹ $bot parado"
     fi
@@ -38,12 +62,15 @@ stop_bot() {
 
 restart_bot() {
     local bot="$1"
+    local bot_script pattern
+    bot_script=$(get_bot_script "$bot")
+    pattern=$(get_bot_pattern "$bot")
     if [ "$IN_DOCKER" = true ]; then
-        pkill -f "bot.py --bot-dir.*bots/$bot" 2>/dev/null
+        pkill -f "$pattern" 2>/dev/null
         sleep 1
         local log_file="$BASE_DIR/logs/${bot}.log"
         mkdir -p "$BASE_DIR/logs"
-        nohup python3 "$BASE_DIR/bot.py" --bot-dir "$BOTS_DIR/$bot" >> "$log_file" 2>&1 &
+        nohup python3 "$bot_script" --bot-dir "$BOTS_DIR/$bot" >> "$log_file" 2>&1 &
         echo "🔄 $bot reiniciado (PID $!)"
     else
         sudo systemctl restart "claude-bot-$bot" && echo "🔄 $bot reiniciado"
@@ -55,7 +82,9 @@ case "$1" in
         echo "=== Status dos Bots Claude ==="
         for bot in $(list_bots); do
             if [ "$IN_DOCKER" = true ]; then
-                if pgrep -f "bot.py --bot-dir.*bots/$bot" > /dev/null 2>&1; then
+                local pattern
+                pattern=$(get_bot_pattern "$bot")
+                if pgrep -f "$pattern" > /dev/null 2>&1; then
                     status="active"
                 else
                     status="inativo"

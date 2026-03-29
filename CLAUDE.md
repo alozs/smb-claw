@@ -8,7 +8,9 @@ Este arquivo é lido pelo Claude Code antes de qualquer modificação no projeto
 ## Arquitetura
 
 ```
-bot.py          — Core: config, Telegram handlers, main loop
+bot.py          — Telegram bot: handlers, main loop (usa core.py)
+core.py         — Pipeline IA compartilhado: ask_claude, build_context, tools, acesso, guardrails
+whatsapp_bot.py — WhatsApp bot via neonize: handlers, QR pairing, main loop (usa core.py)
 db.py           — Persistência SQLite (WAL mode) — conversations, tasks, schedules, analytics, approved_users, traces, action_log
 tracer.py       — Tracing granular: Trace/Span por invocação de ask_*, persistido em traces
 compactor.py    — Compactação inteligente de contexto via sumarização (opt-in)
@@ -141,6 +143,51 @@ Valor: lista separada por vírgula ou `none`.
 | Tavily | `tavily` | `TAVILY_API_KEY` | Busca na web por query + extração de conteúdo limpo de páginas com JavaScript |
 | Database | `database` | `DB_URL` | Queries SQL (PostgreSQL, MySQL, SQLite) |
 | Sub-agentes | *(auto-descoberto)* | — | Delegação para sub-agentes em `subagents/`. Ferramentas `agent_<nome>` geradas automaticamente. Configurar via `subagents/<nome>/.env` e `soul.md`. Sub-agentes recebem **apenas** as ferramentas declaradas no seu `TOOLS` (sem ferramentas "sempre ativas" como tasks/memory/schedule). Analytics de sub-agentes são logados com bot `<bot>/sub:<agent_name>`. |
+
+---
+
+## Canais: Telegram e WhatsApp
+
+Cada bot opera em **um canal** definido pela variável `CHANNEL` no `.env`.
+
+| Aspecto | Telegram (`bot.py`) | WhatsApp (`whatsapp_bot.py`) |
+|---|---|---|
+| Transporte | python-telegram-bot (API oficial) | neonize (whatsmeow/Baileys) |
+| Autenticação | Token do @BotFather | QR code (WhatsApp Web multi-device) |
+| User ID | `int` (ex: 808636112) | `str` JID (ex: 5511999999999@s.whatsapp.net) |
+| Grupo | `chat.type in ('group','supergroup')` | JID termina com `@g.us` |
+| Formato texto | Markdown → HTML | Texto puro com *bold* _italic_ \`\`\`code\`\`\` |
+| Max chars | 4096 | 4000 |
+| Inline keyboards | `InlineKeyboardMarkup` | Menus numerados por texto |
+| Aprovação acesso | Botões approve/deny | Admin responde "aprovar/negar <jid>" |
+
+### Arquitetura compartilhada (`core.py`)
+
+`core.py` contém todo o pipeline de IA compartilhado:
+- `init(bot_dir)` inicializa globals do módulo (DB, config, conversas)
+- `ask_claude()`, `build_context()`, `get_system_prompt()`
+- Providers: `_ask_anthropic()`, `_ask_openrouter()`, `_ask_codex()`, `_ask_cli()`
+- Tool definitions e dispatch
+- Acesso: `has_access()`, `is_admin()`, `_sync_approve()`, `_sync_revoke()`
+- Guardrails e injection detection
+
+`bot.py` e `whatsapp_bot.py` importam `core` e usam `core.xxx` para acessar funções e globals.
+
+### WhatsApp: arquivos por bot
+
+```
+bots/<nome>/
+├── whatsapp_auth/        ← sessão neonize (SQLite interno)
+├── whatsapp_qr.png       ← QR code atual (lido pelo admin panel)
+├── whatsapp_status.json  ← {"status":"connected","connected":true,"phone":"..."}
+└── whatsapp_logout       ← arquivo-sinal para desconectar
+```
+
+### Criar bot WhatsApp
+
+```bash
+./criar-bot.sh meu-bot --channel whatsapp
+```
 
 ---
 
@@ -284,6 +331,8 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 | `INJECTION_THRESHOLD` | — | `0.7` | Score mínimo para flag de injection (0.0 = desabilitado). Scoring multi-padrão: 0.3 por padrão fraco, 0.5 por padrão forte |
 | `BEHAVIOR_LEARNING_ENABLED` | — | `true` | Carrega BEHAVIOR.md no system prompt e habilita extração pelo behavior-extract.sh (embutido no memory-autosave.sh) |
 | `BEHAVIOR_MAX_CHARS` | — | `2000` | Tamanho máximo do perfil comportamental no contexto |
+| `CHANNEL` | — | `telegram` | Canal de comunicação: `telegram` ou `whatsapp`. Cada bot opera em um canal. |
+| `WHATSAPP_PHONE` | — | (vazio) | Número WhatsApp exibido no painel admin (informativo, formato E.164) |
 
 ## Variáveis do config.global
 
