@@ -595,10 +595,23 @@
   <!-- Novidades — movido para antes do CTA final -->
   <section id="changelog" class="changelog container">
     <h2 style="text-align: center; font-size: 2.25rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 48px; color: var(--white);">
-      Novidades <!-- CHANGELOG_VERSION -->v0.13.1<!-- /CHANGELOG_VERSION --> <span class="cl-badge">Novo</span>
+      Novidades <!-- CHANGELOG_VERSION -->v0.13.2<!-- /CHANGELOG_VERSION --> <span class="cl-badge">Novo</span>
     </h2>
     <!-- CHANGELOG_START -->
                 <div class="cl-entry">
+          <div class="cl-header">
+            <span class="cl-version">v0.13.2</span>
+            <span class="cl-date">2026-03-29</span>
+          </div>
+          <div class="cl-body">
+            <p><strong>Alterações</strong></p>
+            <ul>
+              <li>Melhorias</li>
+              <li>Removidos os comandos /tasks, /memory, /stats e /trace do Telegram, simplificando a interface do bot e reduzindo comandos que expunham detalhes internos do sistema ao usuário final</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cl-entry">
           <div class="cl-header">
             <span class="cl-version">v0.13.1</span>
             <span class="cl-date">2026-03-29</span>
@@ -624,24 +637,6 @@
               <li>Conexão WhatsApp via QR code com gerenciamento de sessão integrado ao painel admin (status de conexão, reconexão e logout)</li>
               <li>Criação de bots WhatsApp pelo terminal com ./criar-bot.sh meu-bot --channel whatsapp</li>
               <li>O wizard /criar_agente no Telegram agora permite escolher o canal (Telegram ou WhatsApp) durante a criação do bot</li>
-            </ul>
-          </div>
-        </div>
-        <div class="cl-entry">
-          <div class="cl-header">
-            <span class="cl-version">v0.12.0</span>
-            <span class="cl-date">2026-03-24</span>
-          </div>
-          <div class="cl-body">
-            <p><strong>Novas funcionalidades</strong></p>
-            <ul>
-              <li>Galeria de agentes pré-configurados no painel web: CEO, Marketing, Assistente Pessoal e Financeiro — soul, ferramentas e modelo já prontos. Selecione, nomeie e cole o token para criar em segundos. Mais templates chegando em breve.</li>
-              <li>Preview da personalidade do agente diretamente na galeria antes de criar.</li>
-            </ul>
-            <p><strong>Correções</strong></p>
-            <ul>
-              <li>Wizard de criação com scroll vertical correto em telas menores.</li>
-              <li>Painel admin reflete corretamente as ferramentas configuradas por bot.</li>
             </ul>
           </div>
         </div>

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.2 (2026-03-29)
+
+Melhorias
+
+• Removidos os comandos /tasks, /memory, /stats e /trace do Telegram, simplificando a interface do bot e reduzindo comandos que expunham detalhes internos do sistema ao usuário final
+
 ## 0.13.1 (2026-03-29)
 
 
