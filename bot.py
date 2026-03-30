@@ -1575,24 +1575,13 @@ def _build_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     user_rows = [
         [
             InlineKeyboardButton("🆕 Nova conversa", callback_data="menu_clear"),
-            InlineKeyboardButton("ℹ️ Sobre o bot",   callback_data="menu_info"),
-        ],
-        [
-            InlineKeyboardButton("🆔 Meu ID",           callback_data="menu_id"),
-            InlineKeyboardButton("🤔 Raciocínio",       callback_data="menu_thinking"),
-        ],
-        [
             InlineKeyboardButton("❌ Cancelar operação", callback_data="menu_cancel"),
         ],
     ]
     admin_rows = [
         [
-            InlineKeyboardButton("👥 Usuários",   callback_data="menu_users"),
-            InlineKeyboardButton("⏳ Pendentes",  callback_data="menu_pending"),
-        ],
-        [
-            InlineKeyboardButton("⚙️ Config",           callback_data="menu_config"),
-            InlineKeyboardButton("🔗 Painel Admin",     callback_data="menu_painel"),
+            InlineKeyboardButton("⏳ Usuários pendentes", callback_data="menu_pending"),
+            InlineKeyboardButton("🔗 Painel Admin",       callback_data="menu_painel"),
         ],
         [
             InlineKeyboardButton("🔄 Reiniciar agente",  callback_data="menu_restart"),
@@ -1640,24 +1629,6 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             _cli_sessions.pop(user_id, None)
         await reply("🗑️ Histórico limpo!")
 
-    elif action == "menu_info":
-        soul = _read_file_safe(BOT_DIR / "soul.md")
-        text = f"*{BOT_NAME}*\n\n{soul or '(soul.md não encontrado)'}"
-        for chunk in _split_html(_md_to_html(text)):
-            await context.bot.send_message(chat_id=chat_id, text=chunk, parse_mode="HTML")
-
-    elif action == "menu_id":
-        await reply(f"🆔 Seu ID Telegram: `{user_id}`", parse_mode="Markdown")
-
-    elif action == "menu_thinking":
-        current = _thinking_levels.get(user_id, "off")
-        await reply(
-            f"🤔 *Raciocínio estendido*\nNível atual: `{current}`\n\n"
-            "Use `/thinking off|low|medium|high` para alterar.\n"
-            "• off — desativado\n• low — 2k tokens\n• medium — 6k tokens\n• high — 16k tokens",
-            parse_mode="Markdown",
-        )
-
     elif action == "menu_cancel":
         proc = _cli_procs.get(user_id)
         if proc:
@@ -1669,14 +1640,6 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         else:
             await reply("✅ Nenhuma operação em andamento.")
 
-    elif action == "menu_users" and is_admin(user_id):
-        if not approved_users:
-            await reply("Nenhum usuário aprovado."); return
-        lines = [f"👥 *Aprovados — {BOT_NAME}*\n"]
-        for uid, info in list(approved_users.items())[:30]:
-            lines.append(f"• {info.get('name','?')} {info.get('username','')} — `{uid}`")
-        await reply("\n".join(lines), parse_mode="Markdown")
-
     elif action == "menu_pending" and is_admin(user_id):
         if not pending:
             await reply("Nenhuma solicitação pendente."); return
@@ -1685,14 +1648,6 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             lines.append(f"• {info['name']} {info['username']} — `{uid}`")
         await reply("\n".join(lines), parse_mode="Markdown")
 
-
-    elif action == "menu_config" and is_admin(user_id):
-        await reply(
-            "⚙️ *Configurações*\n\n"
-            "Use o painel admin para gerenciar configurações:\n\n"
-            "👉 Use /painel para gerar um link de acesso",
-            parse_mode="Markdown",
-        )
 
     elif action == "menu_restart" and is_admin(user_id):
         service = f"claude-bot-{BOT_DIR.name}"
@@ -1711,7 +1666,7 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         try:
             req = urllib.request.Request(
                 f"http://127.0.0.1:{admin_port}/api/gen-token",
-                data=_json.dumps({"ttl": 1800}).encode(),
+                data=_json.dumps({"ttl": 3600}).encode(),
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
@@ -1730,7 +1685,7 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 panel_url = f"http://localhost:{admin_port}"
         link = f"{panel_url}/?token={token}"
         await reply(
-            f"🔗 *Painel Admin* (30 min)\n\n`{link}`\n\n_Abra no navegador para acessar._",
+            f"🔗 *Painel Admin* (1 hora)\n\n`{link}`\n\n_Abra no navegador para acessar._",
             parse_mode="Markdown",
         )
 
@@ -1809,15 +1764,16 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         # Default welcome message
         tools_info = f"\n🔧 `{', '.join(sorted(ENABLED_TOOLS))}`" if ENABLED_TOOLS else ""
+        thinking_cmds = "\n🧠 /raciocinio\\_high · /raciocinio\\_medium · /raciocinio\\_low · /raciocinio\\_off"
         admin_extra = (
-            "\n\n*Admin:*\n/users — aprovados\n/pending — pendentes\n"
-            "/revoke <id> — revogar\n/painel — abrir painel admin\n"
-            "/criar\\_agente — novo agente via wizard\n/criar\\_subagente — novo sub-agente\n/apagar\\_agente — remover agente"
+            "\n\n*Admin:*\n/pendentes — usuários pendentes\n"
+            "/painel — abrir painel admin\n"
+            "/reiniciar — reiniciar agente\n/atualizar — atualizar sistema"
             if is_admin(user.id) else ""
         )
         welcome_msg = (
             f"Olá, {user.first_name}! Sou o *{BOT_NAME}*.{tools_info}\n\n"
-            "/clear — limpa histórico\n/cancel — cancela operação em andamento\n/info — quem sou eu\n/id — seu ID\n/thinking — raciocínio estendido"
+            f"/start — nova conversa\n/cancel — cancela operação{thinking_cmds}"
             f"{admin_extra}"
         )
     await update.message.reply_text(
@@ -1877,25 +1833,24 @@ async def cmd_thinking(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(f"{icons[level]} Thinking: *{level}*", parse_mode="Markdown")
 
 
-async def cmd_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not has_access(update.effective_user.id): return
-    soul = _read_file_safe(BOT_DIR / "soul.md")
-    await send_long(update, f"*{BOT_NAME}*\n\n{soul or '(soul.md não encontrado)'}")
+async def _set_thinking(update: Update, level: str) -> None:
+    uid = update.effective_user.id
+    if not has_access(uid): return
+    _thinking_levels[uid] = level
+    icons = {"off": "💭", "low": "🧠", "medium": "🧠🧠", "high": "🧠🧠🧠"}
+    await update.message.reply_text(f"{icons[level]} Thinking: *{level}*", parse_mode="Markdown")
 
+async def cmd_raciocinio_high(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _set_thinking(update, "high")
 
-async def cmd_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(f"Seu ID: `{update.effective_user.id}`", parse_mode="Markdown")
+async def cmd_raciocinio_medium(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _set_thinking(update, "medium")
 
+async def cmd_raciocinio_low(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _set_thinking(update, "low")
 
-
-async def cmd_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not is_admin(update.effective_user.id): return
-    if not approved_users:
-        await update.message.reply_text("Nenhum usuário aprovado."); return
-    lines = [f"👥 *Aprovados — {BOT_NAME}*\n"]
-    for uid, info in approved_users.items():
-        lines.append(f"• {info.get('name','?')} {info.get('username','')} — `{uid}`")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+async def cmd_raciocinio_off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _set_thinking(update, "off")
 
 
 async def cmd_pending(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2878,18 +2833,6 @@ def _remove_env_key(path: Path, key: str) -> None:
     path.write_text("\n".join(result) + "\n", encoding="utf-8")
 
 
-async def cmd_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Redireciona ao painel web admin para configurações."""
-    if not is_admin(update.effective_user.id):
-        return
-    await update.message.reply_text(
-        "⚙️ *Configurações*\n\n"
-        "Use o painel admin para gerenciar configurações:\n\n"
-        "👉 Use /painel para gerar um link de acesso",
-        parse_mode="Markdown",
-    )
-
-
 async def cmd_painel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Gera link temporário de acesso ao painel admin."""
     if not is_admin(update.effective_user.id):
@@ -2899,7 +2842,7 @@ async def cmd_painel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     # TTL do argumento ou 30 min default
     args = (context.args or [])
-    ttl_min = int(args[0]) if args else 30
+    ttl_min = int(args[0]) if args else 60
     ttl_sec = ttl_min * 60
 
     admin_port = os.environ.get("ADMIN_PORT", "8080")
@@ -3818,20 +3761,23 @@ def main() -> None:
     app.add_handler(CommandHandler("clear",   cmd_clear))
     app.add_handler(CommandHandler("cancel",  cmd_cancel))
     app.add_handler(CommandHandler("thinking", cmd_thinking))
-    app.add_handler(CommandHandler("info",    cmd_info))
-    app.add_handler(CommandHandler("id",      cmd_id))
+    app.add_handler(CommandHandler("raciocinio_high",   cmd_raciocinio_high))
+    app.add_handler(CommandHandler("raciocinio_medium", cmd_raciocinio_medium))
+    app.add_handler(CommandHandler("raciocinio_low",    cmd_raciocinio_low))
+    app.add_handler(CommandHandler("raciocinio_off",    cmd_raciocinio_off))
     app.add_handler(CommandHandler("menu",    cmd_menu))
-    app.add_handler(CommandHandler("users",   cmd_users))
     app.add_handler(CommandHandler("pending", cmd_pending))
+    app.add_handler(CommandHandler("pendentes", cmd_pending))
     app.add_handler(CommandHandler("revoke",   cmd_revoke))
     app.add_handler(CommandHandler("restart",  cmd_restart))
+    app.add_handler(CommandHandler("reiniciar", cmd_restart))
     app.add_handler(CommandHandler("status",   cmd_status))
     app.add_handler(CommandHandler("version",  cmd_version))
     app.add_handler(CommandHandler("update",   cmd_update))
+    app.add_handler(CommandHandler("atualizar", cmd_update))
     app.add_handler(CommandHandler("criar_agente",    cmd_criar_agente))
     app.add_handler(CommandHandler("criar_subagente", cmd_criar_subagente))
     app.add_handler(CommandHandler("cancelar_wizard", cmd_cancelar_wizard))
-    app.add_handler(CommandHandler("config",            cmd_config))
     app.add_handler(CommandHandler("painel",           cmd_painel))
     app.add_handler(CommandHandler("apagar_agente",   cmd_apagar_agente))
     app.add_handler(CallbackQueryHandler(callback_del_agent, pattern=r"^del_agent_"))
@@ -3846,10 +3792,11 @@ def main() -> None:
     # Comandos não registrados (ex: /radar, /hoje, /carteira) são passados para a IA como texto
     # O '/' é removido para evitar que provedores cli (claude-cli, codex) interpretem como slash command
     _known_commands = {
-        "start", "menu", "clear", "cancel", "thinking", "info", "id", "tasks",
-        "memory", "stats", "trace", "users", "pending", "revoke", "restart",
-        "status", "version", "update", "criar_agente", "criar_subagente",
-        "cancelar_wizard", "config", "painel", "apagar_agente",
+        "start", "menu", "clear", "cancel", "thinking",
+        "raciocinio_high", "raciocinio_medium", "raciocinio_low", "raciocinio_off",
+        "pending", "pendentes", "revoke", "restart", "reiniciar",
+        "status", "version", "update", "atualizar", "criar_agente", "criar_subagente",
+        "cancelar_wizard", "painel", "apagar_agente",
     }
     async def handle_unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if update.message and update.message.text and update.message.text.startswith("/"):

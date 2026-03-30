@@ -3961,7 +3961,10 @@ function adminApp() {
     },
     getRecommendedModel(description) {
       if (!description) return null;
-      const all = [...(this.architectDirectModels || []), ...(this.architectORModels || []).map(m => ({...m, caps: m.caps || []}))];
+      const all = [
+        ...(this.architectDirectModels || []).map(m => ({...m, _source: 'direct'})),
+        ...(this.architectORModels || []).map(m => ({...m, caps: m.caps || [], _source: 'openrouter'})),
+      ];
       if (!all.length) return null;
       const desc = description.toLowerCase();
       const hints = {
@@ -3988,7 +3991,10 @@ function adminApp() {
       const capsMatched = [...wanted].filter(w => (best.caps || []).includes(w));
       const emoji = this.architectCapsEmoji || {};
       const reason = capsMatched.map(c => emoji[c] || c).join(' ');
-      return { id: best.id, name: best.name || best.id, reason };
+      const displayName = best._source === 'openrouter'
+        ? 'OpenRouter/' + (best.name || best.id)
+        : (best.name || best.id) + ' (' + (best.provider || '') + ')';
+      return { id: best.id, name: displayName, reason };
     },
     modelLabel(m) {
       return (m || '')

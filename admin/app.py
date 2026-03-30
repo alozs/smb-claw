@@ -69,7 +69,7 @@ def _load_admin_env() -> dict:
 
 _admin_env = _load_admin_env()
 AUTH_SECRET = _admin_env.get("ADMIN_PASSWORD", secrets.token_urlsafe(32))
-TOKEN_TTL = int(_admin_env.get("TOKEN_TTL", "1800"))  # 30 min default
+TOKEN_TTL = int(_admin_env.get("TOKEN_TTL", "3600"))  # 1 hora default
 COOKIE_NAME = "admin_session"
 
 # In-memory token store: {token: expiry_timestamp}

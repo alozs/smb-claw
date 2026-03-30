@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.1 (2026-03-29)
+
+• Menu Telegram simplificado: removidos botões redundantes (info, ID, usuários, config), centralizado no painel admin
+• Comandos de raciocínio pré-configurados: /raciocinio_high, /raciocinio_medium, /raciocinio_low, /raciocinio_off
+• Aliases em português para comandos admin: /pendentes, /reiniciar, /atualizar
+• TTL padrão do painel admin aumentado de 30 min para 1 hora
+
 ## 0.14.0 (2026-03-29)
 
 ### Novas funcionalidades

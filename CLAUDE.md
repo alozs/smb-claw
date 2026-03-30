@@ -262,22 +262,24 @@ Se não estiver instalada, PDFs recebem fallback graceful com nome+tamanho.
 ### Todos os usuários
 | Comando | Descrição |
 |---|---|
-| `/start` | Inicia sessão, limpa histórico |
-| `/clear` | Limpa histórico de conversa |
-| `/info` | Exibe soul.md do bot |
-| `/id` | Retorna o Telegram ID do usuário |
-| `/thinking [off\|low\|medium\|high]` | Define nível de raciocínio estendido por sessão. `off`=desativado (padrão), `low`=2k tokens, `medium`=6k tokens, `high`=16k tokens. Suportado nos providers `anthropic` e `claude-cli`. |
+| `/start` | Inicia sessão (nova conversa), limpa histórico |
+| `/cancel` | Cancela operação em andamento |
+| `/raciocinio_high` | Raciocínio estendido: 16k tokens |
+| `/raciocinio_medium` | Raciocínio estendido: 6k tokens |
+| `/raciocinio_low` | Raciocínio estendido: 2k tokens |
+| `/raciocinio_off` | Desativa raciocínio estendido |
+| `/thinking [off\|low\|medium\|high]` | Forma alternativa de definir raciocínio estendido |
+| `/menu` | Menu interativo com botões |
 
 ### Somente admin (ADMIN_ID)
 | Comando | Descrição |
 |---|---|
-| `/users` | Lista usuários aprovados |
-| `/pending` | Lista solicitações pendentes |
+| `/pendentes` | Lista solicitações pendentes (alias: `/pending`) |
 | `/revoke <id>` | Revoga acesso de um usuário |
+| `/painel [min]` | Gera link temporário de acesso ao painel admin (default: 60 min) |
+| `/reiniciar` | Reinicia o agente (alias: `/restart`) |
+| `/atualizar` | Puxa atualizações e reinicia serviços (alias: `/update`) |
 | `/version` | Mostra versão atual e se há atualizações pendentes |
-| `/update` | Puxa atualizações do remote e reinicia todos os serviços |
-| `/painel [min]` | Gera link temporário de acesso ao painel admin (default: 30 min) |
-| `/config` | Redireciona ao painel web admin para gerenciar configurações |
 | `/criar_agente` | Abre wizard passo a passo para criar novo agente Telegram |
 | `/criar_subagente` | Abre wizard passo a passo para criar novo sub-agente |
 | `/cancelar_wizard` | Cancela wizard em andamento |
@@ -396,7 +398,7 @@ Apenas variáveis **únicas por bot**. Variáveis globais vêm do `config.global
 
 ## Segurança
 
-- **Painel admin protegido por token temporário:** middleware em `admin/app.py` bloqueia todas as rotas sem cookie de sessão válido. Tokens gerados via `/painel` (Telegram) ou `gerar-acesso.sh` (CLI). In-memory, perdem-se no restart (by design). Secret HMAC vem de `ADMIN_PASSWORD` em `.env.admin`. TTL configurável via `TOKEN_TTL` no `.env.admin` (default 1800s = 30 min). Geração restrita a localhost (`/api/gen-token`).
+- **Painel admin protegido por token temporário:** middleware em `admin/app.py` bloqueia todas as rotas sem cookie de sessão válido. Tokens gerados via `/painel` (Telegram) ou `gerar-acesso.sh` (CLI). In-memory, perdem-se no restart (by design). Secret HMAC vem de `ADMIN_PASSWORD` em `.env.admin`. TTL configurável via `TOKEN_TTL` no `.env.admin` (default 3600s = 1 hora). Geração restrita a localhost (`/api/gen-token`).
 - `.env` e `secrets.env` → `chmod 600` (só o dono lê)
 - Pastas dos bots → `chmod 700`
 - `bot_data.db` → `chmod 600`
